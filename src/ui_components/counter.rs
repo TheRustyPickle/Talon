@@ -1,3 +1,4 @@
+use arboard::Clipboard;
 use eframe::egui;
 use egui::{vec2, Align, Button, Grid, Label, Layout, ProgressBar, TextEdit, Ui};
 
@@ -152,11 +153,24 @@ impl MainWindow {
             ui.add(Label::new("Starting Point:"));
         });
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            let clear_button = ui
-                .add(Button::new("Clear"))
-                .on_hover_text("Clear text box content");
-            if clear_button.clicked() {
-                self.counter_data.start_from = String::new();
+            let clear_paste_button = if !self.counter_data.start_from.is_empty() {
+                ui.add(Button::new("Clear"))
+                    .on_hover_text("Clear text box content")
+            } else {
+                ui.add(Button::new("Paste"))
+                    .on_hover_text("Paste copied content")
+            };
+
+            if clear_paste_button.clicked() {
+                if self.counter_data.start_from.is_empty() {
+                    if let Ok(mut clipboard) = Clipboard::new() {
+                        if let Ok(copied_content) = clipboard.get_text() {
+                            self.counter_data.start_from = copied_content
+                        }
+                    }
+                } else {
+                    self.counter_data.start_from = String::new();
+                }
             }
             ui.add_sized(
                 ui.available_size(),
@@ -184,11 +198,24 @@ Starting message number will always be bigger than the ending message",
         });
 
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            let clear_button = ui
-                .add(Button::new("Clear"))
-                .on_hover_text("Clear text box content");
-            if clear_button.clicked() {
-                self.counter_data.end_at = String::new();
+            let clear_paste_button = if !self.counter_data.end_at.is_empty() {
+                ui.add(Button::new("Clear"))
+                    .on_hover_text("Clear text box content")
+            } else {
+                ui.add(Button::new("Paste"))
+                    .on_hover_text("Paste copied content")
+            };
+
+            if clear_paste_button.clicked() {
+                if self.counter_data.end_at.is_empty() {
+                    if let Ok(mut clipboard) = Clipboard::new() {
+                        if let Ok(copied_content) = clipboard.get_text() {
+                            self.counter_data.end_at = copied_content
+                        }
+                    }
+                } else {
+                    self.counter_data.end_at = String::new();
+                }
             }
             ui.add_sized(
                 ui.available_size(),

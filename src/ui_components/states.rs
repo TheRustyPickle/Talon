@@ -37,7 +37,7 @@ impl Display for ProcessState {
         match self {
             ProcessState::Idle => write!(f, "Status: Idle"),
             ProcessState::Counting(count) => {
-                write!(f, "Status: Checking Messages")?;
+                write!(f, "Status: Checking messages")?;
                 for _ in 0..*count {
                     write!(f, ".")?;
                 }
