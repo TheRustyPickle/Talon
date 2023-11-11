@@ -6,10 +6,10 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-eframe = { version = "0.23.0" }
-tracing = "0.1.40"
-tracing-subscriber = "0.3.17"
+eframe = "0.23.0"
 grammers-client = { git = "https://github.com/Lonami/grammers.git", package = "grammers-client"}
 grammers-session = { git = "https://github.com/Lonami/grammers.git", package = "grammers-session"}
 tokio = "1.33.0"
 dotenvy = "0.15.7"
+log = "0.4.20"
+pretty_env_logger = "0.5.0"
