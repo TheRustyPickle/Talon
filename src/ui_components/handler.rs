@@ -1,30 +1,24 @@
 use eframe::App;
 use eframe::{egui, Frame};
-use egui::{CentralPanel, Context};
+use egui::{Button, CentralPanel, Context, Visuals};
+use log::{debug, info};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::thread;
-use tracing::info;
 
 use crate::tg_handler::{start_tg_client, ProcessResult, ProcessStart, TGClient};
-use crate::ui_components::CounterData;
-use crate::utils::{find_session_files, parse_tg_chat};
+use crate::ui_components::{CounterData, ProcessState, TabState, UserTableData};
+use crate::utils::{find_session_files, get_theme_emoji, parse_tg_chat};
 
 pub struct MainWindow {
     pub counter_data: CounterData,
+    pub user_table: UserTableData,
     tab_state: TabState,
+    pub process_state: ProcessState,
     tg_sender: Sender<ProcessResult>,
     tg_receiver: Receiver<ProcessResult>,
     tg_clients: Vec<TGClient>,
     existing_sessions_checked: bool,
-}
-
-#[derive(PartialEq)]
-enum TabState {
-    Counter,
-    UserTable,
-    Charts,
-    Whitelist,
-    Sessions,
+    is_light_theme: bool,
 }
 
 impl Default for MainWindow {
@@ -32,11 +26,14 @@ impl Default for MainWindow {
         let (sender, receiver) = channel();
         Self {
             counter_data: CounterData::default(),
+            user_table: UserTableData::default(),
             tab_state: TabState::Counter,
+            process_state: ProcessState::Idle,
             tg_sender: sender,
             tg_receiver: receiver,
             tg_clients: Vec::new(),
             existing_sessions_checked: false,
+            is_light_theme: true,
         }
     }
 }
@@ -45,10 +42,23 @@ impl App for MainWindow {
     fn update(&mut self, ctx: &Context, _frame: &mut Frame) {
         CentralPanel::default().show(ctx, |ui| {
             ui.horizontal(|ui| {
+                let (theme_emoji, hover_text) = get_theme_emoji(self.is_light_theme);
+                let theme_button = ui
+                    .add(Button::new(theme_emoji).frame(false))
+                    .on_hover_text(hover_text);
+
+                if theme_button.clicked() {
+                    self.switch_theme(ctx)
+                }
+                ui.separator();
                 ui.selectable_value(&mut self.tab_state, TabState::Counter, "Counter");
+                ui.separator();
                 ui.selectable_value(&mut self.tab_state, TabState::UserTable, "User Table");
+                ui.separator();
                 ui.selectable_value(&mut self.tab_state, TabState::Charts, "Charts");
+                ui.separator();
                 ui.selectable_value(&mut self.tab_state, TabState::Whitelist, "Whitelist");
+                ui.separator();
                 ui.selectable_value(&mut self.tab_state, TabState::Sessions, "Sessions");
             });
             ui.separator();
@@ -78,7 +88,57 @@ impl App for MainWindow {
 
 impl MainWindow {
     fn check_receiver(&mut self) {
-        match self.tg_receiver.try_recv() {
+        while let Ok(data) = self.tg_receiver.try_recv() {
+            match data {
+                ProcessResult::NewClient(client) => {
+                    self.tg_clients.push(client);
+                    if self.tg_clients.len() == 1 {
+                        self.update_counter_session()
+                    }
+                }
+                ProcessResult::InvalidChat => {
+                    info!("Invalid chat found")
+                }
+                ProcessResult::UnauthorizedClient => info!("The client is not authorized"),
+                ProcessResult::CountingEnd => {
+                    info!("Counting ended");
+                    self.process_state = ProcessState::Idle;
+                    self.counter_data.counting_ended()
+                }
+                ProcessResult::CountingMessage(message, start_from, end_at) => {
+                    self.process_state = self.process_state.next_dot();
+                    let sender_option = message.sender();
+
+                    if let Some(sender) = sender_option {
+                        self.user_table.add_user(sender);
+                    } else {
+                        self.user_table.add_unknown_user();
+                    }
+
+                    let total_user = self.user_table.get_total_user();
+                    self.counter_data.set_total_user(total_user);
+
+                    let total_to_iter = start_from - end_at;
+                    let message_value = 100.0 / total_to_iter as f32;
+                    let current_message_number = message.id();
+
+                    let total_processed = start_from - current_message_number;
+                    let processed_percentage = if total_processed != 0 {
+                        total_processed as f32 * message_value
+                    } else {
+                        message_value
+                    };
+                    self.counter_data.add_one_total_message();
+                    debug!(
+                        "Bar percentage: {}. Current message: {current_message_number} Total message: {}, Started from: {}",
+                        processed_percentage, total_to_iter, start_from
+                    );
+                    self.counter_data
+                        .set_bar_percentage(processed_percentage / 100.0);
+                }
+            }
+        }
+        /*match self.tg_receiver.try_recv() {
             Ok(data) => match data {
                 ProcessResult::NewClient(client) => {
                     self.tg_clients.push(client);
@@ -90,9 +150,45 @@ impl MainWindow {
                     info!("Invalid chat found")
                 }
                 ProcessResult::UnauthorizedClient => info!("The client is not authorized"),
+                ProcessResult::CountingEnd => {
+                    info!("Counting ended");
+                    self.process_state = ProcessState::Idle;
+                    self.counter_data.counting_ended()
+                }
+                ProcessResult::CountingMessage(message, start_from, end_at) => {
+                    self.process_state = self.process_state.next_dot();
+                    let sender_option = message.sender();
+
+                    if let Some(sender) = sender_option {
+                        self.user_table.add_user(sender);
+                    } else {
+                        self.user_table.add_unknown_user();
+                    }
+
+                    let total_user = self.user_table.get_total_user();
+                    self.counter_data.set_total_user(total_user);
+
+                    let total_to_iter = start_from - end_at;
+                    let message_value = 100.0 / total_to_iter as f32;
+                    let current_message_number = message.id();
+
+                    let total_processed = start_from - current_message_number;
+                    let processed_percentage = if total_processed != 0 {
+                        total_processed as f32 * message_value
+                    } else {
+                        message_value
+                    };
+                    self.counter_data.add_one_total_message();
+                    debug!(
+                        "Bar percentage: {}. Current message: {current_message_number} Total message: {}, Started from: {}",
+                        processed_percentage, total_to_iter, start_from
+                    );
+                    self.counter_data
+                        .set_bar_percentage(processed_percentage / 100.0);
+                }
             },
             Err(_) => {}
-        }
+        }*/
     }
 
     fn update_counter_session(&mut self) {
@@ -101,7 +197,6 @@ impl MainWindow {
     }
 
     pub fn start_counting(&mut self) {
-        info!("Starting counting");
         let start_from = self.counter_data.get_start_from();
         let end_at = self.counter_data.get_end_at();
 
@@ -109,15 +204,29 @@ impl MainWindow {
         let (end_chat, end_num) = parse_tg_chat(end_at);
 
         if start_chat.is_none() {
+            self.process_state = ProcessState::InvalidStartChat;
             return;
         }
+
         let start_chat = start_chat.unwrap();
 
         if let Some(end_chat) = end_chat {
             if end_chat != start_chat {
+                self.process_state = ProcessState::UnmatchedChat;
                 return;
             }
         }
+
+        if start_num.is_some() && end_num.is_some() {
+            if start_num.unwrap() < end_num.unwrap() {
+                self.process_state = ProcessState::SmallerStartNumber;
+                return;
+            }
+        }
+
+        info!("Starting counting");
+        self.process_state = ProcessState::Counting(0);
+        self.counter_data.counting_started();
 
         let selected_client = self.counter_data.get_selected_session();
 
@@ -130,6 +239,16 @@ impl MainWindow {
 
                 break;
             }
+        }
+    }
+
+    fn switch_theme(&mut self, ctx: &Context) {
+        if self.is_light_theme {
+            ctx.set_visuals(Visuals::dark());
+            self.is_light_theme = false;
+        } else {
+            ctx.set_visuals(Visuals::light());
+            self.is_light_theme = true;
         }
     }
 }

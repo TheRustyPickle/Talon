@@ -1,10 +1,12 @@
 use eframe::egui::Context;
 use grammers_client::{Client, Config};
 use grammers_session::Session;
+use log::{debug, info};
 use std::env;
 use std::sync::mpsc::Sender;
+use std::thread::sleep;
+use std::time::Duration;
 use tokio::runtime::{self, Runtime};
-use tracing::info;
 
 use crate::tg_handler::{ProcessResult, ProcessStart};
 
@@ -68,31 +70,32 @@ impl TGClient {
         let tg_chat = tg_chat.unwrap().unwrap();
 
         let end_at = if let Some(num) = end_num { num } else { 0 };
-
-        let mut total_to_iter = if let Some(num) = start_num {
-            num - end_at
-        } else {
-            0
-        };
+        let mut start_at = if let Some(num) = start_num { num } else { -1 };
 
         let mut iter_message = self.client.iter_messages(tg_chat);
 
-        if total_to_iter != 0 {
-            iter_message = iter_message.limit(total_to_iter as usize)
-        }
-
         while let Some(message) = iter_message.next().await.unwrap() {
             let message_num = message.id();
-            if total_to_iter == 0 {
-                total_to_iter = end_at as i32 - message_num
+            debug!("Got message number: {}", message_num);
+            if start_at == -1 {
+                start_at = message_num
             }
+
             if message_num < end_at {
                 break;
             }
             if message_num >= end_at {
-                // TODO send data to GUI
+                self.send(ProcessResult::CountingMessage(message, start_at, end_at))
+            }
+
+            // Sleep to prevent flood time being too noticeable/getting triggered
+            if start_at - end_at > 3000 {
+                sleep(Duration::from_millis(5))
+            } else {
+                sleep(Duration::from_millis(2))
             }
         }
+        self.send(ProcessResult::CountingEnd);
     }
 
     pub fn name(&self) -> String {

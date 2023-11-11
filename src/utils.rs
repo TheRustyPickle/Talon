@@ -1,5 +1,5 @@
+use log::info;
 use std::fs;
-use tracing::info;
 
 pub fn find_session_files() -> Vec<String> {
     let mut sessions = Vec::new();
@@ -50,4 +50,12 @@ pub fn parse_tg_chat(text: String) -> (Option<String>, Option<i32>) {
         chat_name, message_number
     );
     (chat_name, message_number)
+}
+
+pub fn get_theme_emoji(is_light_theme: bool) -> (String, String) {
+    if is_light_theme {
+        ("🌙".to_string(), "Switch to dark theme".to_string())
+    } else {
+        ("☀".to_string(), "Switch to light theme".to_string())
+    }
 }
