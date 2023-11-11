@@ -1,5 +1,8 @@
 use grammers_client::types::Chat;
 use std::collections::HashSet;
+use eframe::egui::Ui;
+
+use crate::ui_components::MainWindow;
 
 struct UserRowData {
     name: String,
@@ -44,5 +47,11 @@ impl UserTableData {
 
     pub fn get_total_user(&self) -> i32 {
         self.user_ids.len() as i32
+    }
+}
+
+impl MainWindow {
+    pub fn show_user_table_ui(&mut self, ui: &mut Ui) {
+        ui.label("Work in progress");
     }
 }

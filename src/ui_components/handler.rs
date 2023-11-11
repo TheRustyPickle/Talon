@@ -6,12 +6,15 @@ use std::sync::mpsc::{channel, Receiver, Sender};
 use std::thread;
 
 use crate::tg_handler::{start_tg_client, ProcessResult, ProcessStart, TGClient};
-use crate::ui_components::{CounterData, ProcessState, TabState, UserTableData};
+use crate::ui_components::{CounterData, ProcessState, TabState, UserTableData, ChartsData, SessionData, WhitelistData};
 use crate::utils::{find_session_files, get_theme_emoji, parse_tg_chat};
 
 pub struct MainWindow {
     pub counter_data: CounterData,
     pub user_table: UserTableData,
+    pub charts_data: ChartsData,
+    pub session_data: SessionData,
+    pub whitelist_data: WhitelistData,
     tab_state: TabState,
     pub process_state: ProcessState,
     tg_sender: Sender<ProcessResult>,
@@ -27,6 +30,9 @@ impl Default for MainWindow {
         Self {
             counter_data: CounterData::default(),
             user_table: UserTableData::default(),
+            charts_data: ChartsData::default(),
+            whitelist_data: WhitelistData::default(),
+            session_data: SessionData::default(),
             tab_state: TabState::Counter,
             process_state: ProcessState::Idle,
             tg_sender: sender,
@@ -59,12 +65,15 @@ impl App for MainWindow {
                 ui.separator();
                 ui.selectable_value(&mut self.tab_state, TabState::Whitelist, "Whitelist");
                 ui.separator();
-                ui.selectable_value(&mut self.tab_state, TabState::Sessions, "Sessions");
+                ui.selectable_value(&mut self.tab_state, TabState::Session, "Session");
             });
             ui.separator();
             match self.tab_state {
                 TabState::Counter => self.show_counter_ui(ui),
-                _ => {}
+                TabState::UserTable => self.show_user_table_ui(ui),
+                TabState::Charts => self.show_charts_ui(ui),
+                TabState::Whitelist => self.show_whitelist_ui(ui),
+                TabState::Session => self.show_session_ui(ui),
             }
 
             if !self.existing_sessions_checked {
@@ -87,6 +96,7 @@ impl App for MainWindow {
 }
 
 impl MainWindow {
+    // TODO move this to a separate file
     fn check_receiver(&mut self) {
         while let Ok(data) = self.tg_receiver.try_recv() {
             match data {
@@ -138,57 +148,6 @@ impl MainWindow {
                 }
             }
         }
-        /*match self.tg_receiver.try_recv() {
-            Ok(data) => match data {
-                ProcessResult::NewClient(client) => {
-                    self.tg_clients.push(client);
-                    if self.tg_clients.len() == 1 {
-                        self.update_counter_session()
-                    }
-                }
-                ProcessResult::InvalidChat => {
-                    info!("Invalid chat found")
-                }
-                ProcessResult::UnauthorizedClient => info!("The client is not authorized"),
-                ProcessResult::CountingEnd => {
-                    info!("Counting ended");
-                    self.process_state = ProcessState::Idle;
-                    self.counter_data.counting_ended()
-                }
-                ProcessResult::CountingMessage(message, start_from, end_at) => {
-                    self.process_state = self.process_state.next_dot();
-                    let sender_option = message.sender();
-
-                    if let Some(sender) = sender_option {
-                        self.user_table.add_user(sender);
-                    } else {
-                        self.user_table.add_unknown_user();
-                    }
-
-                    let total_user = self.user_table.get_total_user();
-                    self.counter_data.set_total_user(total_user);
-
-                    let total_to_iter = start_from - end_at;
-                    let message_value = 100.0 / total_to_iter as f32;
-                    let current_message_number = message.id();
-
-                    let total_processed = start_from - current_message_number;
-                    let processed_percentage = if total_processed != 0 {
-                        total_processed as f32 * message_value
-                    } else {
-                        message_value
-                    };
-                    self.counter_data.add_one_total_message();
-                    debug!(
-                        "Bar percentage: {}. Current message: {current_message_number} Total message: {}, Started from: {}",
-                        processed_percentage, total_to_iter, start_from
-                    );
-                    self.counter_data
-                        .set_bar_percentage(processed_percentage / 100.0);
-                }
-            },
-            Err(_) => {}
-        }*/
     }
 
     fn update_counter_session(&mut self) {

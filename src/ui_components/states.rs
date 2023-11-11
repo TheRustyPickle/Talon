@@ -6,7 +6,7 @@ pub enum TabState {
     UserTable,
     Charts,
     Whitelist,
-    Sessions,
+    Session,
 }
 
 pub enum ProcessState {

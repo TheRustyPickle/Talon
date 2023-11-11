@@ -1,6 +1,5 @@
 use arboard::Clipboard;
-use eframe::egui;
-use egui::{vec2, Align, Button, Grid, Label, Layout, ProgressBar, TextEdit, Ui};
+use eframe::egui::{vec2, Align, Button, Grid, Label, Layout, ProgressBar, TextEdit, Ui};
 
 use crate::ui_components::MainWindow;
 
@@ -188,7 +187,8 @@ Multiple input format is supported:
 4. chat_name
 
 If message number is not specified, starts from the latest message.
-Starting message number will always be bigger than the ending message",
+Starting message number will always be bigger than the ending message.
+To count all messages in a chat, paste the latest message link.",
             );
         });
 
@@ -233,7 +233,8 @@ Multiple input format is supported:
 4. chat_name
 
 If message number is not specified or is empty, counts all messages.
-Ending message number will always be smaller than the starting message",
+Ending message number will always be smaller than the starting message.
+To count all messages in a chat, paste the very first message link or keep it empty.",
             );
         });
         ui.end_row();
