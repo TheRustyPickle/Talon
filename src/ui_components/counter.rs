@@ -123,10 +123,6 @@ impl MainWindow {
         });
 
         ui.with_layout(Layout::bottom_up(Align::Min), |ui| {
-            let status_text = self.process_state.to_string();
-            ui.label(status_text);
-            ui.separator();
-            ui.add_space(5.0);
             let mut progress_bar =
                 ProgressBar::new(self.counter_data.bar_percentage).show_percentage();
             if self.counter_data.is_counting {

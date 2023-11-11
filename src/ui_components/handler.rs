@@ -1,12 +1,15 @@
 use eframe::App;
 use eframe::{egui, Frame};
 use egui::{Button, CentralPanel, Context, Visuals};
+use egui_extras::{Size, StripBuilder};
 use log::{debug, info};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::thread;
 
 use crate::tg_handler::{start_tg_client, ProcessResult, ProcessStart, TGClient};
-use crate::ui_components::{CounterData, ProcessState, TabState, UserTableData, ChartsData, SessionData, WhitelistData};
+use crate::ui_components::{
+    ChartsData, CounterData, ProcessState, SessionData, TabState, UserTableData, WhitelistData,
+};
 use crate::utils::{find_session_files, get_theme_emoji, parse_tg_chat};
 
 pub struct MainWindow {
@@ -68,13 +71,26 @@ impl App for MainWindow {
                 ui.selectable_value(&mut self.tab_state, TabState::Session, "Session");
             });
             ui.separator();
-            match self.tab_state {
-                TabState::Counter => self.show_counter_ui(ui),
-                TabState::UserTable => self.show_user_table_ui(ui),
-                TabState::Charts => self.show_charts_ui(ui),
-                TabState::Whitelist => self.show_whitelist_ui(ui),
-                TabState::Session => self.show_session_ui(ui),
-            }
+
+            // Split the UI in 2 parts. First part takes all the remaining space to show the main UI
+            // The second part takes a small amount of space to show the status text
+            StripBuilder::new(ui)
+                .size(Size::remainder().at_least(100.0))
+                .size(Size::exact(20.0))
+                .vertical(|mut strip| {
+                    strip.cell(|ui| match self.tab_state {
+                        TabState::Counter => self.show_counter_ui(ui),
+                        TabState::UserTable => self.show_user_table_ui(ui),
+                        TabState::Charts => self.show_charts_ui(ui),
+                        TabState::Whitelist => self.show_whitelist_ui(ui),
+                        TabState::Session => self.show_session_ui(ui),
+                    });
+                    strip.cell(|ui| {
+                        ui.separator();
+                        let status_text = self.process_state.to_string();
+                        ui.label(status_text);
+                    })
+                });
 
             if !self.existing_sessions_checked {
                 self.existing_sessions_checked = true;

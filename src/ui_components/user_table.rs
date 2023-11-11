@@ -1,6 +1,6 @@
+use eframe::egui::Ui;
 use grammers_client::types::Chat;
 use std::collections::HashSet;
-use eframe::egui::Ui;
 
 use crate::ui_components::MainWindow;
 
