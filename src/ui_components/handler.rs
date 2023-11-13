@@ -1,6 +1,5 @@
-use eframe::App;
-use eframe::{egui, Frame};
-use egui::{Button, CentralPanel, Context, Visuals};
+use eframe::{egui, App, Frame};
+use egui::{vec2, Button, CentralPanel, Context, Visuals};
 use egui_extras::{Size, StripBuilder};
 use log::{debug, info};
 use std::sync::mpsc::{channel, Receiver, Sender};
@@ -48,7 +47,7 @@ impl Default for MainWindow {
 }
 
 impl App for MainWindow {
-    fn update(&mut self, ctx: &Context, _frame: &mut Frame) {
+    fn update(&mut self, ctx: &Context, frame: &mut Frame) {
         CentralPanel::default().show(ctx, |ui| {
             ui.horizontal(|ui| {
                 let (theme_emoji, hover_text) = get_theme_emoji(self.is_light_theme);
@@ -60,9 +59,17 @@ impl App for MainWindow {
                     self.switch_theme(ctx)
                 }
                 ui.separator();
-                ui.selectable_value(&mut self.tab_state, TabState::Counter, "Counter");
+                let counter_tab =
+                    ui.selectable_value(&mut self.tab_state, TabState::Counter, "Counter");
+                if counter_tab.clicked() {
+                    frame.set_window_size(vec2(500.0, 300.0));
+                }
                 ui.separator();
-                ui.selectable_value(&mut self.tab_state, TabState::UserTable, "User Table");
+                let user_table_tab =
+                    ui.selectable_value(&mut self.tab_state, TabState::UserTable, "User Table");
+                if user_table_tab.clicked() {
+                    frame.set_window_size(vec2(850.0, 700.0));
+                }
                 ui.separator();
                 ui.selectable_value(&mut self.tab_state, TabState::Charts, "Charts");
                 ui.separator();
@@ -91,7 +98,6 @@ impl App for MainWindow {
                         ui.label(status_text);
                     })
                 });
-
             if !self.existing_sessions_checked {
                 self.existing_sessions_checked = true;
                 let existing_sessions = find_session_files();
@@ -134,12 +140,16 @@ impl MainWindow {
                 ProcessResult::CountingMessage(message, start_from, end_at) => {
                     self.process_state = self.process_state.next_dot();
                     let sender_option = message.sender();
+                    let mut sender_id = None;
 
                     if let Some(sender) = sender_option {
+                        sender_id = Some(sender.id());
                         self.user_table.add_user(sender);
                     } else {
                         self.user_table.add_unknown_user();
                     }
+
+                    self.user_table.count_user_message(sender_id, &message);
 
                     let total_user = self.user_table.get_total_user();
                     self.counter_data.set_total_user(total_user);

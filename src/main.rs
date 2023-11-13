@@ -34,9 +34,8 @@ fn main() {
     info!("Starting app");
     let native_options = eframe::NativeOptions {
         initial_window_size: Some(vec2(500.0, 300.0)),
-        min_window_size: Some(vec2(500.0, 300.0)),
-        max_window_size: Some(vec2(600.0, 350.0)),
         default_theme: Theme::Light,
+        resizable: true,
         ..Default::default()
     };
     eframe::run_native(
