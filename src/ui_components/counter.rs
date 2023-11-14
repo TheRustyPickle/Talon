@@ -137,10 +137,7 @@ impl MainWindow {
             ui.add(Label::new("Selected Session:"));
         });
         ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
-            ui.add(Label::new(format!(
-                "{}",
-                &mut self.counter_data.selected_session
-            )));
+            ui.add(Label::new(self.counter_data.selected_session.to_string()));
         });
         ui.end_row();
 

@@ -8,7 +8,6 @@ use eframe::egui;
 use eframe::Theme;
 use egui::vec2;
 use log::{info, LevelFilter};
-use pretty_env_logger;
 use std::env;
 
 fn main() {
@@ -41,7 +40,7 @@ fn main() {
     eframe::run_native(
         "Talon",
         native_options,
-        Box::new(|_cc| Box::new(MainWindow::default())),
+        Box::new(|_cc| Box::<MainWindow>::default()),
     )
     .unwrap();
 }

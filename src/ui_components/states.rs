@@ -53,23 +53,18 @@ impl Display for ProcessState {
     }
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Default)]
 pub enum SortBy {
-    SortByID,
-    SortByName,
-    SortByUsername,
-    SortByMessageNum,
-    SortByWordNum,
-    SortByCharNum,
-    SortByAverageChar,
-    SortByAverageWord,
-    SortByWhitelisted,
-}
-
-impl Default for SortBy {
-    fn default() -> Self {
-        SortBy::SortByName
-    }
+    #[default]
+    Name,
+    Username,
+    ID,
+    MessageNum,
+    WordNum,
+    CharNum,
+    AverageWord,
+    AverageChar,
+    Whitelisted,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]

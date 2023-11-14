@@ -202,8 +202,8 @@ impl MainWindow {
             }
         }
 
-        if start_num.is_some() && end_num.is_some() {
-            if start_num.unwrap() < end_num.unwrap() {
+        if let (Some(start_num), Some(end_num)) = (start_num, end_num) {
+            if start_num < end_num {
                 self.process_state = ProcessState::SmallerStartNumber;
                 return;
             }
