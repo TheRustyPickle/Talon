@@ -24,7 +24,7 @@ impl UserRowData {
         let username = username.map(|s| s.to_owned());
         UserRowData {
             name: name.to_string(),
-            username: username,
+            username,
             id,
             total_message: 0,
             total_word: 0,
@@ -55,7 +55,7 @@ impl UserRowData {
 pub struct UserTableData {
     rows: HashMap<i64, UserRowData>,
     sorted_by: SortBy,
-    drag_started: bool,
+    drag_started_on: Option<(i64, ColumnName)>,
     active_columns: HashSet<ColumnName>,
     last_active_row: Option<i64>,
     last_active_column: Option<ColumnName>,
@@ -64,17 +64,16 @@ pub struct UserTableData {
 impl UserTableData {
     pub fn add_user(&mut self, user_data: Chat) {
         let user_id = user_data.id();
-        if !self.rows.contains_key(&user_id) {
+        self.rows.entry(user_id).or_insert_with(|| {
             let row_data = UserRowData::new(user_data.name(), user_data.username(), user_id, false);
-            self.rows.insert(user_id, row_data);
-        }
+            row_data
+        });
     }
 
     pub fn add_unknown_user(&mut self) {
-        if !self.rows.contains_key(&0) {
-            let row_data = UserRowData::new("Anonymous/Unknown", None, 0, false);
-            self.rows.insert(0, row_data);
-        }
+        self.rows
+            .entry(0)
+            .or_insert_with(|| UserRowData::new("Anonymous/Unknown", None, 0, false));
     }
 
     pub fn count_user_message(&mut self, user_id: Option<i64>, message: &Message) {
@@ -97,33 +96,33 @@ impl UserTableData {
     }
 
     pub fn rows(&self) -> Vec<UserRowData> {
-        let mut row_data: Vec<UserRowData> = self.rows.iter().map(|(_, v)| v.to_owned()).collect();
+        let mut row_data: Vec<UserRowData> = self.rows.values().map(|v| v.to_owned()).collect();
         match self.sorted_by {
-            SortBy::SortByID => {
+            SortBy::ID => {
                 row_data.sort_by(|a, b| a.id.cmp(&b.id));
             }
-            SortBy::SortByName => {
+            SortBy::Name => {
                 row_data.sort_by(|a, b| a.name.cmp(&b.name));
             }
-            SortBy::SortByUsername => {
+            SortBy::Username => {
                 row_data.sort_by(|a, b| a.username.cmp(&b.username));
             }
-            SortBy::SortByMessageNum => {
+            SortBy::MessageNum => {
                 row_data.sort_by(|a, b| a.total_message.cmp(&b.total_message));
             }
-            SortBy::SortByWordNum => {
+            SortBy::WordNum => {
                 row_data.sort_by(|a, b| a.total_word.cmp(&b.total_word));
             }
-            SortBy::SortByCharNum => {
+            SortBy::CharNum => {
                 row_data.sort_by(|a, b| a.total_char.cmp(&b.total_char));
             }
-            SortBy::SortByAverageChar => {
+            SortBy::AverageChar => {
                 row_data.sort_by(|a, b| a.average_char.cmp(&b.average_char));
             }
-            SortBy::SortByAverageWord => {
+            SortBy::AverageWord => {
                 row_data.sort_by(|a, b| a.average_word.cmp(&b.average_word));
             }
-            SortBy::SortByWhitelisted => {
+            SortBy::Whitelisted => {
                 row_data.sort_by(|a, b| a.whitelisted.cmp(&b.whitelisted));
             }
         }
@@ -131,7 +130,16 @@ impl UserTableData {
         row_data
     }
 
-    fn select_row_cell(&mut self, user_id: i64, column_name: &ColumnName) {
+    fn select_single_row_cell(&mut self, user_id: i64, column_name: &ColumnName) {
+        self.active_columns.insert(column_name.clone());
+        self.rows
+            .get_mut(&user_id)
+            .unwrap()
+            .selected_columns
+            .insert(column_name.clone());
+    }
+
+    fn select_dragged_row_cell(&mut self, user_id: i64, column_name: &ColumnName) {
         if self.last_active_row == Some(user_id)
             && self.last_active_column == Some(column_name.clone())
         {
@@ -171,7 +179,7 @@ impl UserTableData {
         {
             let last_active_column = self.last_active_column.clone().unwrap();
 
-            // Remove the last column selection from the current row where the mouse is if 
+            // Remove the last column selection from the current row where the mouse is if
             // the previous row and the current one matches
             if last_active_column != *column_name && self.last_active_row.unwrap() == user_id {
                 current_row.selected_columns.remove(&last_active_column);
@@ -211,9 +219,7 @@ impl UserTableData {
             self.last_active_row = Some(user_id);
             self.last_active_column = Some(column_name.clone());
             for column in self.active_columns.iter() {
-                if !current_row.selected_columns.contains(column) {
-                    current_row.selected_columns.insert(column.to_owned());
-                }
+                current_row.selected_columns.insert(column.to_owned());
             }
             let current_row_index = all_rows.iter().position(|row| row.id == user_id).unwrap();
 
@@ -249,10 +255,8 @@ impl UserTableData {
                 if index != 0 {
                     self.check_row_selection(check_previous, rows, index);
                 }
-            } else {
-                if index + 1 != rows.len() {
-                    self.check_row_selection(check_previous, rows, index);
-                }
+            } else if index + 1 != rows.len() {
+                self.check_row_selection(check_previous, rows, index);
             }
         }
     }
@@ -289,10 +293,8 @@ impl UserTableData {
                 if index != 0 {
                     self.remove_row_column_selection(check_previous, rows, index, target_column);
                 }
-            } else {
-                if index + 1 != rows.len() {
-                    self.remove_row_column_selection(check_previous, rows, index, target_column);
-                }
+            } else if index + 1 != rows.len() {
+                self.remove_row_column_selection(check_previous, rows, index, target_column);
             }
         }
     }
@@ -331,101 +333,101 @@ impl MainWindow {
             table
                 .header(20.0, |mut header| {
                     header.col(|ui| {
-                        let is_selected = self.user_table.sorted_by == SortBy::SortByName;
+                        let is_selected = self.user_table.sorted_by == SortBy::Name;
                         if ui.add_sized(
                             ui.available_size(),
                             SelectableLabel::new(is_selected, "Name"),
                         )
                         .on_hover_text("Telegram name of the user. Click to sort by name").clicked() {
-                            self.user_table.sorted_by = SortBy::SortByName;
+                            self.user_table.sorted_by = SortBy::Name;
                             self.user_table.unselected_all();
                         };
                     });
                     header.col(|ui| {
-                        let is_selected = self.user_table.sorted_by == SortBy::SortByUsername;
+                        let is_selected = self.user_table.sorted_by == SortBy::Username;
                         if ui.add_sized(
                             ui.available_size(),
                             SelectableLabel::new(is_selected, "Username"),
                         )
                         .on_hover_text("Telegram username of the user. Click to sort by username").clicked() {
-                            self.user_table.sorted_by = SortBy::SortByUsername;
+                            self.user_table.sorted_by = SortBy::Username;
                             self.user_table.unselected_all();
                         };
                     });
                     header.col(|ui| {
-                        let is_selected = self.user_table.sorted_by == SortBy::SortByID;
+                        let is_selected = self.user_table.sorted_by == SortBy::ID;
                         if ui.add_sized(
                             ui.available_size(),
                             SelectableLabel::new(is_selected, "User ID"),
                         )
                         .on_hover_text("Telegram User ID of the user. Click to sort by user ID").clicked() {
-                            self.user_table.sorted_by = SortBy::SortByID;
+                            self.user_table.sorted_by = SortBy::ID;
                             self.user_table.unselected_all();
                         };
                     });
                     header.col(|ui| {
-                        let is_selected = self.user_table.sorted_by == SortBy::SortByMessageNum;
+                        let is_selected = self.user_table.sorted_by == SortBy::MessageNum;
                         if ui.add_sized(
                             ui.available_size(),
                             SelectableLabel::new(is_selected, "Total Message"),
                         )
                         .on_hover_text("Total messages sent by the user. Click to sort by total message").clicked() {
-                            self.user_table.sorted_by = SortBy::SortByMessageNum;
+                            self.user_table.sorted_by = SortBy::MessageNum;
                             self.user_table.unselected_all();
                         };
                     });
                     header.col(|ui| {
-                        let is_selected = self.user_table.sorted_by == SortBy::SortByWordNum;
+                        let is_selected = self.user_table.sorted_by == SortBy::WordNum;
                         if ui.add_sized(
                             ui.available_size(),
                             SelectableLabel::new(is_selected, "Total Word"),
                         )
                         .on_hover_text("Total words in the messages. Click to sort by total words").clicked() {
-                            self.user_table.sorted_by = SortBy::SortByWordNum;
+                            self.user_table.sorted_by = SortBy::WordNum;
                             self.user_table.unselected_all();
                         };
                     });
                     header.col(|ui| {
-                        let is_selected = self.user_table.sorted_by == SortBy::SortByCharNum;
+                        let is_selected = self.user_table.sorted_by == SortBy::CharNum;
                         if ui.add_sized(
                             ui.available_size(),
                             SelectableLabel::new(is_selected, "Total Char"),
                         )
                         .on_hover_text("Total character in the messages. Click to sort by total character").clicked() {
-                            self.user_table.sorted_by = SortBy::SortByCharNum;
+                            self.user_table.sorted_by = SortBy::CharNum;
                             self.user_table.unselected_all();
                         };
                     });
                     header.col(|ui| {
-                        let is_selected = self.user_table.sorted_by == SortBy::SortByAverageWord;
+                        let is_selected = self.user_table.sorted_by == SortBy::AverageWord;
                         if ui.add_sized(
                             ui.available_size(),
                             SelectableLabel::new(is_selected, "Average Word"),
                         )
                         .on_hover_text("Average number of words per message. Click to sort by average words").clicked() {
-                            self.user_table.sorted_by = SortBy::SortByAverageWord;
+                            self.user_table.sorted_by = SortBy::AverageWord;
                             self.user_table.unselected_all();
                         };
                     });
                     header.col(|ui| {
-                        let is_selected = self.user_table.sorted_by == SortBy::SortByAverageChar;
+                        let is_selected = self.user_table.sorted_by == SortBy::AverageChar;
                         if ui.add_sized(
                             ui.available_size(),
                             SelectableLabel::new(is_selected, "Average Char"),
                         )
                         .on_hover_text("Average number of characters per message. Click to sort by average characters").clicked() {
-                            self.user_table.sorted_by = SortBy::SortByAverageChar;
+                            self.user_table.sorted_by = SortBy::AverageChar;
                             self.user_table.unselected_all();
                         };
                     });
                     header.col(|ui| {
-                        let is_selected = self.user_table.sorted_by == SortBy::SortByWhitelisted;
+                        let is_selected = self.user_table.sorted_by == SortBy::Whitelisted;
                         if ui.add_sized(
                             ui.available_size(),
                             SelectableLabel::new(is_selected, "Whitelisted"),
                         )
                         .on_hover_text("Whether this user is whitelisted. Click to sort by whitelist").clicked() {
-                            self.user_table.sorted_by = SortBy::SortByWhitelisted;
+                            self.user_table.sorted_by = SortBy::Whitelisted;
                             self.user_table.unselected_all();
                         };
                     });
@@ -511,20 +513,34 @@ impl MainWindow {
         }
 
         if label.drag_started() {
-            self.user_table.unselected_all();
-            self.user_table.drag_started = true;
+            if !ui.ctx().input(|i| i.modifiers.ctrl) {
+                self.user_table.unselected_all();
+            }
+            self.user_table.drag_started_on = Some((row_data.id, column_name.clone()));
         }
         if label.drag_released() {
-            self.user_table.drag_started = false;
             self.user_table.last_active_row = None;
             self.user_table.last_active_column = None;
+            self.user_table.drag_started_on = None;
         }
-        if ui.ui_contains_pointer() && self.user_table.drag_started {
-            self.user_table.select_row_cell(row_data.id, &column_name);
-        }
+
         if label.clicked() {
-            self.user_table.unselected_all();
-            self.user_table.select_row_cell(row_data.id, &column_name);
+            if !ui.ctx().input(|i| i.modifiers.ctrl) {
+                self.user_table.unselected_all();
+            }
+            self.user_table
+                .select_single_row_cell(row_data.id, &column_name);
+        }
+        if ui.ui_contains_pointer() && self.user_table.drag_started_on.is_some() {
+            if let Some(drag_start) = &self.user_table.drag_started_on {
+                if drag_start.0 != row_data.id || drag_start.1 != column_name {
+                    self.user_table
+                        .select_dragged_row_cell(row_data.id, &column_name);
+                } else {
+                    self.user_table
+                        .select_single_row_cell(row_data.id, &column_name);
+                }
+            }
         }
     }
 }
