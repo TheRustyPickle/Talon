@@ -1,9 +1,9 @@
-use eframe::egui::{Align, Layout, ScrollArea, SelectableLabel, Ui};
+use eframe::egui::{Align, Layout, ScrollArea, SelectableLabel, Sense, Ui};
 use egui_extras::{Column, TableBuilder};
 use grammers_client::types::{Chat, Message};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
-use crate::ui_components::{MainWindow, SortBy};
+use crate::ui_components::{ColumnName, MainWindow, SortBy};
 
 #[derive(Clone)]
 pub struct UserRowData {
@@ -16,6 +16,7 @@ pub struct UserRowData {
     average_word: u32,
     average_char: u32,
     whitelisted: bool,
+    selected_columns: HashSet<ColumnName>,
 }
 
 impl UserRowData {
@@ -31,6 +32,7 @@ impl UserRowData {
             average_word: 0,
             average_char: 0,
             whitelisted,
+            selected_columns: HashSet::new(),
         }
     }
 
@@ -53,6 +55,10 @@ impl UserRowData {
 pub struct UserTableData {
     rows: HashMap<i64, UserRowData>,
     sorted_by: SortBy,
+    drag_started: bool,
+    active_columns: HashSet<ColumnName>,
+    last_active_row: Option<i64>,
+    last_active_column: Option<ColumnName>,
 }
 
 impl UserTableData {
@@ -124,6 +130,181 @@ impl UserTableData {
 
         row_data
     }
+
+    fn select_row_cell(&mut self, user_id: i64, column_name: &ColumnName) {
+        if self.last_active_row == Some(user_id)
+            && self.last_active_column == Some(column_name.clone())
+        {
+            return;
+        }
+
+        self.active_columns.insert(column_name.clone());
+
+        let min_col = self.active_columns.clone().into_iter().min();
+        let max_col = self.active_columns.clone().into_iter().max();
+
+        // If column 1 and column 5 is selected, ensure the column in the middle are not missing from selection
+        // It can miss in case of fast mouse movement
+        if let (Some(min), Some(max)) = (min_col, max_col) {
+            let mut current_col = min;
+            while current_col != max {
+                let next_col = current_col.get_next();
+                self.active_columns.insert(next_col.clone());
+                current_col = next_col;
+            }
+        }
+
+        // The rows in the current sorted format
+        let all_rows = self.rows();
+
+        // The row the mouse pointer is on
+        let current_row = self.rows.get_mut(&user_id).unwrap();
+
+        // If this row already selects the column that we are trying to select, it means the mouse
+        // moved backwards from an active column to another active column.
+        let row_contains_column = current_row.selected_columns.contains(column_name);
+
+        // If we have some data of the last row and column that the mouse was on, then try to unselect
+        if row_contains_column
+            && self.last_active_row.is_some()
+            && self.last_active_column.is_some()
+        {
+            let last_active_column = self.last_active_column.clone().unwrap();
+
+            // Remove the last column selection from the current row where the mouse is if 
+            // the previous row and the current one matches
+            if last_active_column != *column_name && self.last_active_row.unwrap() == user_id {
+                current_row.selected_columns.remove(&last_active_column);
+                self.active_columns.remove(&last_active_column);
+            }
+
+            // Get the last row where the mouse was
+            let last_row = self.rows.get_mut(&self.last_active_row.unwrap()).unwrap();
+
+            self.last_active_row = Some(user_id);
+
+            // If on the same row as the last row, then unselect the column from all other select row
+            if user_id == last_row.id {
+                if last_active_column != *column_name {
+                    self.last_active_column = Some(column_name.clone());
+
+                    let current_row_index =
+                        all_rows.iter().position(|row| row.id == user_id).unwrap();
+
+                    self.remove_row_column_selection(
+                        true,
+                        &all_rows,
+                        current_row_index,
+                        &last_active_column,
+                    );
+                    self.remove_row_column_selection(
+                        false,
+                        &all_rows,
+                        current_row_index,
+                        &last_active_column,
+                    );
+                }
+            } else {
+                last_row.selected_columns.clear();
+            }
+        } else {
+            self.last_active_row = Some(user_id);
+            self.last_active_column = Some(column_name.clone());
+            for column in self.active_columns.iter() {
+                if !current_row.selected_columns.contains(column) {
+                    current_row.selected_columns.insert(column.to_owned());
+                }
+            }
+            let current_row_index = all_rows.iter().position(|row| row.id == user_id).unwrap();
+
+            self.check_row_selection(true, &all_rows, current_row_index);
+            self.check_row_selection(false, &all_rows, current_row_index);
+        }
+    }
+
+    /// Recurve through the given rows by either increasing or decreasing the initial index
+    /// till the end point or an unselected row is found. Add all columns that are selected by at least one row as selected
+    /// for the rows that have at least one column selected.
+    fn check_row_selection(&mut self, check_previous: bool, rows: &Vec<UserRowData>, index: usize) {
+        if index == 0 && check_previous {
+            return;
+        }
+
+        if index + 1 == rows.len() && !check_previous {
+            return;
+        }
+
+        let index = if check_previous { index - 1 } else { index + 1 };
+
+        let current_row = rows.get(index).unwrap();
+        let unselected_row = current_row.selected_columns.is_empty();
+
+        let target_row = self.rows.get_mut(&current_row.id).unwrap();
+
+        if !unselected_row {
+            for column in self.active_columns.iter() {
+                target_row.selected_columns.insert(column.to_owned());
+            }
+            if check_previous {
+                if index != 0 {
+                    self.check_row_selection(check_previous, rows, index);
+                }
+            } else {
+                if index + 1 != rows.len() {
+                    self.check_row_selection(check_previous, rows, index);
+                }
+            }
+        }
+    }
+
+    /// Recurve through the given rows by either increasing or decreasing the initial index
+    /// till the end point or an unselected row is found. Remove the given column from selection
+    /// from all rows that are selected.
+    fn remove_row_column_selection(
+        &mut self,
+        check_previous: bool,
+        rows: &Vec<UserRowData>,
+        index: usize,
+        target_column: &ColumnName,
+    ) {
+        if index == 0 && check_previous {
+            return;
+        }
+
+        if index + 1 == rows.len() && !check_previous {
+            return;
+        }
+
+        let index = if check_previous { index - 1 } else { index + 1 };
+
+        let current_row = rows.get(index).unwrap();
+        let unselected_row = current_row.selected_columns.is_empty();
+
+        let target_row = self.rows.get_mut(&current_row.id).unwrap();
+
+        if !unselected_row {
+            target_row.selected_columns.remove(target_column);
+
+            if check_previous {
+                if index != 0 {
+                    self.remove_row_column_selection(check_previous, rows, index, target_column);
+                }
+            } else {
+                if index + 1 != rows.len() {
+                    self.remove_row_column_selection(check_previous, rows, index, target_column);
+                }
+            }
+        }
+    }
+
+    fn unselected_all(&mut self) {
+        for (_, row) in self.rows.iter_mut() {
+            row.selected_columns.clear()
+        }
+        self.active_columns.clear();
+        self.last_active_row = None;
+        self.last_active_column = None;
+    }
 }
 
 impl MainWindow {
@@ -157,6 +338,7 @@ impl MainWindow {
                         )
                         .on_hover_text("Telegram name of the user. Click to sort by name").clicked() {
                             self.user_table.sorted_by = SortBy::SortByName;
+                            self.user_table.unselected_all();
                         };
                     });
                     header.col(|ui| {
@@ -167,6 +349,7 @@ impl MainWindow {
                         )
                         .on_hover_text("Telegram username of the user. Click to sort by username").clicked() {
                             self.user_table.sorted_by = SortBy::SortByUsername;
+                            self.user_table.unselected_all();
                         };
                     });
                     header.col(|ui| {
@@ -177,6 +360,7 @@ impl MainWindow {
                         )
                         .on_hover_text("Telegram User ID of the user. Click to sort by user ID").clicked() {
                             self.user_table.sorted_by = SortBy::SortByID;
+                            self.user_table.unselected_all();
                         };
                     });
                     header.col(|ui| {
@@ -187,6 +371,7 @@ impl MainWindow {
                         )
                         .on_hover_text("Total messages sent by the user. Click to sort by total message").clicked() {
                             self.user_table.sorted_by = SortBy::SortByMessageNum;
+                            self.user_table.unselected_all();
                         };
                     });
                     header.col(|ui| {
@@ -197,6 +382,7 @@ impl MainWindow {
                         )
                         .on_hover_text("Total words in the messages. Click to sort by total words").clicked() {
                             self.user_table.sorted_by = SortBy::SortByWordNum;
+                            self.user_table.unselected_all();
                         };
                     });
                     header.col(|ui| {
@@ -207,6 +393,7 @@ impl MainWindow {
                         )
                         .on_hover_text("Total character in the messages. Click to sort by total character").clicked() {
                             self.user_table.sorted_by = SortBy::SortByCharNum;
+                            self.user_table.unselected_all();
                         };
                     });
                     header.col(|ui| {
@@ -217,6 +404,7 @@ impl MainWindow {
                         )
                         .on_hover_text("Average number of words per message. Click to sort by average words").clicked() {
                             self.user_table.sorted_by = SortBy::SortByAverageWord;
+                            self.user_table.unselected_all();
                         };
                     });
                     header.col(|ui| {
@@ -227,6 +415,7 @@ impl MainWindow {
                         )
                         .on_hover_text("Average number of characters per message. Click to sort by average characters").clicked() {
                             self.user_table.sorted_by = SortBy::SortByAverageChar;
+                            self.user_table.unselected_all();
                         };
                     });
                     header.col(|ui| {
@@ -237,49 +426,105 @@ impl MainWindow {
                         )
                         .on_hover_text("Whether this user is whitelisted. Click to sort by whitelist").clicked() {
                             self.user_table.sorted_by = SortBy::SortByWhitelisted;
+                            self.user_table.unselected_all();
                         };
                     });
                 })
                 .body(|mut body| {
                     for row_data in self.user_table.rows() {
-                        body.row(30.0, |mut row| {
+                        body.row(25.0, |mut row| {
                             row.col(|ui| {
-                                ui.label(&row_data.name).on_hover_text(row_data.name);
+                                self.create_table_row(ColumnName::Name, &row_data, ui)
                             });
                             row.col(|ui| {
-                                let username = if let Some(name) = &row_data.username {
-                                    name.to_string()
-                                } else {
-                                    String::from("Empty")
-                                };
-                                ui.label(username);
+                                self.create_table_row(ColumnName::Username, &row_data, ui)
                             });
                             row.col(|ui| {
-                                ui.label(row_data.id.to_string());
+                                self.create_table_row(ColumnName::UserID, &row_data, ui)
                             });
                             row.col(|ui| {
-                                ui.label(row_data.total_message.to_string());
+                                self.create_table_row(ColumnName::TotalMessage, &row_data, ui)
                             });
                             row.col(|ui| {
-                                ui.label(row_data.total_word.to_string());
+                                self.create_table_row(ColumnName::TotalWord, &row_data, ui)
                             });
                             row.col(|ui| {
-                                ui.label(row_data.total_char.to_string());
+                                self.create_table_row(ColumnName::TotalChar, &row_data, ui)
                             });
                             row.col(|ui| {
-                                ui.label(row_data.average_word.to_string());
+                                self.create_table_row(ColumnName::AverageWord, &row_data, ui)
                             });
                             row.col(|ui| {
-                                ui.label(row_data.average_char.to_string());
+                                self.create_table_row(ColumnName::AverageChar, &row_data, ui)
                             });
                             row.col(|ui| {
-                                let whitelist_text =
-                                    if row_data.whitelisted { "Yes" } else { "No" };
-                                ui.label(whitelist_text);
+                                self.create_table_row(ColumnName::Whitelisted, &row_data, ui)
                             });
                         })
                     }
                 });
         });
+    }
+
+    pub fn create_table_row(
+        &mut self,
+        column_name: ColumnName,
+        row_data: &UserRowData,
+        ui: &mut Ui,
+    ) {
+        let mut show_tooltip = false;
+        let row_text = match column_name {
+            ColumnName::Name => {
+                show_tooltip = true;
+                row_data.name.to_owned()
+            }
+            ColumnName::Username => {
+                if let Some(name) = &row_data.username {
+                    name.to_string()
+                } else {
+                    "Empty".to_string()
+                }
+            }
+            ColumnName::UserID => row_data.id.to_string(),
+            ColumnName::TotalMessage => row_data.total_message.to_string(),
+            ColumnName::TotalWord => row_data.total_word.to_string(),
+            ColumnName::TotalChar => row_data.total_char.to_string(),
+            ColumnName::AverageWord => row_data.average_word.to_string(),
+            ColumnName::AverageChar => row_data.average_char.to_string(),
+            ColumnName::Whitelisted => {
+                let text = if row_data.whitelisted { "Yes" } else { "No" };
+                text.to_string()
+            }
+        };
+
+        let is_selected = row_data.selected_columns.contains(&column_name);
+
+        let mut label = ui
+            .add_sized(
+                ui.available_size(),
+                SelectableLabel::new(is_selected, &row_text),
+            )
+            .interact(Sense::drag());
+
+        if show_tooltip {
+            label = label.on_hover_text(row_text);
+        }
+
+        if label.drag_started() {
+            self.user_table.unselected_all();
+            self.user_table.drag_started = true;
+        }
+        if label.drag_released() {
+            self.user_table.drag_started = false;
+            self.user_table.last_active_row = None;
+            self.user_table.last_active_column = None;
+        }
+        if ui.ui_contains_pointer() && self.user_table.drag_started {
+            self.user_table.select_row_cell(row_data.id, &column_name);
+        }
+        if label.clicked() {
+            self.user_table.unselected_all();
+            self.user_table.select_row_cell(row_data.id, &column_name);
+        }
     }
 }
