@@ -53,22 +53,16 @@ impl Display for ProcessState {
     }
 }
 
-#[derive(PartialEq, Default)]
-pub enum SortBy {
+#[derive(Default)]
+pub enum SortOrder {
     #[default]
-    Name,
-    Username,
-    ID,
-    MessageNum,
-    WordNum,
-    CharNum,
-    AverageWord,
-    AverageChar,
-    Whitelisted,
+    Ascending,
+    Descending,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Default, Debug)]
 pub enum ColumnName {
+    #[default]
     Name,
     Username,
     UserID,

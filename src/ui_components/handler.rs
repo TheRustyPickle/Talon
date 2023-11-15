@@ -1,5 +1,5 @@
 use eframe::{egui, App, Frame};
-use egui::{vec2, Button, CentralPanel, Context, Visuals};
+use egui::{vec2, Align, Button, CentralPanel, Context, Layout, Spinner, Visuals};
 use egui_extras::{Size, StripBuilder};
 use log::{debug, info};
 use std::sync::mpsc::{channel, Receiver, Sender};
@@ -68,7 +68,7 @@ impl App for MainWindow {
                 let user_table_tab =
                     ui.selectable_value(&mut self.tab_state, TabState::UserTable, "User Table");
                 if user_table_tab.clicked() {
-                    frame.set_window_size(vec2(850.0, 700.0));
+                    frame.set_window_size(vec2(1000.0, 700.0));
                 }
                 ui.separator();
                 ui.selectable_value(&mut self.tab_state, TabState::Charts, "Charts");
@@ -95,7 +95,14 @@ impl App for MainWindow {
                     strip.cell(|ui| {
                         ui.separator();
                         let status_text = self.process_state.to_string();
-                        ui.label(status_text);
+                        ui.horizontal(|ui| {
+                            ui.label(status_text);
+                            if self.counter_data.is_counting {
+                                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                                    ui.add(Spinner::new());
+                                });
+                            };
+                        });
                     })
                 });
             if !self.existing_sessions_checked {
