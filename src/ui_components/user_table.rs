@@ -1,9 +1,9 @@
-use eframe::egui::{Align, Layout, ScrollArea, SelectableLabel, Sense, Ui};
+use eframe::egui::{Align, Key, Layout, Response, ScrollArea, SelectableLabel, Sense, Ui};
 use egui_extras::{Column, TableBuilder};
 use grammers_client::types::{Chat, Message};
 use std::collections::{HashMap, HashSet};
 
-use crate::ui_components::{ColumnName, MainWindow, SortBy};
+use crate::ui_components::{ColumnName, MainWindow, SortOrder};
 
 #[derive(Clone)]
 pub struct UserRowData {
@@ -49,16 +49,50 @@ impl UserRowData {
         self.total_char += char_num;
         self.average_char = self.total_char / self.total_message;
     }
+
+    fn get_column_length(&self, column: &ColumnName) -> usize {
+        match column {
+            ColumnName::Name => self.name.len(),
+            ColumnName::Username => self.username.as_ref().map_or(5, |u| u.len()),
+            ColumnName::UserID => self.id.to_string().len(),
+            ColumnName::TotalMessage => self.total_message.to_string().len(),
+            ColumnName::TotalWord => self.total_word.to_string().len(),
+            ColumnName::TotalChar => self.total_char.to_string().len(),
+            ColumnName::AverageWord => self.average_word.to_string().len(),
+            ColumnName::AverageChar => self.average_char.to_string().len(),
+            ColumnName::Whitelisted => self.whitelisted.to_string().len(),
+        }
+    }
+
+    fn get_column_text(&self, column: &ColumnName) -> String {
+        match column {
+            ColumnName::Name => self.name.to_string(),
+            ColumnName::Username => self
+                .username
+                .as_ref()
+                .map_or("Empty".to_string(), |u| u.to_string()),
+            ColumnName::UserID => self.id.to_string().to_string(),
+            ColumnName::TotalMessage => self.total_message.to_string().to_string(),
+            ColumnName::TotalWord => self.total_word.to_string().to_string(),
+            ColumnName::TotalChar => self.total_char.to_string().to_string(),
+            ColumnName::AverageWord => self.average_word.to_string().to_string(),
+            ColumnName::AverageChar => self.average_char.to_string().to_string(),
+            ColumnName::Whitelisted => self.whitelisted.to_string().to_string(),
+        }
+    }
 }
 
 #[derive(Default)]
 pub struct UserTableData {
     rows: HashMap<i64, UserRowData>,
-    sorted_by: SortBy,
+    sorted_by: ColumnName,
+    sort_order: SortOrder,
     drag_started_on: Option<(i64, ColumnName)>,
     active_columns: HashSet<ColumnName>,
     last_active_row: Option<i64>,
     last_active_column: Option<ColumnName>,
+    // To track whether the mouse pointer went beyond the drag point at least once
+    beyond_drag_point: bool,
 }
 
 impl UserTableData {
@@ -96,35 +130,65 @@ impl UserTableData {
     }
 
     pub fn rows(&self) -> Vec<UserRowData> {
-        let mut row_data: Vec<UserRowData> = self.rows.values().map(|v| v.to_owned()).collect();
+        let mut row_data: Vec<UserRowData> = self.rows.values().cloned().collect();
+
         match self.sorted_by {
-            SortBy::ID => {
-                row_data.sort_by(|a, b| a.id.cmp(&b.id));
-            }
-            SortBy::Name => {
-                row_data.sort_by(|a, b| a.name.cmp(&b.name));
-            }
-            SortBy::Username => {
-                row_data.sort_by(|a, b| a.username.cmp(&b.username));
-            }
-            SortBy::MessageNum => {
-                row_data.sort_by(|a, b| a.total_message.cmp(&b.total_message));
-            }
-            SortBy::WordNum => {
-                row_data.sort_by(|a, b| a.total_word.cmp(&b.total_word));
-            }
-            SortBy::CharNum => {
-                row_data.sort_by(|a, b| a.total_char.cmp(&b.total_char));
-            }
-            SortBy::AverageChar => {
-                row_data.sort_by(|a, b| a.average_char.cmp(&b.average_char));
-            }
-            SortBy::AverageWord => {
-                row_data.sort_by(|a, b| a.average_word.cmp(&b.average_word));
-            }
-            SortBy::Whitelisted => {
-                row_data.sort_by(|a, b| a.whitelisted.cmp(&b.whitelisted));
-            }
+            ColumnName::UserID => match self.sort_order {
+                SortOrder::Ascending => row_data.sort_by(|a, b| a.id.cmp(&b.id)),
+                SortOrder::Descending => row_data.sort_by(|a, b| a.id.cmp(&b.id).reverse()),
+            },
+            ColumnName::Name => match self.sort_order {
+                SortOrder::Ascending => row_data.sort_by(|a, b| a.name.cmp(&b.name)),
+                SortOrder::Descending => row_data.sort_by(|a, b| a.name.cmp(&b.name).reverse()),
+            },
+            ColumnName::Username => match self.sort_order {
+                SortOrder::Ascending => row_data.sort_by(|a, b| a.username.cmp(&b.username)),
+                SortOrder::Descending => {
+                    row_data.sort_by(|a, b| a.username.cmp(&b.username).reverse())
+                }
+            },
+            ColumnName::TotalMessage => match self.sort_order {
+                SortOrder::Ascending => {
+                    row_data.sort_by(|a, b| a.total_message.cmp(&b.total_message))
+                }
+                SortOrder::Descending => {
+                    row_data.sort_by(|a, b| a.total_message.cmp(&b.total_message).reverse())
+                }
+            },
+            ColumnName::TotalWord => match self.sort_order {
+                SortOrder::Ascending => row_data.sort_by(|a, b| a.total_word.cmp(&b.total_word)),
+                SortOrder::Descending => {
+                    row_data.sort_by(|a, b| a.total_word.cmp(&b.total_word).reverse())
+                }
+            },
+            ColumnName::TotalChar => match self.sort_order {
+                SortOrder::Ascending => row_data.sort_by(|a, b| a.total_char.cmp(&b.total_char)),
+                SortOrder::Descending => {
+                    row_data.sort_by(|a, b| a.total_char.cmp(&b.total_char).reverse())
+                }
+            },
+            ColumnName::AverageChar => match self.sort_order {
+                SortOrder::Ascending => {
+                    row_data.sort_by(|a, b| a.average_char.cmp(&b.average_char))
+                }
+                SortOrder::Descending => {
+                    row_data.sort_by(|a, b| a.average_char.cmp(&b.average_char).reverse())
+                }
+            },
+            ColumnName::AverageWord => match self.sort_order {
+                SortOrder::Ascending => {
+                    row_data.sort_by(|a, b| a.average_word.cmp(&b.average_word))
+                }
+                SortOrder::Descending => {
+                    row_data.sort_by(|a, b| a.average_word.cmp(&b.average_word).reverse())
+                }
+            },
+            ColumnName::Whitelisted => match self.sort_order {
+                SortOrder::Ascending => row_data.sort_by(|a, b| a.whitelisted.cmp(&b.whitelisted)),
+                SortOrder::Descending => {
+                    row_data.sort_by(|a, b| a.whitelisted.cmp(&b.whitelisted).reverse())
+                }
+            },
         }
 
         row_data
@@ -147,6 +211,11 @@ impl UserTableData {
         }
 
         self.active_columns.insert(column_name.clone());
+        self.beyond_drag_point = true;
+
+        // Ensure the starting drag cell is selected
+        let drag_start = self.drag_started_on.clone().unwrap();
+        self.select_single_row_cell(drag_start.0, &drag_start.1);
 
         let min_col = self.active_columns.clone().into_iter().min();
         let max_col = self.active_columns.clone().into_iter().max();
@@ -228,7 +297,7 @@ impl UserTableData {
         }
     }
 
-    /// Recurve through the given rows by either increasing or decreasing the initial index
+    /// Recursively check the rows by either increasing or decreasing the initial index
     /// till the end point or an unselected row is found. Add all columns that are selected by at least one row as selected
     /// for the rows that have at least one column selected.
     fn check_row_selection(&mut self, check_previous: bool, rows: &Vec<UserRowData>, index: usize) {
@@ -261,7 +330,7 @@ impl UserTableData {
         }
     }
 
-    /// Recurve through the given rows by either increasing or decreasing the initial index
+    /// Recursively check the given rows by either increasing or decreasing the initial index
     /// till the end point or an unselected row is found. Remove the given column from selection
     /// from all rows that are selected.
     fn remove_row_column_selection(
@@ -307,10 +376,31 @@ impl UserTableData {
         self.last_active_row = None;
         self.last_active_column = None;
     }
+
+    fn change_sorted_by(&mut self, sort_by: ColumnName) {
+        self.unselected_all();
+        self.sorted_by = sort_by;
+        self.sort_order = SortOrder::default()
+    }
+
+    fn change_sort_order(&mut self) {
+        if let SortOrder::Ascending = self.sort_order {
+            self.sort_order = SortOrder::Descending;
+        } else {
+            self.sort_order = SortOrder::Ascending
+        }
+    }
+
 }
 
 impl MainWindow {
     pub fn show_user_table_ui(&mut self, ui: &mut Ui) {
+        let is_ctrl_pressed = ui.ctx().input(|i| i.modifiers.ctrl);
+
+        if is_ctrl_pressed && ui.ctx().input(|i| i.key_pressed(Key::C)) {
+            self.copy_selected_cells(ui);
+        }
+
         ScrollArea::horizontal().drag_to_scroll(false).show(ui, |ui| {
             let table = TableBuilder::new(ui)
                 .striped(true)
@@ -318,14 +408,14 @@ impl MainWindow {
                 .resizable(true)
                 .cell_layout(Layout::left_to_right(Align::Center))
                 .column(Column::initial(100.0).clip(true))
-                .column(Column::initial(80.0))
-                .column(Column::initial(80.0))
-                .column(Column::initial(80.0))
-                .column(Column::initial(80.0))
-                .column(Column::initial(80.0))
-                .column(Column::initial(80.0))
-                .column(Column::initial(80.0))
-                .column(Column::initial(80.0))
+                .column(Column::initial(100.0))
+                .column(Column::initial(100.0))
+                .column(Column::initial(100.0))
+                .column(Column::initial(100.0))
+                .column(Column::initial(100.0))
+                .column(Column::initial(100.0))
+                .column(Column::initial(100.0))
+                .column(Column::initial(100.0))
                 .drag_to_scroll(false)
                 .auto_shrink([false; 2])
                 .min_scrolled_height(0.0);
@@ -333,103 +423,104 @@ impl MainWindow {
             table
                 .header(20.0, |mut header| {
                     header.col(|ui| {
-                        let is_selected = self.user_table.sorted_by == SortBy::Name;
-                        if ui.add_sized(
+                        let is_selected = self.user_table.sorted_by == ColumnName::Name;
+                        let label_text = self.get_header_text(ColumnName::Name);
+                        let response = ui.add_sized(
                             ui.available_size(),
-                            SelectableLabel::new(is_selected, "Name"),
+                            SelectableLabel::new(is_selected, label_text),
                         )
-                        .on_hover_text("Telegram name of the user. Click to sort by name").clicked() {
-                            self.user_table.sorted_by = SortBy::Name;
-                            self.user_table.unselected_all();
-                        };
+                        .on_hover_text("Telegram name of the user. Click to sort by name"); 
+
+                        self.handle_header_selection(response, is_selected, ColumnName::Name);
                     });
                     header.col(|ui| {
-                        let is_selected = self.user_table.sorted_by == SortBy::Username;
-                        if ui.add_sized(
+                        let is_selected = self.user_table.sorted_by == ColumnName::Username;
+                        let label_text = self.get_header_text(ColumnName::Username);
+                        let response = ui.add_sized(
                             ui.available_size(),
-                            SelectableLabel::new(is_selected, "Username"),
+                            SelectableLabel::new(is_selected, label_text),
                         )
-                        .on_hover_text("Telegram username of the user. Click to sort by username").clicked() {
-                            self.user_table.sorted_by = SortBy::Username;
-                            self.user_table.unselected_all();
-                        };
+                        .on_hover_text("Telegram username of the user. Click to sort by username");
+
+                        self.handle_header_selection(response, is_selected, ColumnName::Username);
                     });
                     header.col(|ui| {
-                        let is_selected = self.user_table.sorted_by == SortBy::ID;
-                        if ui.add_sized(
+                        let is_selected = self.user_table.sorted_by == ColumnName::UserID;
+                        let label_text = self.get_header_text(ColumnName::UserID);
+                        let response = ui.add_sized(
                             ui.available_size(),
-                            SelectableLabel::new(is_selected, "User ID"),
+                            SelectableLabel::new(is_selected, label_text),
                         )
-                        .on_hover_text("Telegram User ID of the user. Click to sort by user ID").clicked() {
-                            self.user_table.sorted_by = SortBy::ID;
-                            self.user_table.unselected_all();
-                        };
+                        .on_hover_text("Telegram User ID of the user. Click to sort by user ID");
+
+                        self.handle_header_selection(response, is_selected, ColumnName::UserID);
                     });
                     header.col(|ui| {
-                        let is_selected = self.user_table.sorted_by == SortBy::MessageNum;
-                        if ui.add_sized(
+                        let is_selected = self.user_table.sorted_by == ColumnName::TotalMessage;
+                        let label_text = self.get_header_text(ColumnName::TotalMessage);
+                        let response = ui.add_sized(
                             ui.available_size(),
-                            SelectableLabel::new(is_selected, "Total Message"),
+                            SelectableLabel::new(is_selected, label_text),
                         )
-                        .on_hover_text("Total messages sent by the user. Click to sort by total message").clicked() {
-                            self.user_table.sorted_by = SortBy::MessageNum;
-                            self.user_table.unselected_all();
-                        };
+                        .on_hover_text("Total messages sent by the user. Click to sort by total message");
+
+                        self.handle_header_selection(response, is_selected, ColumnName::TotalMessage);
                     });
                     header.col(|ui| {
-                        let is_selected = self.user_table.sorted_by == SortBy::WordNum;
-                        if ui.add_sized(
+                        let is_selected = self.user_table.sorted_by == ColumnName::TotalWord;
+                        let label_text = self.get_header_text(ColumnName::TotalWord);
+                        let response = ui.add_sized(
                             ui.available_size(),
-                            SelectableLabel::new(is_selected, "Total Word"),
+                            SelectableLabel::new(is_selected, label_text),
                         )
-                        .on_hover_text("Total words in the messages. Click to sort by total words").clicked() {
-                            self.user_table.sorted_by = SortBy::WordNum;
-                            self.user_table.unselected_all();
-                        };
+                        .on_hover_text("Total words in the messages. Click to sort by total words");
+
+                        self.handle_header_selection(response, is_selected, ColumnName::TotalWord);
                     });
                     header.col(|ui| {
-                        let is_selected = self.user_table.sorted_by == SortBy::CharNum;
-                        if ui.add_sized(
+                        let is_selected = self.user_table.sorted_by == ColumnName::TotalChar;
+                        let label_text = self.get_header_text(ColumnName::TotalChar);
+                        let response = ui.add_sized(
                             ui.available_size(),
-                            SelectableLabel::new(is_selected, "Total Char"),
+                            SelectableLabel::new(is_selected, label_text),
                         )
-                        .on_hover_text("Total character in the messages. Click to sort by total character").clicked() {
-                            self.user_table.sorted_by = SortBy::CharNum;
-                            self.user_table.unselected_all();
-                        };
+                        .on_hover_text("Total character in the messages. Click to sort by total character"); 
+
+                        self.handle_header_selection(response, is_selected, ColumnName::TotalChar);
+
                     });
                     header.col(|ui| {
-                        let is_selected = self.user_table.sorted_by == SortBy::AverageWord;
-                        if ui.add_sized(
+                        let is_selected = self.user_table.sorted_by == ColumnName::AverageWord;
+                        let label_text = self.get_header_text(ColumnName::AverageWord);
+                        let response = ui.add_sized(
                             ui.available_size(),
-                            SelectableLabel::new(is_selected, "Average Word"),
+                            SelectableLabel::new(is_selected, label_text),
                         )
-                        .on_hover_text("Average number of words per message. Click to sort by average words").clicked() {
-                            self.user_table.sorted_by = SortBy::AverageWord;
-                            self.user_table.unselected_all();
-                        };
+                        .on_hover_text("Average number of words per message. Click to sort by average words");
+
+                        self.handle_header_selection(response, is_selected, ColumnName::AverageWord);
                     });
                     header.col(|ui| {
-                        let is_selected = self.user_table.sorted_by == SortBy::AverageChar;
-                        if ui.add_sized(
+                        let is_selected = self.user_table.sorted_by == ColumnName::AverageChar;
+                        let label_text = self.get_header_text(ColumnName::AverageChar);
+                        let response = ui.add_sized(
                             ui.available_size(),
-                            SelectableLabel::new(is_selected, "Average Char"),
+                            SelectableLabel::new(is_selected, label_text),
                         )
-                        .on_hover_text("Average number of characters per message. Click to sort by average characters").clicked() {
-                            self.user_table.sorted_by = SortBy::AverageChar;
-                            self.user_table.unselected_all();
-                        };
+                        .on_hover_text("Average number of characters per message. Click to sort by average characters");
+
+                        self.handle_header_selection(response, is_selected, ColumnName::AverageChar);
                     });
                     header.col(|ui| {
-                        let is_selected = self.user_table.sorted_by == SortBy::Whitelisted;
-                        if ui.add_sized(
+                        let is_selected = self.user_table.sorted_by == ColumnName::Whitelisted;
+                        let label_text = self.get_header_text(ColumnName::Whitelisted);
+                        let response = ui.add_sized(
                             ui.available_size(),
-                            SelectableLabel::new(is_selected, "Whitelisted"),
+                            SelectableLabel::new(is_selected, label_text),
                         )
-                        .on_hover_text("Whether this user is whitelisted. Click to sort by whitelist").clicked() {
-                            self.user_table.sorted_by = SortBy::Whitelisted;
-                            self.user_table.unselected_all();
-                        };
+                        .on_hover_text("Whether this user is whitelisted. Click to sort by whitelist");
+
+                        self.handle_header_selection(response, is_selected, ColumnName::Whitelisted);
                     });
                 })
                 .body(|mut body| {
@@ -522,6 +613,7 @@ impl MainWindow {
             self.user_table.last_active_row = None;
             self.user_table.last_active_column = None;
             self.user_table.drag_started_on = None;
+            self.user_table.beyond_drag_point = false;
         }
 
         if label.clicked() {
@@ -531,16 +623,114 @@ impl MainWindow {
             self.user_table
                 .select_single_row_cell(row_data.id, &column_name);
         }
+
         if ui.ui_contains_pointer() && self.user_table.drag_started_on.is_some() {
             if let Some(drag_start) = &self.user_table.drag_started_on {
-                if drag_start.0 != row_data.id || drag_start.1 != column_name {
+                // Only call drag either when not on the starting drag row/column or went beyond the
+                // drag point at least once. Otherwise normal click would be considered as drag
+                if drag_start.0 != row_data.id
+                    || drag_start.1 != column_name
+                    || self.user_table.beyond_drag_point
+                {
                     self.user_table
                         .select_dragged_row_cell(row_data.id, &column_name);
-                } else {
-                    self.user_table
-                        .select_single_row_cell(row_data.id, &column_name);
                 }
             }
         }
+    }
+
+    pub fn handle_header_selection(
+        &mut self,
+        response: Response,
+        is_selected: bool,
+        sort_type: ColumnName,
+    ) {
+        if response.clicked() {
+            if is_selected {
+                self.user_table.change_sort_order()
+            } else {
+                self.user_table.change_sorted_by(sort_type)
+            }
+        }
+    }
+
+    pub fn get_header_text(&mut self, header_type: ColumnName) -> String {
+        let mut text = match header_type {
+            ColumnName::Name => "Name".to_string(),
+            ColumnName::Username => "Username".to_string(),
+            ColumnName::UserID => "User ID".to_string(),
+            ColumnName::TotalMessage => "Total Messages".to_string(),
+            ColumnName::TotalWord => "Total Word".to_string(),
+            ColumnName::TotalChar => "Total Char".to_string(),
+            ColumnName::AverageWord => "Average Word".to_string(),
+            ColumnName::AverageChar => "Average Char".to_string(),
+            ColumnName::Whitelisted => "Whitelisted".to_string(),
+        };
+
+        if header_type == self.user_table.sorted_by {
+            match self.user_table.sort_order {
+                SortOrder::Ascending => text.push_str("🔽"),
+                SortOrder::Descending => text.push_str("🔼"),
+            };
+        }
+        text
+    }
+
+    fn copy_selected_cells(&mut self, ui: &mut Ui) {
+        let all_rows = self.user_table.rows();
+        let mut selected_rows = Vec::new();
+
+        let mut column_max_length = HashMap::new();
+
+        for row in all_rows.into_iter() {
+            if !row.selected_columns.is_empty() {
+                for column in self.user_table.active_columns.iter() {
+                    if row.selected_columns.contains(&column) {
+                        let field_length = row.get_column_length(column);
+                        let entry = column_max_length.entry(column).or_insert(0);
+                        if field_length > *entry {
+                            column_max_length.insert(column, field_length);
+                        }
+                    }
+                }
+                selected_rows.push(row);
+            }
+        }
+
+        let mut to_copy = String::new();
+
+        for row in selected_rows.into_iter() {
+            let mut ongoing_column = ColumnName::Name;
+            let mut row_text = String::new();
+            loop {
+                if self.user_table.active_columns.contains(&ongoing_column)
+                    && row.selected_columns.contains(&ongoing_column)
+                {
+                    let column_text = row.get_column_text(&ongoing_column);
+                    row_text += &format!(
+                        "{:<width$}",
+                        column_text,
+                        width = column_max_length[&ongoing_column] + 1
+                    );
+                } else if self.user_table.active_columns.contains(&ongoing_column)
+                    && !row.selected_columns.contains(&ongoing_column)
+                {
+                    row_text += &format!(
+                        "{:<width$}",
+                        "",
+                        width = column_max_length[&ongoing_column] + 1
+                    );
+                }
+
+                if let ColumnName::Whitelisted = ongoing_column {
+                    break;
+                }
+                ongoing_column = ongoing_column.get_next();
+            }
+            to_copy.push_str(&row_text);
+            to_copy.push('\n');
+        }
+
+        ui.ctx().output_mut(|i| i.copied_text = to_copy);
     }
 }

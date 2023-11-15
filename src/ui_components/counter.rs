@@ -12,7 +12,7 @@ pub struct CounterData {
     whitelisted_message: i32,
     total_user: i32,
     whitelisted_user: i32,
-    is_counting: bool,
+    pub is_counting: bool,
     bar_percentage: f32,
 }
 

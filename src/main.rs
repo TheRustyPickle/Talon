@@ -14,10 +14,7 @@ fn main() {
     dotenv().ok();
     let mut builder = pretty_env_logger::formatted_timed_builder();
 
-    // Prevent logs from all crates
-    builder
-        .format_timestamp_millis()
-        .filter(None, LevelFilter::Off);
+    builder.format_timestamp_millis();
 
     // If RUST_LOG present, set debug else info log for this crate only
     if env::var("RUST_LOG").is_ok() {
