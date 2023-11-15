@@ -27,8 +27,8 @@ pub fn parse_tg_chat(text: String) -> (Option<String>, Option<i32>) {
         let splitted_text = text.split_once("t.me/");
         if let Some((_first, second)) = splitted_text {
             // It will be either chat_name/number or chat_name
-            if second.contains("/") {
-                let group_data = second.split("/").collect::<Vec<&str>>();
+            if second.contains('/') {
+                let group_data = second.split('/').collect::<Vec<&str>>();
                 chat_name = Some(group_data[0].to_string());
                 if let Ok(num) = group_data[1].parse() {
                     message_number = Some(num)
@@ -37,8 +37,8 @@ pub fn parse_tg_chat(text: String) -> (Option<String>, Option<i32>) {
                 chat_name = Some(second.to_string())
             }
         }
-    } else if text.starts_with("@") {
-        let splitted_text = text.split_once("@");
+    } else if text.starts_with('@') {
+        let splitted_text = text.split_once('@');
         if let Some((_first, second)) = splitted_text {
             chat_name = Some(second.to_string());
         }

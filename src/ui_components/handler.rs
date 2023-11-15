@@ -1,12 +1,14 @@
-use eframe::App;
-use eframe::{egui, Frame};
-use egui::{Button, CentralPanel, Context, Visuals};
+use eframe::{egui, App, Frame};
+use egui::{vec2, Align, Button, CentralPanel, Context, Layout, Spinner, Visuals};
+use egui_extras::{Size, StripBuilder};
 use log::{debug, info};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::thread;
 
 use crate::tg_handler::{start_tg_client, ProcessResult, ProcessStart, TGClient};
-use crate::ui_components::{CounterData, ProcessState, TabState, UserTableData, ChartsData, SessionData, WhitelistData};
+use crate::ui_components::{
+    ChartsData, CounterData, ProcessState, SessionData, TabState, UserTableData, WhitelistData,
+};
 use crate::utils::{find_session_files, get_theme_emoji, parse_tg_chat};
 
 pub struct MainWindow {
@@ -45,7 +47,7 @@ impl Default for MainWindow {
 }
 
 impl App for MainWindow {
-    fn update(&mut self, ctx: &Context, _frame: &mut Frame) {
+    fn update(&mut self, ctx: &Context, frame: &mut Frame) {
         CentralPanel::default().show(ctx, |ui| {
             ui.horizontal(|ui| {
                 let (theme_emoji, hover_text) = get_theme_emoji(self.is_light_theme);
@@ -57,9 +59,17 @@ impl App for MainWindow {
                     self.switch_theme(ctx)
                 }
                 ui.separator();
-                ui.selectable_value(&mut self.tab_state, TabState::Counter, "Counter");
+                let counter_tab =
+                    ui.selectable_value(&mut self.tab_state, TabState::Counter, "Counter");
+                if counter_tab.clicked() {
+                    frame.set_window_size(vec2(500.0, 300.0));
+                }
                 ui.separator();
-                ui.selectable_value(&mut self.tab_state, TabState::UserTable, "User Table");
+                let user_table_tab =
+                    ui.selectable_value(&mut self.tab_state, TabState::UserTable, "User Table");
+                if user_table_tab.clicked() {
+                    frame.set_window_size(vec2(1000.0, 700.0));
+                }
                 ui.separator();
                 ui.selectable_value(&mut self.tab_state, TabState::Charts, "Charts");
                 ui.separator();
@@ -68,14 +78,33 @@ impl App for MainWindow {
                 ui.selectable_value(&mut self.tab_state, TabState::Session, "Session");
             });
             ui.separator();
-            match self.tab_state {
-                TabState::Counter => self.show_counter_ui(ui),
-                TabState::UserTable => self.show_user_table_ui(ui),
-                TabState::Charts => self.show_charts_ui(ui),
-                TabState::Whitelist => self.show_whitelist_ui(ui),
-                TabState::Session => self.show_session_ui(ui),
-            }
 
+            // Split the UI in 2 parts. First part takes all the remaining space to show the main UI
+            // The second part takes a small amount of space to show the status text
+            StripBuilder::new(ui)
+                .size(Size::remainder().at_least(100.0))
+                .size(Size::exact(20.0))
+                .vertical(|mut strip| {
+                    strip.cell(|ui| match self.tab_state {
+                        TabState::Counter => self.show_counter_ui(ui),
+                        TabState::UserTable => self.show_user_table_ui(ui),
+                        TabState::Charts => self.show_charts_ui(ui),
+                        TabState::Whitelist => self.show_whitelist_ui(ui),
+                        TabState::Session => self.show_session_ui(ui),
+                    });
+                    strip.cell(|ui| {
+                        ui.separator();
+                        let status_text = self.process_state.to_string();
+                        ui.horizontal(|ui| {
+                            ui.label(status_text);
+                            if self.counter_data.is_counting {
+                                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                                    ui.add(Spinner::new());
+                                });
+                            };
+                        });
+                    })
+                });
             if !self.existing_sessions_checked {
                 self.existing_sessions_checked = true;
                 let existing_sessions = find_session_files();
@@ -118,12 +147,16 @@ impl MainWindow {
                 ProcessResult::CountingMessage(message, start_from, end_at) => {
                     self.process_state = self.process_state.next_dot();
                     let sender_option = message.sender();
+                    let mut sender_id = None;
 
                     if let Some(sender) = sender_option {
+                        sender_id = Some(sender.id());
                         self.user_table.add_user(sender);
                     } else {
                         self.user_table.add_unknown_user();
                     }
+
+                    self.user_table.count_user_message(sender_id, &message);
 
                     let total_user = self.user_table.get_total_user();
                     self.counter_data.set_total_user(total_user);
@@ -176,8 +209,8 @@ impl MainWindow {
             }
         }
 
-        if start_num.is_some() && end_num.is_some() {
-            if start_num.unwrap() < end_num.unwrap() {
+        if let (Some(start_num), Some(end_num)) = (start_num, end_num) {
+            if start_num < end_num {
                 self.process_state = ProcessState::SmallerStartNumber;
                 return;
             }

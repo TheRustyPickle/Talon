@@ -52,3 +52,40 @@ impl Display for ProcessState {
         }
     }
 }
+
+#[derive(Default)]
+pub enum SortOrder {
+    #[default]
+    Ascending,
+    Descending,
+}
+
+#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Default, Debug)]
+pub enum ColumnName {
+    #[default]
+    Name,
+    Username,
+    UserID,
+    TotalMessage,
+    TotalWord,
+    TotalChar,
+    AverageWord,
+    AverageChar,
+    Whitelisted,
+}
+
+impl ColumnName {
+    pub fn get_next(&self) -> Self {
+        match self {
+            ColumnName::Name => ColumnName::Username,
+            ColumnName::Username => ColumnName::UserID,
+            ColumnName::UserID => ColumnName::TotalMessage,
+            ColumnName::TotalMessage => ColumnName::TotalWord,
+            ColumnName::TotalWord => ColumnName::TotalChar,
+            ColumnName::TotalChar => ColumnName::AverageWord,
+            ColumnName::AverageWord => ColumnName::AverageChar,
+            ColumnName::AverageChar => ColumnName::Whitelisted,
+            ColumnName::Whitelisted => ColumnName::Name,
+        }
+    }
+}

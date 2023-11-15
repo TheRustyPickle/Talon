@@ -12,7 +12,7 @@ pub struct CounterData {
     whitelisted_message: i32,
     total_user: i32,
     whitelisted_user: i32,
-    is_counting: bool,
+    pub is_counting: bool,
     bar_percentage: f32,
 }
 
@@ -123,10 +123,6 @@ impl MainWindow {
         });
 
         ui.with_layout(Layout::bottom_up(Align::Min), |ui| {
-            let status_text = self.process_state.to_string();
-            ui.label(status_text);
-            ui.separator();
-            ui.add_space(5.0);
             let mut progress_bar =
                 ProgressBar::new(self.counter_data.bar_percentage).show_percentage();
             if self.counter_data.is_counting {
@@ -141,10 +137,7 @@ impl MainWindow {
             ui.add(Label::new("Selected Session:"));
         });
         ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
-            ui.add(Label::new(format!(
-                "{}",
-                &mut self.counter_data.selected_session
-            )));
+            ui.add(Label::new(self.counter_data.selected_session.to_string()));
         });
         ui.end_row();
 
