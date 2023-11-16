@@ -3,7 +3,7 @@ use egui_extras::{Column, TableBuilder};
 use grammers_client::types::{Chat, Message};
 use std::collections::{HashMap, HashSet};
 
-use crate::ui_components::{ColumnName, MainWindow, SortOrder};
+use crate::ui_components::{ColumnName, MainWindow, ProcessState, SortOrder};
 
 #[derive(Clone)]
 pub struct UserRowData {
@@ -96,6 +96,17 @@ pub struct UserTableData {
 }
 
 impl UserTableData {
+    pub fn clear_row_data(&mut self) {
+        self.rows.clear();
+        self.sorted_by = ColumnName::default();
+        self.sort_order = SortOrder::default();
+        self.drag_started_on = None;
+        self.active_columns.clear();
+        self.last_active_row = None;
+        self.last_active_column = None;
+        self.beyond_drag_point = false;
+    }
+
     pub fn add_user(&mut self, user_data: Chat) {
         let user_id = user_data.id();
         self.rows.entry(user_id).or_insert_with(|| {
@@ -390,7 +401,6 @@ impl UserTableData {
             self.sort_order = SortOrder::Ascending
         }
     }
-
 }
 
 impl MainWindow {
@@ -698,7 +708,7 @@ impl MainWindow {
         }
 
         let mut to_copy = String::new();
-
+        let mut total_cells = 0;
         for row in selected_rows.into_iter() {
             let mut ongoing_column = ColumnName::Name;
             let mut row_text = String::new();
@@ -706,6 +716,7 @@ impl MainWindow {
                 if self.user_table.active_columns.contains(&ongoing_column)
                     && row.selected_columns.contains(&ongoing_column)
                 {
+                    total_cells += 1;
                     let column_text = row.get_column_text(&ongoing_column);
                     row_text += &format!(
                         "{:<width$}",
@@ -732,5 +743,6 @@ impl MainWindow {
         }
 
         ui.ctx().output_mut(|i| i.copied_text = to_copy);
+        self.process_state = ProcessState::DataCopied(total_cells);
     }
 }

@@ -9,25 +9,29 @@ pub enum TabState {
     Session,
 }
 
+#[derive(Clone)]
 pub enum ProcessState {
     Idle,
+    InitialClientConnectionSuccessful(String),
     Counting(u8),
     InvalidStartChat,
     UnmatchedChat,
     SmallerStartNumber,
+    DataCopied(i32),
+    InitialConnectionFailed(String),
+    FileCreationFailed,
+    UnauthorizedClient(String),
+    NonExistingChat(String),
 }
 
 impl ProcessState {
     pub fn next_dot(&self) -> Self {
         match self {
-            ProcessState::Idle => ProcessState::Idle,
             ProcessState::Counting(num) => {
                 let new_num = if num == &3 { 0 } else { num + 1 };
                 ProcessState::Counting(new_num)
             }
-            ProcessState::InvalidStartChat => ProcessState::InvalidStartChat,
-            ProcessState::UnmatchedChat => ProcessState::UnmatchedChat,
-            ProcessState::SmallerStartNumber => ProcessState::SmallerStartNumber,
+            _ => self.clone(),
         }
     }
 }
@@ -36,6 +40,9 @@ impl Display for ProcessState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ProcessState::Idle => write!(f, "Status: Idle"),
+            ProcessState::InitialClientConnectionSuccessful(name) => {
+                write!(f, "Status: Connection successful with session: {}", name)
+            }
             ProcessState::Counting(count) => {
                 write!(f, "Status: Checking messages")?;
                 for _ in 0..*count {
@@ -49,6 +56,23 @@ impl Display for ProcessState {
                 f,
                 "Status: Start message number must be greater than the ending message number"
             ),
+            ProcessState::DataCopied(num) => {
+                write!(f, "Status: Table data copied. Total cells: {}", num)
+            }
+            ProcessState::InitialConnectionFailed(name) => write!(
+                f,
+                "Status: Could not connect to {name} session. Restart the app to try again"
+            ),
+            ProcessState::FileCreationFailed => {
+                write!(f, "Status: Could not create the session file. Try again")
+            }
+            ProcessState::UnauthorizedClient(name) => write!(
+                f,
+                "Status: The session {name} is not authorized. Delete the session and create a new one"
+            ),
+            ProcessState::NonExistingChat(name) => {
+                write!(f, "Status: The target chat {name} does not exist")
+            }
         }
     }
 }

@@ -4,11 +4,18 @@ use crate::tg_handler::TGClient;
 
 pub enum ProcessResult {
     NewClient(TGClient),
-    InvalidChat,
-    UnauthorizedClient,
+    InvalidChat(String),
+    UnauthorizedClient(String),
     /// Message + Started from + End at
     CountingMessage(Message, i32, i32),
     CountingEnd,
+    ProcessFailed(ProcessError),
+}
+
+#[derive(Debug)]
+pub enum ProcessError {
+    InitialClientConnectionError(String),
+    FileCreationError,
 }
 
 pub enum ProcessStart {
