@@ -679,8 +679,8 @@ impl MainWindow {
 
         if header_type == self.user_table.sorted_by {
             match self.user_table.sort_order {
-                SortOrder::Ascending => text.push_str("🔽"),
-                SortOrder::Descending => text.push_str("🔼"),
+                SortOrder::Ascending => text.push('🔽'),
+                SortOrder::Descending => text.push('🔼'),
             };
         }
         text
@@ -695,7 +695,7 @@ impl MainWindow {
         for row in all_rows.into_iter() {
             if !row.selected_columns.is_empty() {
                 for column in self.user_table.active_columns.iter() {
-                    if row.selected_columns.contains(&column) {
+                    if row.selected_columns.contains(column) {
                         let field_length = row.get_column_length(column);
                         let entry = column_max_length.entry(column).or_insert(0);
                         if field_length > *entry {

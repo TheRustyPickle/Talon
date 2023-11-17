@@ -1,5 +1,6 @@
 use log::info;
 use std::fs;
+use tokio::runtime::{self, Runtime};
 
 pub fn find_session_files() -> Vec<String> {
     let mut sessions = Vec::new();
@@ -58,4 +59,11 @@ pub fn get_theme_emoji(is_light_theme: bool) -> (String, String) {
     } else {
         ("☀".to_string(), "Switch to light theme".to_string())
     }
+}
+
+pub fn get_runtime() -> Runtime {
+    runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap()
 }
