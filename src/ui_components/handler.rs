@@ -1,11 +1,12 @@
 use eframe::{egui, App, Frame};
 use egui::{vec2, Align, Button, CentralPanel, Context, Layout, Spinner, Visuals};
 use egui_extras::{Size, StripBuilder};
-use log::{debug, info};
+use log::info;
+use std::collections::HashMap;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::thread;
 
-use crate::tg_handler::{start_tg_client, ProcessResult, ProcessStart, TGClient};
+use crate::tg_handler::{start_process, NewProcess, ProcessResult, ProcessStart, TGClient};
 use crate::ui_components::{
     ChartsData, CounterData, ProcessState, SessionData, TabState, UserTableData, WhitelistData,
 };
@@ -20,10 +21,11 @@ pub struct MainWindow {
     tab_state: TabState,
     pub process_state: ProcessState,
     tg_sender: Sender<ProcessResult>,
-    tg_receiver: Receiver<ProcessResult>,
-    tg_clients: Vec<TGClient>,
+    pub tg_receiver: Receiver<ProcessResult>,
+    pub tg_clients: HashMap<String, TGClient>,
     existing_sessions_checked: bool,
     is_light_theme: bool,
+    pub is_processing: bool,
 }
 
 impl Default for MainWindow {
@@ -39,14 +41,34 @@ impl Default for MainWindow {
             process_state: ProcessState::Idle,
             tg_sender: sender,
             tg_receiver: receiver,
-            tg_clients: Vec::new(),
+            tg_clients: HashMap::new(),
             existing_sessions_checked: false,
             is_light_theme: true,
+            is_processing: false,
         }
     }
 }
 
 impl App for MainWindow {
+    fn on_close_event(&mut self) -> bool {
+        self.process_state = ProcessState::LoggingOut;
+        self.is_processing = true;
+        let mut joins = Vec::new();
+        for (_, client) in self.tg_clients.clone().into_iter() {
+            if client.is_temporary() {
+                let joiner =
+                    thread::spawn(move || client.start_process(ProcessStart::SessionLogout));
+                joins.push(joiner)
+            }
+        }
+
+        for join in joins {
+            join.join().unwrap();
+        }
+
+        true
+    }
+
     fn update(&mut self, ctx: &Context, frame: &mut Frame) {
         CentralPanel::default().show(ctx, |ui| {
             ui.horizontal(|ui| {
@@ -61,21 +83,26 @@ impl App for MainWindow {
                 ui.separator();
                 let counter_tab =
                     ui.selectable_value(&mut self.tab_state, TabState::Counter, "Counter");
-                if counter_tab.clicked() {
-                    frame.set_window_size(vec2(500.0, 300.0));
-                }
                 ui.separator();
                 let user_table_tab =
                     ui.selectable_value(&mut self.tab_state, TabState::UserTable, "User Table");
-                if user_table_tab.clicked() {
-                    frame.set_window_size(vec2(1000.0, 700.0));
-                }
                 ui.separator();
                 ui.selectable_value(&mut self.tab_state, TabState::Charts, "Charts");
                 ui.separator();
                 ui.selectable_value(&mut self.tab_state, TabState::Whitelist, "Whitelist");
                 ui.separator();
-                ui.selectable_value(&mut self.tab_state, TabState::Session, "Session");
+                let session_tab =
+                    ui.selectable_value(&mut self.tab_state, TabState::Session, "Session");
+
+                if counter_tab.clicked() {
+                    frame.set_window_size(vec2(500.0, 300.0));
+                }
+                if user_table_tab.clicked() {
+                    frame.set_window_size(vec2(1000.0, 700.0));
+                }
+                if session_tab.clicked() {
+                    frame.set_window_size(vec2(500.0, 300.0));
+                }
             });
             ui.separator();
 
@@ -97,7 +124,7 @@ impl App for MainWindow {
                         let status_text = self.process_state.to_string();
                         ui.horizontal(|ui| {
                             ui.label(status_text);
-                            if self.counter_data.is_counting {
+                            if self.is_processing {
                                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                                     ui.add(Spinner::new());
                                 });
@@ -114,7 +141,11 @@ impl App for MainWindow {
                     let sender_clone = self.tg_sender.clone();
                     let ctx_clone = ctx.clone();
                     thread::spawn(move || {
-                        start_tg_client(session_name, sender_clone, ctx_clone);
+                        start_process(
+                            NewProcess::InitialSessionConnect(session_name),
+                            sender_clone,
+                            ctx_clone,
+                        );
                     });
                 }
             } else {
@@ -125,67 +156,12 @@ impl App for MainWindow {
 }
 
 impl MainWindow {
-    // TODO move this to a separate file
-    fn check_receiver(&mut self) {
-        while let Ok(data) = self.tg_receiver.try_recv() {
-            match data {
-                ProcessResult::NewClient(client) => {
-                    self.tg_clients.push(client);
-                    if self.tg_clients.len() == 1 {
-                        self.update_counter_session()
-                    }
-                }
-                ProcessResult::InvalidChat => {
-                    info!("Invalid chat found")
-                }
-                ProcessResult::UnauthorizedClient => info!("The client is not authorized"),
-                ProcessResult::CountingEnd => {
-                    info!("Counting ended");
-                    self.process_state = ProcessState::Idle;
-                    self.counter_data.counting_ended()
-                }
-                ProcessResult::CountingMessage(message, start_from, end_at) => {
-                    self.process_state = self.process_state.next_dot();
-                    let sender_option = message.sender();
-                    let mut sender_id = None;
-
-                    if let Some(sender) = sender_option {
-                        sender_id = Some(sender.id());
-                        self.user_table.add_user(sender);
-                    } else {
-                        self.user_table.add_unknown_user();
-                    }
-
-                    self.user_table.count_user_message(sender_id, &message);
-
-                    let total_user = self.user_table.get_total_user();
-                    self.counter_data.set_total_user(total_user);
-
-                    let total_to_iter = start_from - end_at;
-                    let message_value = 100.0 / total_to_iter as f32;
-                    let current_message_number = message.id();
-
-                    let total_processed = start_from - current_message_number;
-                    let processed_percentage = if total_processed != 0 {
-                        total_processed as f32 * message_value
-                    } else {
-                        message_value
-                    };
-                    self.counter_data.add_one_total_message();
-                    debug!(
-                        "Bar percentage: {}. Current message: {current_message_number} Total message: {}, Started from: {}",
-                        processed_percentage, total_to_iter, start_from
-                    );
-                    self.counter_data
-                        .set_bar_percentage(processed_percentage / 100.0);
-                }
-            }
+    // TODO update to combo box
+    pub fn update_counter_session(&mut self) {
+        if let Some((session_name, _)) = self.tg_clients.iter().next() {
+            self.counter_data
+                .update_selected_session(session_name.to_owned());
         }
-    }
-
-    fn update_counter_session(&mut self) {
-        let first_session = self.tg_clients.first().unwrap().name();
-        self.counter_data.update_selected_session(first_session)
     }
 
     pub fn start_counting(&mut self) {
@@ -216,21 +192,79 @@ impl MainWindow {
             }
         }
 
-        info!("Starting counting");
-        self.process_state = ProcessState::Counting(0);
-        self.counter_data.counting_started();
-
         let selected_client = self.counter_data.get_selected_session();
 
-        for client in self.tg_clients.iter() {
-            if client.name() == selected_client {
-                let client = client.clone();
-                thread::spawn(move || {
-                    client.start_process(ProcessStart::StartCount(start_chat, start_num, end_num));
-                });
+        if selected_client.is_empty() {
+            self.process_state = ProcessState::EmptySelectedSession;
+            return;
+        }
 
-                break;
-            }
+        info!("Starting counting");
+        self.user_table.clear_row_data();
+        self.process_state = ProcessState::Counting(0);
+        self.counter_data.counting_started();
+        self.is_processing = true;
+
+        let client = self.tg_clients.get(&selected_client);
+
+        if let Some(client) = client {
+            let client = client.clone();
+            thread::spawn(move || {
+                client.start_process(ProcessStart::StartCount(start_chat, start_num, end_num));
+            });
+        } else {
+            panic!("TO be handled")
+        }
+    }
+
+    pub fn request_login_code(&mut self, context: Context) {
+        let phone_num = self.session_data.get_phone_number();
+        let session_name = self.session_data.get_session_name();
+        let is_temporary = self.session_data.get_is_temporary();
+
+        let sender_clone = self.tg_sender.clone();
+
+        self.is_processing = true;
+        self.process_state = ProcessState::SendingTGCode;
+
+        thread::spawn(move || {
+            start_process(
+                NewProcess::SendLoginCode(session_name, phone_num, is_temporary),
+                sender_clone,
+                context,
+            );
+        });
+    }
+
+    pub fn sign_in_code(&mut self) {
+        self.is_processing = true;
+        self.process_state = ProcessState::LogInWithCode;
+
+        let code = self.session_data.get_tg_code();
+        let token = self.session_data.get_tg_code_token();
+        let session_name = self.session_data.get_session_name();
+
+        let client = self.tg_clients.get(&session_name);
+        if let Some(client) = client {
+            let client = client.clone();
+            thread::spawn(move || client.start_process(ProcessStart::SignInCode(token, code)));
+        }
+    }
+
+    pub fn sign_in_password(&mut self) {
+        self.is_processing = true;
+        self.process_state = ProcessState::LogInWithPassword;
+
+        let password = self.session_data.get_password();
+        let token = self.session_data.get_password_token();
+        let session_name = self.session_data.get_session_name();
+
+        let client = self.tg_clients.get(&session_name);
+        if let Some(client) = client {
+            let client = client.clone();
+            thread::spawn(move || {
+                client.start_process(ProcessStart::SignInPasswords(token, password))
+            });
         }
     }
 

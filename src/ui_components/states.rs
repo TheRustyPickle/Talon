@@ -9,25 +9,42 @@ pub enum TabState {
     Session,
 }
 
+#[derive(Clone)]
 pub enum ProcessState {
     Idle,
+    InitialClientConnectionSuccessful(String),
     Counting(u8),
     InvalidStartChat,
     UnmatchedChat,
     SmallerStartNumber,
+    DataCopied(i32),
+    InitialConnectionFailed(String),
+    FileCreationFailed,
+    UnauthorizedClient(String),
+    NonExistingChat(String),
+    SendingTGCode,
+    TGCodeSent,
+    LogInWithCode,
+    LogInWithPassword,
+    InvalidTGCode,
+    InvalidPassword,
+    NotSignedUp,
+    UnknownError,
+    LoggedIn(String),
+    EmptySelectedSession,
+    LoggingOut,
+    InvalidPhonePossibly,
+    PasswordRequired,
 }
 
 impl ProcessState {
     pub fn next_dot(&self) -> Self {
         match self {
-            ProcessState::Idle => ProcessState::Idle,
             ProcessState::Counting(num) => {
                 let new_num = if num == &3 { 0 } else { num + 1 };
                 ProcessState::Counting(new_num)
             }
-            ProcessState::InvalidStartChat => ProcessState::InvalidStartChat,
-            ProcessState::UnmatchedChat => ProcessState::UnmatchedChat,
-            ProcessState::SmallerStartNumber => ProcessState::SmallerStartNumber,
+            _ => self.clone(),
         }
     }
 }
@@ -36,6 +53,9 @@ impl Display for ProcessState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ProcessState::Idle => write!(f, "Status: Idle"),
+            ProcessState::InitialClientConnectionSuccessful(name) => {
+                write!(f, "Status: Connection successful with session: {}", name)
+            }
             ProcessState::Counting(count) => {
                 write!(f, "Status: Checking messages")?;
                 for _ in 0..*count {
@@ -49,6 +69,36 @@ impl Display for ProcessState {
                 f,
                 "Status: Start message number must be greater than the ending message number"
             ),
+            ProcessState::DataCopied(num) => {
+                write!(f, "Status: Table data copied. Total cells: {}", num)
+            }
+            ProcessState::InitialConnectionFailed(name) => write!(
+                f,
+                "Status: Could not connect to {name} session. Restart the app to try again"
+            ),
+            ProcessState::FileCreationFailed => {
+                write!(f, "Status: Could not create the session file. Try again")
+            }
+            ProcessState::UnauthorizedClient(name) => write!(
+                f,
+                "Status: The session {name} is not authorized. Delete the session and create a new one"
+            ),
+            ProcessState::NonExistingChat(name) => {
+                write!(f, "Status: The target chat {name} does not exist")
+            }
+            ProcessState::SendingTGCode => write!(f, "Status: Trying to send Telegram login code"),
+            ProcessState::TGCodeSent => write!(f, "Status: Telegram code was sent"),
+            ProcessState::LogInWithCode => write!(f, "Status: Trying to login to the session with the code"),
+            ProcessState::LogInWithPassword => write!(f, "Trying to login to the session with the password"),
+            ProcessState::LoggedIn(name) => write!(f, "Status: Logged in session {name}"),
+            ProcessState::InvalidTGCode => write!(f, "Status: Invalid TG Code given"),
+            ProcessState::InvalidPassword => write!(f, "Status: Invalid password given"),
+            ProcessState::NotSignedUp => write!(f, "Status: Account not signed up with this phone number"),
+            ProcessState::UnknownError => write!(f, "Status: Unknown error acquired"),
+            ProcessState::EmptySelectedSession => write!(f, "Status: No session is selected. Create a new session from the Session tab"),
+            ProcessState::LoggingOut => write!(f, "Status: Logging out of all temporary sessions"),
+            ProcessState::InvalidPhonePossibly => write!(f, "Status: Unknown error acquired. Possibly invalid phone number given"),
+            ProcessState::PasswordRequired => write!(f, "Status: Account requires a password authentication"),
         }
     }
 }

@@ -12,8 +12,8 @@ pub struct CounterData {
     whitelisted_message: i32,
     total_user: i32,
     whitelisted_user: i32,
-    pub is_counting: bool,
     bar_percentage: f32,
+    counting: bool,
 }
 
 impl CounterData {
@@ -34,17 +34,19 @@ impl CounterData {
     }
 
     pub fn counting_started(&mut self) {
+        self.counting = true;
         self.bar_percentage = 0.0;
         self.total_user = 0;
         self.total_message = 0;
         self.whitelisted_message = 0;
         self.whitelisted_user = 0;
-        self.is_counting = true;
     }
 
     pub fn counting_ended(&mut self) {
-        self.is_counting = false;
-        self.set_bar_percentage(1.0);
+        if self.counting {
+            self.counting = false;
+            self.bar_percentage = 1.0;
+        }
     }
 
     pub fn set_bar_percentage(&mut self, percentage: f32) {
@@ -111,7 +113,7 @@ impl MainWindow {
                 });
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 ui.add_space(80.0);
-                if self.counter_data.is_counting {
+                if self.is_processing {
                     ui.add_enabled(false, Button::new("Start").min_size(vec2(80.0, 40.0)));
                 } else {
                     let start_button = ui.add_sized([80.0, 40.0], Button::new("Start"));
@@ -125,7 +127,7 @@ impl MainWindow {
         ui.with_layout(Layout::bottom_up(Align::Min), |ui| {
             let mut progress_bar =
                 ProgressBar::new(self.counter_data.bar_percentage).show_percentage();
-            if self.counter_data.is_counting {
+            if self.is_processing {
                 progress_bar = progress_bar.animate(true);
             }
             ui.add(progress_bar);
