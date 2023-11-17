@@ -22,6 +22,19 @@ pub enum ProcessState {
     FileCreationFailed,
     UnauthorizedClient(String),
     NonExistingChat(String),
+    SendingTGCode,
+    TGCodeSent,
+    LogInWithCode,
+    LogInWithPassword,
+    InvalidTGCode,
+    InvalidPassword,
+    NotSignedUp,
+    UnknownError,
+    LoggedIn(String),
+    EmptySelectedSession,
+    LoggingOut,
+    InvalidPhonePossibly,
+    PasswordRequired,
 }
 
 impl ProcessState {
@@ -73,6 +86,19 @@ impl Display for ProcessState {
             ProcessState::NonExistingChat(name) => {
                 write!(f, "Status: The target chat {name} does not exist")
             }
+            ProcessState::SendingTGCode => write!(f, "Status: Trying to send Telegram login code"),
+            ProcessState::TGCodeSent => write!(f, "Status: Telegram code was sent"),
+            ProcessState::LogInWithCode => write!(f, "Status: Trying to login to the session with the code"),
+            ProcessState::LogInWithPassword => write!(f, "Trying to login to the session with the password"),
+            ProcessState::LoggedIn(name) => write!(f, "Status: Logged in session {name}"),
+            ProcessState::InvalidTGCode => write!(f, "Status: Invalid TG Code given"),
+            ProcessState::InvalidPassword => write!(f, "Status: Invalid password given"),
+            ProcessState::NotSignedUp => write!(f, "Status: Account not signed up with this phone number"),
+            ProcessState::UnknownError => write!(f, "Status: Unknown error acquired"),
+            ProcessState::EmptySelectedSession => write!(f, "Status: No session is selected. Create a new session from the Session tab"),
+            ProcessState::LoggingOut => write!(f, "Status: Logging out of all temporary sessions"),
+            ProcessState::InvalidPhonePossibly => write!(f, "Status: Unknown error acquired. Possibly invalid phone number given"),
+            ProcessState::PasswordRequired => write!(f, "Status: Account requires a password authentication"),
         }
     }
 }

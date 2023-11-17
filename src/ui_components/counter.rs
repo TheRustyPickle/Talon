@@ -13,6 +13,7 @@ pub struct CounterData {
     total_user: i32,
     whitelisted_user: i32,
     bar_percentage: f32,
+    counting: bool,
 }
 
 impl CounterData {
@@ -33,6 +34,7 @@ impl CounterData {
     }
 
     pub fn counting_started(&mut self) {
+        self.counting = true;
         self.bar_percentage = 0.0;
         self.total_user = 0;
         self.total_message = 0;
@@ -41,7 +43,10 @@ impl CounterData {
     }
 
     pub fn counting_ended(&mut self) {
-        self.set_bar_percentage(1.0);
+        if self.counting {
+            self.counting = false;
+            self.bar_percentage = 1.0;
+        }
     }
 
     pub fn set_bar_percentage(&mut self, percentage: f32) {

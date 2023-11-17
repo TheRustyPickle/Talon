@@ -1,4 +1,4 @@
-use log::{debug, info};
+use log::{debug, error, info};
 
 use crate::tg_handler::{ProcessError, ProcessResult};
 use crate::ui_components::{MainWindow, ProcessState};
@@ -7,25 +7,27 @@ impl MainWindow {
     pub fn check_receiver(&mut self) {
         while let Ok(data) = self.tg_receiver.try_recv() {
             match data {
-                ProcessResult::NewClient(client) => {
+                ProcessResult::InitialSessionSuccess(client) => {
+                    info!("Initial connection to session {} successful", client.name());
                     self.process_state =
                         ProcessState::InitialClientConnectionSuccessful(client.name());
-                    self.tg_clients.push(client);
-                    if self.tg_clients.len() == 1 {
-                        self.update_counter_session()
-                    }
+                    self.tg_clients.insert(client.name(), client);
+                    self.update_counter_session()
                 }
                 ProcessResult::InvalidChat(chat_name) => {
-                    self.process_state = ProcessState::NonExistingChat(chat_name)
+                    info!("Invalid chat name found: {}", chat_name);
+                    self.process_state = ProcessState::NonExistingChat(chat_name);
+                    self.stop_process()
                 }
                 ProcessResult::UnauthorizedClient(client_name) => {
-                    self.process_state = ProcessState::UnauthorizedClient(client_name)
+                    info!("{} is not authorized.", client_name);
+                    self.process_state = ProcessState::UnauthorizedClient(client_name);
+                    self.stop_process()
                 }
                 ProcessResult::CountingEnd => {
                     info!("Counting ended");
                     self.process_state = ProcessState::Idle;
-                    self.counter_data.counting_ended();
-                    self.is_processing = false;
+                    self.stop_process()
                 }
                 ProcessResult::CountingMessage(message, start_from, end_at) => {
                     self.process_state = self.process_state.next_dot();
@@ -62,13 +64,71 @@ impl MainWindow {
                     self.counter_data
                         .set_bar_percentage(processed_percentage / 100.0);
                 }
-                ProcessResult::ProcessFailed(err) => match err {
-                    ProcessError::InitialClientConnectionError(name) => {
-                        self.process_state = ProcessState::InitialConnectionFailed(name)
+                ProcessResult::ProcessFailed(err) => {
+                    self.stop_process();
+                    match err {
+                        ProcessError::InitialClientConnectionError(name) => {
+                            error!("Error acquired while trying to connect to the client");
+                            self.process_state = ProcessState::InitialConnectionFailed(name)
+                        }
+                        ProcessError::FileCreationError => {
+                            error!("Error acquired while trying to create/delete the session file");
+                            self.stop_process();
+                            self.process_state = ProcessState::FileCreationFailed;
+                        }
+                        ProcessError::InvalidTGCode => {
+                            error!("Invalid TG Code given for the session");
+                            self.stop_process();
+                            self.process_state = ProcessState::InvalidTGCode
+                        }
+                        ProcessError::NotSignedUp => {
+                            error!("The phone number is not signed up");
+                            self.stop_process();
+                            self.process_state = ProcessState::NotSignedUp
+                        }
+                        ProcessError::UnknownError(e) => {
+                            error!("Unknown error encountered while trying to login. {e}");
+                            self.stop_process();
+                            self.process_state = ProcessState::UnknownError
+                        }
+                        ProcessError::InvalidPassword => {
+                            error!("Invalid TG Password given for the session");
+                            self.stop_process();
+                            self.process_state = ProcessState::InvalidPassword
+                        }
+                        ProcessError::InvalidPhonePossibly => {
+                            error!("Possibly invalid phone number given for the session");
+                            self.stop_process();
+                            self.process_state = ProcessState::InvalidPhonePossibly
+                        }
                     }
-                    ProcessError::FileCreationError => {}
-                },
+                }
+                ProcessResult::LoginCodeSent(token, client) => {
+                    info!("Login code sent to the client");
+                    self.stop_process();
+                    self.tg_clients.insert(client.name(), client);
+                    self.session_data.set_login_token(token);
+                    self.process_state = ProcessState::TGCodeSent;
+                }
+                ProcessResult::PasswordRequired(token) => {
+                    info!("Client requires a password authentication");
+                    self.stop_process();
+                    self.session_data.set_password_token(*token);
+                    self.process_state = ProcessState::PasswordRequired;
+                }
+                ProcessResult::LoggedIn(name) => {
+                    info!("Logged in to the client {name}");
+                    self.stop_process();
+                    self.session_data.reset_data();
+                    self.process_state = ProcessState::LoggedIn(name);
+                    self.update_counter_session()
+                }
             }
         }
+    }
+
+    fn stop_process(&mut self) {
+        self.is_processing = false;
+        self.counter_data.counting_ended();
     }
 }
