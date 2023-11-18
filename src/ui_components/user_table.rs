@@ -416,6 +416,23 @@ impl UserTableData {
         self.last_active_column = None;
     }
 
+    fn select_all(&mut self) {
+        let mut all_columns = vec![ColumnName::Name];
+        let mut current_column = ColumnName::Name.get_next();
+        
+        while current_column != ColumnName::Name {
+            all_columns.push(current_column.clone());
+            current_column = current_column.get_next()
+        }
+
+        for (_, row) in self.rows.iter_mut() {
+            row.selected_columns.extend(all_columns.clone());
+        }
+        self.active_columns.extend(all_columns);
+        self.last_active_row = None;
+        self.last_active_column = None;
+    }
+
     fn change_sorted_by(&mut self, sort_by: ColumnName) {
         self.unselected_all();
         self.sorted_by = sort_by;
@@ -434,9 +451,13 @@ impl UserTableData {
 impl MainWindow {
     pub fn show_user_table_ui(&mut self, ui: &mut Ui) {
         let is_ctrl_pressed = ui.ctx().input(|i| i.modifiers.ctrl);
+        let key_a_pressed = ui.ctx().input(|i| i.key_pressed(Key::A));
+        let key_c_pressed = ui.ctx().input(|i| i.key_pressed(Key::C));
 
-        if is_ctrl_pressed && ui.ctx().input(|i| i.key_pressed(Key::C)) {
+        if is_ctrl_pressed && key_c_pressed {
             self.copy_selected_cells(ui);
+        } else if is_ctrl_pressed && key_a_pressed {
+            self.user_table.select_all();
         }
 
         ScrollArea::horizontal().drag_to_scroll(false).show(ui, |ui| {
@@ -561,8 +582,42 @@ impl MainWindow {
                         self.handle_header_selection(response, is_selected, ColumnName::Whitelisted);
                     });
                 })
-                .body(|mut body| {
-                    for row_data in self.user_table.rows() {
+                .body(|body| {
+                    let table_rows = self.user_table.rows();
+                    body.rows(25.0, table_rows.len(), |row_index, mut row| {
+                        //for row_data in self.user_table.rows() {
+                            let row_data = &table_rows[row_index];
+                            row.col(|ui| {
+                                self.create_table_row(ColumnName::Name, &row_data, ui)
+                            });
+                            row.col(|ui| {
+                                self.create_table_row(ColumnName::Username, &row_data, ui)
+                            });
+                            row.col(|ui| {
+                                self.create_table_row(ColumnName::UserID, &row_data, ui)
+                            });
+                            row.col(|ui| {
+                                self.create_table_row(ColumnName::TotalMessage, &row_data, ui)
+                            });
+                            row.col(|ui| {
+                                self.create_table_row(ColumnName::TotalWord, &row_data, ui)
+                            });
+                            row.col(|ui| {
+                                self.create_table_row(ColumnName::TotalChar, &row_data, ui)
+                            });
+                            row.col(|ui| {
+                                self.create_table_row(ColumnName::AverageWord, &row_data, ui)
+                            });
+                            row.col(|ui| {
+                                self.create_table_row(ColumnName::AverageChar, &row_data, ui)
+                            });
+                            row.col(|ui| {
+                                self.create_table_row(ColumnName::Whitelisted, &row_data, ui)
+                            });
+                        //}
+                    })
+
+                    /*for row_data in self.user_table.rows() {
                         body.row(25.0, |mut row| {
                             row.col(|ui| {
                                 self.create_table_row(ColumnName::Name, &row_data, ui)
@@ -592,7 +647,7 @@ impl MainWindow {
                                 self.create_table_row(ColumnName::Whitelisted, &row_data, ui)
                             });
                         })
-                    }
+                    }*/
                 });
         });
     }
