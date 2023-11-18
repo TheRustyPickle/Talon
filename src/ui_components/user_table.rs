@@ -582,8 +582,42 @@ impl MainWindow {
                         self.handle_header_selection(response, is_selected, ColumnName::Whitelisted);
                     });
                 })
-                .body(|mut body| {
-                    for row_data in self.user_table.rows() {
+                .body(|body| {
+                    let table_rows = self.user_table.rows();
+                    body.rows(25.0, table_rows.len(), |row_index, mut row| {
+                        //for row_data in self.user_table.rows() {
+                            let row_data = &table_rows[row_index];
+                            row.col(|ui| {
+                                self.create_table_row(ColumnName::Name, &row_data, ui)
+                            });
+                            row.col(|ui| {
+                                self.create_table_row(ColumnName::Username, &row_data, ui)
+                            });
+                            row.col(|ui| {
+                                self.create_table_row(ColumnName::UserID, &row_data, ui)
+                            });
+                            row.col(|ui| {
+                                self.create_table_row(ColumnName::TotalMessage, &row_data, ui)
+                            });
+                            row.col(|ui| {
+                                self.create_table_row(ColumnName::TotalWord, &row_data, ui)
+                            });
+                            row.col(|ui| {
+                                self.create_table_row(ColumnName::TotalChar, &row_data, ui)
+                            });
+                            row.col(|ui| {
+                                self.create_table_row(ColumnName::AverageWord, &row_data, ui)
+                            });
+                            row.col(|ui| {
+                                self.create_table_row(ColumnName::AverageChar, &row_data, ui)
+                            });
+                            row.col(|ui| {
+                                self.create_table_row(ColumnName::Whitelisted, &row_data, ui)
+                            });
+                        //}
+                    })
+
+                    /*for row_data in self.user_table.rows() {
                         body.row(25.0, |mut row| {
                             row.col(|ui| {
                                 self.create_table_row(ColumnName::Name, &row_data, ui)
@@ -613,7 +647,7 @@ impl MainWindow {
                                 self.create_table_row(ColumnName::Whitelisted, &row_data, ui)
                             });
                         })
-                    }
+                    }*/
                 });
         });
     }
