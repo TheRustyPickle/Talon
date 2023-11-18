@@ -107,18 +107,46 @@ impl UserTableData {
         self.beyond_drag_point = false;
     }
 
-    pub fn add_user(&mut self, user_data: Chat) {
-        let user_id = user_data.id();
-        self.rows.entry(user_id).or_insert_with(|| {
-            let row_data = UserRowData::new(user_data.name(), user_data.username(), user_id, false);
-            row_data
-        });
-    }
+    pub fn add_user(&mut self, sender: Option<Chat>) -> Option<i64> {
+        let mut to_return = None;
+        if let Some(chat_data) = sender {
+            let user_id = chat_data.id();
+            to_return = Some(user_id);
 
-    pub fn add_unknown_user(&mut self) {
-        self.rows
-            .entry(0)
-            .or_insert_with(|| UserRowData::new("Anonymous/Unknown", None, 0, false));
+            if let Chat::User(user) = chat_data {
+                let full_name = user.full_name();
+
+                let chat_name = if full_name.is_empty() {
+                    "Deleted Account"
+                } else {
+                    &full_name
+                };
+
+                let user_name = user.username();
+
+                self.rows
+                    .entry(user_id)
+                    .or_insert_with(|| UserRowData::new(chat_name, user_name, user_id, false));
+            } else {
+                let chat_name = chat_data.name();
+
+                let chat_name = if chat_name.is_empty() {
+                    "Deleted Account"
+                } else {
+                    chat_name
+                };
+
+                self.rows.entry(user_id).or_insert_with(|| {
+                    UserRowData::new(chat_name, chat_data.username(), user_id, false)
+                });
+            }
+        } else {
+            self.rows
+                .entry(0)
+                .or_insert_with(|| UserRowData::new("Anonymous/Unknown", None, 0, false));
+        }
+
+        to_return
     }
 
     pub fn count_user_message(&mut self, user_id: Option<i64>, message: &Message) {

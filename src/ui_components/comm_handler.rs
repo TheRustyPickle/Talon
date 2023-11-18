@@ -31,15 +31,9 @@ impl MainWindow {
                 }
                 ProcessResult::CountingMessage(message, start_from, end_at) => {
                     self.process_state = self.process_state.next_dot();
-                    let sender_option = message.sender();
-                    let mut sender_id = None;
 
-                    if let Some(sender) = sender_option {
-                        sender_id = Some(sender.id());
-                        self.user_table.add_user(sender);
-                    } else {
-                        self.user_table.add_unknown_user();
-                    }
+                    let sender = message.sender();
+                    let sender_id = self.user_table.add_user(sender);
 
                     self.user_table.count_user_message(sender_id, &message);
 
