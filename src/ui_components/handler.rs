@@ -1,5 +1,8 @@
 use eframe::{egui, App, Frame};
-use egui::{vec2, Align, Button, CentralPanel, Context, Layout, Spinner, Visuals};
+use egui::{
+    vec2, Align, Button, CentralPanel, Context, FontData, FontDefinitions, FontFamily, Layout,
+    Spinner, Visuals,
+};
 use egui_extras::{Size, StripBuilder};
 use log::info;
 use std::collections::HashMap;
@@ -70,6 +73,31 @@ impl App for MainWindow {
     }
 
     fn update(&mut self, ctx: &Context, frame: &mut Frame) {
+        ctx.set_pixels_per_point(1.1);
+
+        let font_data_cjk = include_bytes!("../../fonts/NotoSansCJK-Regular.ttc");
+        let font_data_gentium = include_bytes!("../../fonts/GentiumBookPlus-Regular.ttf");
+
+        let font_cjk = FontData::from_static(font_data_cjk);
+        let font_gentium = FontData::from_static(font_data_gentium);
+
+        let mut font_definitions = FontDefinitions::default();
+
+        font_definitions
+            .font_data
+            .insert("NotoSansCJK".to_owned(), font_cjk);
+        font_definitions
+            .font_data
+            .insert("GentiumBookPlus".to_owned(), font_gentium);
+
+        font_definitions
+            .families
+            .get_mut(&FontFamily::Proportional)
+            .unwrap()
+            .extend(["NotoSansCJK".to_owned(), "GentiumBookPlus".to_owned()]);
+
+        ctx.set_fonts(font_definitions);
+
         CentralPanel::default().show(ctx, |ui| {
             ui.horizontal(|ui| {
                 let (theme_emoji, hover_text) = get_theme_emoji(self.is_light_theme);
