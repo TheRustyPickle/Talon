@@ -9,7 +9,6 @@ pub enum TabState {
     Session,
 }
 
-#[derive(Clone)]
 pub enum ProcessState {
     Idle,
     InitialClientConnectionSuccessful(String),
@@ -35,6 +34,7 @@ pub enum ProcessState {
     LoggingOut,
     InvalidPhonePossibly,
     PasswordRequired,
+    FloodWait,
 }
 
 impl ProcessState {
@@ -44,7 +44,7 @@ impl ProcessState {
                 let new_num = if num == &3 { 0 } else { num + 1 };
                 ProcessState::Counting(new_num)
             }
-            _ => self.clone(),
+            _ => ProcessState::Counting(0),
         }
     }
 }
@@ -99,6 +99,7 @@ impl Display for ProcessState {
             ProcessState::LoggingOut => write!(f, "Status: Logging out of all temporary sessions"),
             ProcessState::InvalidPhonePossibly => write!(f, "Status: Unknown error acquired. Possibly invalid phone number given"),
             ProcessState::PasswordRequired => write!(f, "Status: Account requires a password authentication"),
+            ProcessState::FloodWait => write!(f, "Status: Flood wait triggered. Will resume again soon"),
         }
     }
 }

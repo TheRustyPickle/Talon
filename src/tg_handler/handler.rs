@@ -73,6 +73,14 @@ impl TGClient {
         self.is_temporary
     }
 
+    pub fn sender(&self) -> Sender<ProcessResult> {
+        self.sender.clone()
+    }
+
+    pub fn context(&self) -> Context {
+        self.context.clone()
+    }
+
     pub async fn check_authorization(&self) -> Result<bool, ProcessError> {
         let authorized: bool = self
             .client()

@@ -14,6 +14,7 @@ pub enum ProcessResult {
     LoginCodeSent(LoginToken, TGClient),
     PasswordRequired(Box<PasswordToken>),
     LoggedIn(String),
+    FloodWait,
 }
 
 #[derive(Debug)]
