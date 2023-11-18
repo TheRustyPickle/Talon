@@ -416,6 +416,23 @@ impl UserTableData {
         self.last_active_column = None;
     }
 
+    fn select_all(&mut self) {
+        let mut all_columns = vec![ColumnName::Name];
+        let mut current_column = ColumnName::Name.get_next();
+        
+        while current_column != ColumnName::Name {
+            all_columns.push(current_column.clone());
+            current_column = current_column.get_next()
+        }
+
+        for (_, row) in self.rows.iter_mut() {
+            row.selected_columns.extend(all_columns.clone());
+        }
+        self.active_columns.extend(all_columns);
+        self.last_active_row = None;
+        self.last_active_column = None;
+    }
+
     fn change_sorted_by(&mut self, sort_by: ColumnName) {
         self.unselected_all();
         self.sorted_by = sort_by;
@@ -434,9 +451,13 @@ impl UserTableData {
 impl MainWindow {
     pub fn show_user_table_ui(&mut self, ui: &mut Ui) {
         let is_ctrl_pressed = ui.ctx().input(|i| i.modifiers.ctrl);
+        let key_a_pressed = ui.ctx().input(|i| i.key_pressed(Key::A));
+        let key_c_pressed = ui.ctx().input(|i| i.key_pressed(Key::C));
 
-        if is_ctrl_pressed && ui.ctx().input(|i| i.key_pressed(Key::C)) {
+        if is_ctrl_pressed && key_c_pressed {
             self.copy_selected_cells(ui);
+        } else if is_ctrl_pressed && key_a_pressed {
+            self.user_table.select_all();
         }
 
         ScrollArea::horizontal().drag_to_scroll(false).show(ui, |ui| {
