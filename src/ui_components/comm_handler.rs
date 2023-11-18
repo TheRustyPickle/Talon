@@ -123,6 +123,10 @@ impl MainWindow {
                     self.process_state = ProcessState::LoggedIn(name);
                     self.update_counter_session()
                 }
+                ProcessResult::FloodWait => {
+                    info!("Flood wait triggered");
+                    self.process_state = ProcessState::FloodWait;
+                }
             }
         }
     }

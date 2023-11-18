@@ -1,6 +1,7 @@
 use log::{debug, error, info};
-use std::thread::sleep;
-use std::time::Duration;
+use std::sync::{Arc, Mutex};
+use std::thread::{self, sleep};
+use std::time::{Duration, Instant};
 
 use crate::tg_handler::{ProcessError, ProcessResult, TGClient};
 
@@ -45,9 +46,35 @@ impl TGClient {
             start_at, end_at
         );
 
+        let last_sent = Arc::new(Mutex::new(Some(Instant::now())));
+
+        let last_sent_clone = last_sent.clone();
+        let sender = self.sender();
+        let context = self.context();
+
+        thread::spawn(move || loop {
+            sleep(Duration::from_millis(500));
+
+            let last_sent = last_sent_clone.lock().unwrap();
+
+            if let Some(last_sent) = *last_sent {
+                let time_passed = last_sent.elapsed().as_millis();
+                if time_passed > 500 && time_passed < 1200 {
+                    sender.send(ProcessResult::FloodWait).unwrap();
+                    context.request_repaint();
+                };
+            } else {
+                break;
+            }
+        });
+
         let mut iter_message = self.client().iter_messages(tg_chat);
 
-        while let Some(message) = iter_message.next().await.unwrap() {
+        while let Some(message) = iter_message
+            .next()
+            .await
+            .map_err(ProcessError::UnknownError)?
+        {
             let message_num = message.id();
             debug!("Got message number: {}", message_num);
             if start_at == -1 {
@@ -68,7 +95,15 @@ impl TGClient {
             } else {
                 sleep(Duration::from_millis(2))
             }
+
+            {
+                let mut last_sent_lock = last_sent.lock().unwrap();
+                *last_sent_lock = Some(Instant::now());
+            }
         }
+        let mut last_sent_lock = last_sent.lock().unwrap();
+        *last_sent_lock = None;
+
         self.send(ProcessResult::CountingEnd);
         Ok(())
     }
