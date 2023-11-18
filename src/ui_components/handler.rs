@@ -123,13 +123,13 @@ impl App for MainWindow {
                     ui.selectable_value(&mut self.tab_state, TabState::Session, "Session");
 
                 if counter_tab.clicked() {
-                    frame.set_window_size(vec2(500.0, 300.0));
+                    frame.set_window_size(vec2(500.0, 320.0));
                 }
                 if user_table_tab.clicked() {
                     frame.set_window_size(vec2(1000.0, 700.0));
                 }
                 if session_tab.clicked() {
-                    frame.set_window_size(vec2(500.0, 300.0));
+                    frame.set_window_size(vec2(500.0, 320.0));
                 }
             });
             ui.separator();
