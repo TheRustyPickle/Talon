@@ -66,7 +66,7 @@ impl SessionData {
 
 impl MainWindow {
     pub fn show_session_ui(&mut self, ui: &mut Ui) {
-        Grid::new("my grid")
+        Grid::new("Session Grid")
             .num_columns(2)
             .spacing([5.0, 10.0])
             .show(ui, |ui| {

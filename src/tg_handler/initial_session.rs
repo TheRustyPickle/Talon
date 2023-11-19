@@ -2,18 +2,20 @@ use eframe::egui::Context;
 use grammers_client::{Client, Config};
 use grammers_session::Session;
 use log::info;
-use std::env;
 use std::sync::mpsc::Sender;
 
 use crate::tg_handler::{ProcessError, ProcessResult, TGClient};
+use crate::utils::get_api_keys;
 
 pub async fn connect_to_session(
     sender: Sender<ProcessResult>,
     name: String,
     context: &Context,
 ) -> Result<(), ProcessError> {
-    let api_id = env::var("API_ID").unwrap().parse().unwrap();
-    let api_hash = env::var("API_HASH").unwrap();
+    let api_data = get_api_keys().unwrap();
+
+    let api_id = api_data.api_id.parse().unwrap();
+    let api_hash = api_data.api_hash;
 
     let name_without_session = name.replace(".session", "");
 
@@ -25,14 +27,14 @@ pub async fn connect_to_session(
         params: Default::default(),
     })
     .await
-    .map_err(|_| ProcessError::InitialClientConnectionError(name_without_session.to_owned()))?;
+    .map_err(|_| ProcessError::AuthorizationError)?;
 
     info!("Connected to client {name_without_session} successfully");
 
     let authorized = client
         .is_authorized()
         .await
-        .map_err(|_| ProcessError::InitialClientConnectionError(name_without_session.to_owned()))?;
+        .map_err(ProcessError::UnknownError)?;
 
     info!("Client authorization status: {}", authorized);
 

@@ -70,14 +70,14 @@ impl CounterData {
 
 impl MainWindow {
     pub fn show_counter_ui(&mut self, ui: &mut Ui) {
-        Grid::new("my grid")
+        Grid::new("Counter Grid")
             .num_columns(2)
             .spacing([5.0, 10.0])
             .show(ui, |ui| self.show_grid_data(ui));
 
         ui.add_space(10.0);
         ui.horizontal(|ui| {
-            Grid::new("status")
+            Grid::new("Main")
                 .num_columns(2)
                 .spacing([5.0, 10.0])
                 .show(ui, |ui| {

@@ -3,15 +3,16 @@ mod ui_components;
 mod utils;
 
 use crate::ui_components::MainWindow;
-use dotenvy::dotenv;
+use dirs::data_local_dir;
 use eframe::egui;
 use eframe::Theme;
 use egui::vec2;
+use env::set_current_dir;
 use log::{info, LevelFilter};
 use std::env;
+use std::fs;
 
 fn main() {
-    dotenv().ok();
     let mut builder = pretty_env_logger::formatted_timed_builder();
 
     builder.format_timestamp_millis();
@@ -27,17 +28,31 @@ fn main() {
             .init()
     };
 
-    info!("Starting app");
-    let native_options = eframe::NativeOptions {
-        initial_window_size: Some(vec2(500.0, 380.0)),
-        default_theme: Theme::Light,
-        resizable: true,
-        ..Default::default()
-    };
-    eframe::run_native(
-        "Talon",
-        native_options,
-        Box::new(|_cc| Box::<MainWindow>::default()),
-    )
-    .unwrap();
+    let working_path = data_local_dir();
+
+    if let Some(location) = working_path {
+        let mut target_location = location;
+
+        target_location.push("Talon");
+
+        fs::create_dir_all(&target_location).unwrap();
+        set_current_dir(target_location).unwrap();
+
+        info!("Starting app");
+        let native_options = eframe::NativeOptions {
+            initial_window_size: Some(vec2(550.0, 380.0)),
+            default_theme: Theme::Light,
+            resizable: true,
+            ..Default::default()
+        };
+        eframe::run_native(
+            "Talon",
+            native_options,
+            Box::new(|_cc| Box::<MainWindow>::default()),
+        )
+        .unwrap();
+    } else {
+        println!("Failed to get local data directory. Exiting");
+        std::process::exit(1);
+    }
 }
