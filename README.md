@@ -9,7 +9,7 @@ Talon is a tool to generate on-demand data insights from public Telegram chats. 
 
 ### 1. Counter
 
-- Takes an input of a starting point Telegram message link (and an optional ending point).
+- Checks Telegram messages from a given message link (and an optional ending point).
 - Displays the total number of unique users found and the total messages counted.
 - Utilizes gathered data to visualize additional analytics.
 
@@ -37,11 +37,8 @@ Talon uses the [grammers library](https://github.com/lonami/grammers) for Telegr
 
 **1. Run from Source Code:**
 
-```bash
-git clone https://github.com/TheRustyPickle/Talon
-cd Talon
-cargo run --release
-```
+- Clone the repository `git clone https://github.com/TheRustyPickle/Talon`
+- Run with cargo `cargo run --release`
 
 **2. Run the Latest Release:**
 

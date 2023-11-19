@@ -73,7 +73,7 @@ impl TGClient {
 
         info!("{} exists. Starting iterating messages", tg_chat.name());
 
-        let end_at = if let Some(num) = end_num { num } else { 0 };
+        let end_at = if let Some(num) = end_num { num } else { 1 };
         let mut start_at = if let Some(num) = start_num { num } else { -1 };
 
         info!(
@@ -98,6 +98,11 @@ impl TGClient {
                     sender.send(ProcessResult::FloodWait).unwrap();
                     context.request_repaint();
                 };
+
+                // stop this thread if no activity for over 60 seconds
+                if time_passed > 60000 {
+                    break;
+                }
             } else {
                 break;
             }
@@ -105,6 +110,14 @@ impl TGClient {
 
         let mut last_number = -1;
         let mut iter_message = self.client().iter_messages(tg_chat);
+
+        // Add 1 to offset because the latest message would start from the offset point - 1 message
+        // Add 1 to last_number if the starting message is 100 but does not exist and starts from 99, we want to count that missing message
+        // If last_number is 100, it would be counted as normal message progression
+        if start_at != -1 {
+            iter_message = iter_message.offset_id(start_at + 1);
+            last_number = start_at + 1;
+        }
 
         while let Some(message) = iter_message
             .next()
@@ -119,14 +132,15 @@ impl TGClient {
             }
 
             if message_num < end_at {
+                debug!("Went beyond the ending point");
                 break;
             }
-            let count_data = TGCountData::new(message, start_at, end_at, last_number);
 
-            if message_num >= end_at {
+            if message_num <= start_at {
+                let count_data = TGCountData::new(message, start_at, end_at, last_number);
                 self.send(ProcessResult::CountingMessage(count_data));
+                last_number = message_num;
             }
-            last_number = message_num;
 
             // Sleep to prevent flood time being too noticeable/getting triggered
             if start_at - end_at > 3000 {
@@ -140,10 +154,11 @@ impl TGClient {
                 *last_sent_lock = Some(Instant::now());
             }
         }
+
         let mut last_sent_lock = last_sent.lock().unwrap();
         *last_sent_lock = None;
 
-        self.send(ProcessResult::CountingEnd);
+        self.send(ProcessResult::CountingEnd((end_at, last_number)));
         Ok(())
     }
 }

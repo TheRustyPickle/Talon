@@ -1,4 +1,4 @@
-use log::{debug, error, info};
+use log::{error, info};
 
 use crate::tg_handler::{ProcessError, ProcessResult};
 use crate::ui_components::{MainWindow, ProcessState};
@@ -24,7 +24,15 @@ impl MainWindow {
                     self.process_state = ProcessState::UnauthorizedClient(client_name);
                     self.stop_process()
                 }
-                ProcessResult::CountingEnd => {
+                ProcessResult::CountingEnd((end_at, last_number)) => {
+                    // Example case end point 100, last processed 102
+                    // Current num 99 so end point reached
+                    // 101 and 100 is missing so count them as deleted
+                    if last_number - 1 != end_at {
+                        let total_deleted = last_number - end_at;
+                        self.counter_data.add_deleted_message(total_deleted);
+                    }
+
                     info!("Counting ended");
                     self.process_state = ProcessState::Idle;
                     self.stop_process()
@@ -52,6 +60,7 @@ impl MainWindow {
 
                     // If current num = 100 and last processed = 105
                     // messages with 101, 102, 103 and 104 are missing/deleted
+                    // The current num is already getting processed so subtract 1
                     let total_deleted = if last_number != -1 {
                         (last_number - current_message_number) - 1
                     } else {
@@ -67,10 +76,6 @@ impl MainWindow {
                         message_value
                     };
                     self.counter_data.add_one_total_message();
-                    debug!(
-                        "Bar percentage: {}. Current message: {current_message_number} Total message: {}, Started from: {}",
-                        processed_percentage, total_to_iter, start_from
-                    );
                     self.counter_data
                         .set_bar_percentage(processed_percentage / 100.0);
                 }

@@ -41,6 +41,7 @@ impl CounterData {
         self.total_message = 0;
         self.whitelisted_message = 0;
         self.whitelisted_user = 0;
+        self.deleted_message = 0;
     }
 
     pub fn counting_ended(&mut self) {

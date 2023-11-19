@@ -10,7 +10,7 @@ pub enum ProcessResult {
     UnauthorizedClient(String),
     /// Message + Started from + End at
     CountingMessage(TGCountData),
-    CountingEnd,
+    CountingEnd((i32, i32)),
     ProcessFailed(ProcessError),
     LoginCodeSent(LoginToken, TGClient),
     PasswordRequired(Box<PasswordToken>),
