@@ -10,8 +10,11 @@ eframe = "0.23.0"
 grammers-client = { git = "https://github.com/Lonami/grammers.git", package = "grammers-client"}
 grammers-session = { git = "https://github.com/Lonami/grammers.git", package = "grammers-session"}
 tokio = "1.33.0"
-dotenvy = "0.15.7"
 log = "0.4.20"
 pretty_env_logger = "0.5.0"
 arboard = "3.2.1"
 egui_extras = "0.23.0"
+serde = { version = "1.0.192", features = ["derive"] }
+serde_json = "1.0.108"
+dirs = "5.0.1"
+open = "5.0.0"
