@@ -48,6 +48,10 @@ To be added
 
 To be added
 
+## App Data Location
+
+See [here](https://docs.rs/dirs/latest/dirs/fn.data_local_dir.html) for location info where app data is saved which is determined based on the OS. Files can be added, deleted or modified here to reflect in the application.
+
 ## Feedback and Contributions
 
 Have feedback, found a bug, or have a feature request? Feel free to [open an issue](https://github.com/TheRustyPickle/Talon/issues/new). Pull requests are welcome!
