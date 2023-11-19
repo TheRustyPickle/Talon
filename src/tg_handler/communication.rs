@@ -1,14 +1,15 @@
-use crate::tg_handler::TGClient;
-use grammers_client::types::{iter_buffer::InvocationError, LoginToken, Message, PasswordToken};
+use grammers_client::types::{iter_buffer::InvocationError, LoginToken, PasswordToken};
 use std::sync::Arc;
 use tokio::sync::Mutex;
+
+use crate::tg_handler::{TGClient, TGCountData};
 
 pub enum ProcessResult {
     InitialSessionSuccess(TGClient),
     InvalidChat(String),
     UnauthorizedClient(String),
     /// Message + Started from + End at
-    CountingMessage(Message, i32, i32),
+    CountingMessage(TGCountData),
     CountingEnd,
     ProcessFailed(ProcessError),
     LoginCodeSent(LoginToken, TGClient),

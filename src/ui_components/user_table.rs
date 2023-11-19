@@ -419,7 +419,7 @@ impl UserTableData {
     fn select_all(&mut self) {
         let mut all_columns = vec![ColumnName::Name];
         let mut current_column = ColumnName::Name.get_next();
-        
+
         while current_column != ColumnName::Name {
             all_columns.push(current_column.clone());
             current_column = current_column.get_next()
@@ -463,7 +463,6 @@ impl MainWindow {
         ScrollArea::horizontal().drag_to_scroll(false).show(ui, |ui| {
             let table = TableBuilder::new(ui)
                 .striped(true)
-                .auto_shrink([true; 2])
                 .resizable(true)
                 .cell_layout(Layout::left_to_right(Align::Center))
                 .column(Column::initial(100.0).clip(true))
@@ -588,31 +587,31 @@ impl MainWindow {
                         //for row_data in self.user_table.rows() {
                             let row_data = &table_rows[row_index];
                             row.col(|ui| {
-                                self.create_table_row(ColumnName::Name, &row_data, ui)
+                                self.create_table_row(ColumnName::Name, row_data, ui)
                             });
                             row.col(|ui| {
-                                self.create_table_row(ColumnName::Username, &row_data, ui)
+                                self.create_table_row(ColumnName::Username, row_data, ui)
                             });
                             row.col(|ui| {
-                                self.create_table_row(ColumnName::UserID, &row_data, ui)
+                                self.create_table_row(ColumnName::UserID, row_data, ui)
                             });
                             row.col(|ui| {
-                                self.create_table_row(ColumnName::TotalMessage, &row_data, ui)
+                                self.create_table_row(ColumnName::TotalMessage, row_data, ui)
                             });
                             row.col(|ui| {
-                                self.create_table_row(ColumnName::TotalWord, &row_data, ui)
+                                self.create_table_row(ColumnName::TotalWord, row_data, ui)
                             });
                             row.col(|ui| {
-                                self.create_table_row(ColumnName::TotalChar, &row_data, ui)
+                                self.create_table_row(ColumnName::TotalChar, row_data, ui)
                             });
                             row.col(|ui| {
-                                self.create_table_row(ColumnName::AverageWord, &row_data, ui)
+                                self.create_table_row(ColumnName::AverageWord, row_data, ui)
                             });
                             row.col(|ui| {
-                                self.create_table_row(ColumnName::AverageChar, &row_data, ui)
+                                self.create_table_row(ColumnName::AverageChar, row_data, ui)
                             });
                             row.col(|ui| {
-                                self.create_table_row(ColumnName::Whitelisted, &row_data, ui)
+                                self.create_table_row(ColumnName::Whitelisted, row_data, ui)
                             });
                         //}
                     })

@@ -29,20 +29,36 @@ impl MainWindow {
                     self.process_state = ProcessState::Idle;
                     self.stop_process()
                 }
-                ProcessResult::CountingMessage(message, start_from, end_at) => {
+                ProcessResult::CountingMessage(count_data) => {
                     self.process_state = self.process_state.next_dot();
+
+                    let message = count_data.message();
+                    let start_from = count_data.start_at();
+                    let end_at = count_data.end_at();
+                    let last_number = count_data.last_number();
 
                     let sender = message.sender();
                     let sender_id = self.user_table.add_user(sender);
 
-                    self.user_table.count_user_message(sender_id, &message);
+                    self.user_table.count_user_message(sender_id, message);
 
                     let total_user = self.user_table.get_total_user();
                     self.counter_data.set_total_user(total_user);
 
                     let total_to_iter = start_from - end_at;
                     let message_value = 100.0 / total_to_iter as f32;
+
                     let current_message_number = message.id();
+
+                    // If current num = 100 and last processed = 105
+                    // messages with 101, 102, 103 and 104 are missing/deleted
+                    let total_deleted = if last_number != -1 {
+                        (last_number - current_message_number) - 1
+                    } else {
+                        0
+                    };
+
+                    self.counter_data.add_deleted_message(total_deleted);
 
                     let total_processed = start_from - current_message_number;
                     let processed_percentage = if total_processed != 0 {
@@ -67,32 +83,26 @@ impl MainWindow {
                         }
                         ProcessError::FileCreationError => {
                             error!("Error acquired while trying to create/delete the session file");
-                            self.stop_process();
                             self.process_state = ProcessState::FileCreationFailed;
                         }
                         ProcessError::InvalidTGCode => {
                             error!("Invalid TG Code given for the session");
-                            self.stop_process();
                             self.process_state = ProcessState::InvalidTGCode
                         }
                         ProcessError::NotSignedUp => {
                             error!("The phone number is not signed up");
-                            self.stop_process();
                             self.process_state = ProcessState::NotSignedUp
                         }
                         ProcessError::UnknownError(e) => {
                             error!("Unknown error encountered while trying to login. {e}");
-                            self.stop_process();
                             self.process_state = ProcessState::UnknownError
                         }
                         ProcessError::InvalidPassword => {
                             error!("Invalid TG Password given for the session");
-                            self.stop_process();
                             self.process_state = ProcessState::InvalidPassword
                         }
                         ProcessError::InvalidPhonePossibly => {
                             error!("Possibly invalid phone number given for the session");
-                            self.stop_process();
                             self.process_state = ProcessState::InvalidPhonePossibly
                         }
                     }

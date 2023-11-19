@@ -1,9 +1,44 @@
+use grammers_client::types::Message;
 use log::{debug, error, info};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, sleep};
 use std::time::{Duration, Instant};
 
 use crate::tg_handler::{ProcessError, ProcessResult, TGClient};
+
+pub struct TGCountData {
+    message: Message,
+    start_at: i32,
+    end_at: i32,
+    last_number: i32,
+}
+
+impl TGCountData {
+    pub fn new(message: Message, start_at: i32, end_at: i32, last_number: i32) -> Self {
+        TGCountData {
+            message,
+            start_at,
+            end_at,
+            last_number,
+        }
+    }
+
+    pub fn message(&self) -> &Message {
+        &self.message
+    }
+
+    pub fn start_at(&self) -> i32 {
+        self.start_at
+    }
+
+    pub fn end_at(&self) -> i32 {
+        self.end_at
+    }
+
+    pub fn last_number(&self) -> i32 {
+        self.last_number
+    }
+}
 
 impl TGClient {
     pub async fn start_count(
@@ -59,7 +94,7 @@ impl TGClient {
 
             if let Some(last_sent) = *last_sent {
                 let time_passed = last_sent.elapsed().as_millis();
-                if time_passed > 500 && time_passed < 1200 {
+                if time_passed > 500 && time_passed < 1050 {
                     sender.send(ProcessResult::FloodWait).unwrap();
                     context.request_repaint();
                 };
@@ -68,6 +103,7 @@ impl TGClient {
             }
         });
 
+        let mut last_number = -1;
         let mut iter_message = self.client().iter_messages(tg_chat);
 
         while let Some(message) = iter_message
@@ -85,9 +121,12 @@ impl TGClient {
             if message_num < end_at {
                 break;
             }
+            let count_data = TGCountData::new(message, start_at, end_at, last_number);
+
             if message_num >= end_at {
-                self.send(ProcessResult::CountingMessage(message, start_at, end_at));
+                self.send(ProcessResult::CountingMessage(count_data));
             }
+            last_number = message_num;
 
             // Sleep to prevent flood time being too noticeable/getting triggered
             if start_at - end_at > 3000 {

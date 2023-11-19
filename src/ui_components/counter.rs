@@ -12,6 +12,7 @@ pub struct CounterData {
     whitelisted_message: i32,
     total_user: i32,
     whitelisted_user: i32,
+    deleted_message: i32,
     bar_percentage: f32,
     counting: bool,
 }
@@ -60,6 +61,10 @@ impl CounterData {
     pub fn add_one_total_message(&mut self) {
         self.total_message += 1;
     }
+
+    pub fn add_deleted_message(&mut self, to_add: i32) {
+        self.deleted_message += to_add;
+    }
 }
 
 impl MainWindow {
@@ -107,6 +112,15 @@ impl MainWindow {
                     });
                     ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
                         ui.label(format!("{}", &mut self.counter_data.whitelisted_user));
+                    });
+
+                    ui.end_row();
+
+                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                        ui.label("Deleted Message:")
+                    });
+                    ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
+                        ui.label(format!("{}", &mut self.counter_data.deleted_message));
                     });
 
                     ui.end_row();
