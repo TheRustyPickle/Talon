@@ -3,9 +3,9 @@
 <a href="https://wakatime.com/badge/github/TheRustyPickle/Talon"><img src="https://wakatime.com/badge/github/TheRustyPickle/Talon.svg" alt="wakatime"></a>
 </div>
 
-Talon is a tool to generate on-demand data insights from public Telegram chats. Powered by Rust, grammers and egui, it offers a straightforward interface that leverages the Telegram account API.
+Talon is a tool to generate on-demand data insights from public Telegram chats. Powered by Rust, grammers, and egui, it offers a straightforward interface that leverages the Telegram account API.
 
-![Screenshot from 2023-11-20 22-13-50](https://github.com/TheRustyPickle/Talon/assets/35862475/195256c9-b962-4a64-9189-696203f724fb)
+![Screenshot from 2023-11-20 22-13-50](https://github.com/TheRustyPickle/Talon/assets/35862475/8a044556-5e41-4129-a510-bf6407ce493b)
 
 ## Features
 
