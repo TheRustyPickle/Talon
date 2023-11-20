@@ -17,7 +17,7 @@ pub enum ProcessState {
     UnmatchedChat,
     SmallerStartNumber,
     DataCopied(i32),
-    InitialConnectionFailed(String),
+    AuthorizationError,
     FileCreationFailed,
     UnauthorizedClient(String),
     NonExistingChat(String),
@@ -31,8 +31,7 @@ pub enum ProcessState {
     UnknownError,
     LoggedIn(String),
     EmptySelectedSession,
-    LoggingOut,
-    InvalidPhonePossibly,
+    InvalidPhoneOrAPI,
     PasswordRequired,
     FloodWait,
 }
@@ -72,9 +71,9 @@ impl Display for ProcessState {
             ProcessState::DataCopied(num) => {
                 write!(f, "Status: Table data copied. Total cells: {}", num)
             }
-            ProcessState::InitialConnectionFailed(name) => write!(
+            ProcessState::AuthorizationError => write!(
                 f,
-                "Status: Could not connect to {name} session. Restart the app to try again"
+                "Status: Could not connect to the session. Are your API keys valid?"
             ),
             ProcessState::FileCreationFailed => {
                 write!(f, "Status: Could not create the session file. Try again")
@@ -96,8 +95,7 @@ impl Display for ProcessState {
             ProcessState::NotSignedUp => write!(f, "Status: Account not signed up with this phone number"),
             ProcessState::UnknownError => write!(f, "Status: Unknown error acquired"),
             ProcessState::EmptySelectedSession => write!(f, "Status: No session is selected. Create a new session from the Session tab"),
-            ProcessState::LoggingOut => write!(f, "Status: Logging out of all temporary sessions"),
-            ProcessState::InvalidPhonePossibly => write!(f, "Status: Unknown error acquired. Possibly invalid phone number given"),
+            ProcessState::InvalidPhoneOrAPI => write!(f, "Status: Unknown error acquired. Possibly invalid phone number given or API keys are invalid"),
             ProcessState::PasswordRequired => write!(f, "Status: Account requires a password authentication"),
             ProcessState::FloodWait => write!(f, "Status: Flood wait triggered. Will resume again soon"),
         }

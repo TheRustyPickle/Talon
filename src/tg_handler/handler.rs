@@ -86,7 +86,7 @@ impl TGClient {
             .client()
             .is_authorized()
             .await
-            .map_err(|_| ProcessError::InitialClientConnectionError(self.name()))?;
+            .map_err(ProcessError::UnknownError)?;
 
         info!("Client authorization status: {}", authorized);
 

@@ -20,12 +20,12 @@ pub enum ProcessResult {
 
 #[derive(Debug)]
 pub enum ProcessError {
-    InitialClientConnectionError(String),
+    AuthorizationError,
     FileCreationError,
     InvalidTGCode,
     InvalidPassword,
     NotSignedUp,
-    InvalidPhonePossibly,
+    InvalidPhoneOrAPI,
     UnknownError(InvocationError),
 }
 

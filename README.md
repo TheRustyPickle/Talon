@@ -5,21 +5,23 @@
 
 Talon is a tool to generate on-demand data insights from public Telegram chats. Powered by Rust, grammers and egui, it offers a straightforward interface that leverages the Telegram account API.
 
+![Screenshot from 2023-11-20 22-13-50](https://github.com/TheRustyPickle/Talon/assets/35862475/195256c9-b962-4a64-9189-696203f724fb)
+
 ## Features
 
-### 1. Counter
+**Counter:**
 
 - Checks Telegram messages from a given message link (and an optional ending point).
 - Displays the total number of unique users found and the total messages counted.
 - Utilizes gathered data to visualize additional analytics.
 
-### 2. User Table
+**User Table:**
 
 - Utilizes the counted data to generate a comprehensive user table.
 - View user details, including name, username, ID, total messages, total words, total characters, and more.
 - Allows interaction with the table, such as selecting cells and copying data in an organized manner.
 
-### 3. Session Creation
+**Session Creation:**
 
 - Takes relevant input to log in to a Telegram account and create a new session.
 - Choose between a temporary session (logs out on app close) or a non-temporary session (creates a file for persistent login).
@@ -38,15 +40,19 @@ Talon uses the [grammers library](https://github.com/lonami/grammers) for Telegr
 **1. Run from Source Code:**
 
 - Clone the repository `git clone https://github.com/TheRustyPickle/Talon`
-- Run with cargo `cargo run --release`
+- Run with Cargo `cargo run --release`
 
-**2. Run the Latest Release:**
+**2. Run the latest Release:**
 
 To be added
 
 **3. Install using Cargo:**
 
 To be added
+
+## App Data Location
+
+See [here](https://docs.rs/dirs/latest/dirs/fn.data_local_dir.html) for location info where app data is saved which is determined based on the OS. Files can be added, deleted or modified here to reflect in the application.
 
 ## Feedback and Contributions
 

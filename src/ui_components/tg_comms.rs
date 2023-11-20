@@ -82,9 +82,9 @@ impl MainWindow {
                 ProcessResult::ProcessFailed(err) => {
                     self.stop_process();
                     match err {
-                        ProcessError::InitialClientConnectionError(name) => {
+                        ProcessError::AuthorizationError => {
                             error!("Error acquired while trying to connect to the client");
-                            self.process_state = ProcessState::InitialConnectionFailed(name)
+                            self.process_state = ProcessState::AuthorizationError
                         }
                         ProcessError::FileCreationError => {
                             error!("Error acquired while trying to create/delete the session file");
@@ -106,9 +106,9 @@ impl MainWindow {
                             error!("Invalid TG Password given for the session");
                             self.process_state = ProcessState::InvalidPassword
                         }
-                        ProcessError::InvalidPhonePossibly => {
-                            error!("Possibly invalid phone number given for the session");
-                            self.process_state = ProcessState::InvalidPhonePossibly
+                        ProcessError::InvalidPhoneOrAPI => {
+                            error!("Possibly invalid phone number given or API keys error");
+                            self.process_state = ProcessState::InvalidPhoneOrAPI
                         }
                     }
                 }

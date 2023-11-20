@@ -3,13 +3,13 @@ use grammers_client::types::{LoginToken, PasswordToken};
 use grammers_client::{Client, Config, SignInError};
 use grammers_session::Session;
 use log::info;
-use std::env;
 use std::fs;
 use std::sync::mpsc::Sender;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use crate::tg_handler::{ProcessError, ProcessResult, TGClient};
+use crate::utils::get_api_keys;
 
 pub async fn send_login_code(
     sender: Sender<ProcessResult>,
@@ -18,8 +18,10 @@ pub async fn send_login_code(
     phone_number: String,
     is_temporary: bool,
 ) -> Result<(), ProcessError> {
-    let api_id = env::var("API_ID").unwrap().parse().unwrap();
-    let api_hash = env::var("API_HASH").unwrap();
+    let api_data = get_api_keys().unwrap();
+
+    let api_id = api_data.api_id.parse().unwrap();
+    let api_hash = api_data.api_hash;
 
     let session = if is_temporary {
         Session::new()
@@ -41,12 +43,12 @@ pub async fn send_login_code(
         params: Default::default(),
     })
     .await
-    .unwrap();
+    .map_err(|_| ProcessError::AuthorizationError)?;
 
     let code_token = client
         .request_login_code(&phone_number)
         .await
-        .map_err(|_| ProcessError::InvalidPhonePossibly)?;
+        .map_err(|_| ProcessError::InvalidPhoneOrAPI)?;
 
     let new_client = TGClient::new(client, session_name, sender, context.clone(), is_temporary);
 

@@ -11,11 +11,13 @@ use std::thread;
 
 use crate::tg_handler::{start_process, NewProcess, ProcessResult, ProcessStart, TGClient};
 use crate::ui_components::{
-    ChartsData, CounterData, ProcessState, SessionData, TabState, UserTableData, WhitelistData,
+    ChartsData, CounterData, ProcessState, SessionData, TGKeys, TabState, UserTableData,
+    WhitelistData,
 };
-use crate::utils::{find_session_files, get_theme_emoji, parse_tg_chat};
+use crate::utils::{find_session_files, get_api_keys, get_theme_emoji, parse_tg_chat};
 
 pub struct MainWindow {
+    pub tg_keys: TGKeys,
     pub counter_data: CounterData,
     pub user_table: UserTableData,
     pub charts_data: ChartsData,
@@ -29,12 +31,15 @@ pub struct MainWindow {
     existing_sessions_checked: bool,
     is_light_theme: bool,
     pub is_processing: bool,
+    pub keys_verified: bool,
+    keys_checked: bool,
 }
 
 impl Default for MainWindow {
     fn default() -> Self {
         let (sender, receiver) = channel();
         Self {
+            tg_keys: TGKeys::default(),
             counter_data: CounterData::default(),
             user_table: UserTableData::default(),
             charts_data: ChartsData::default(),
@@ -48,14 +53,14 @@ impl Default for MainWindow {
             existing_sessions_checked: false,
             is_light_theme: true,
             is_processing: false,
+            keys_verified: false,
+            keys_checked: false,
         }
     }
 }
 
 impl App for MainWindow {
     fn on_close_event(&mut self) -> bool {
-        self.process_state = ProcessState::LoggingOut;
-        self.is_processing = true;
         let mut joins = Vec::new();
         for (_, client) in self.tg_clients.clone().into_iter() {
             if client.is_temporary() {
@@ -99,6 +104,16 @@ impl App for MainWindow {
         ctx.set_fonts(font_definitions);
 
         CentralPanel::default().show(ctx, |ui| {
+            if !self.keys_checked {
+                self.keys_checked = true;
+                if get_api_keys().is_some() {
+                    self.keys_verified = true;
+                }
+            }
+            if !self.keys_verified {
+                self.show_tg_keys_ui(ui);
+                return;
+            }
             ui.horizontal(|ui| {
                 let (theme_emoji, hover_text) = get_theme_emoji(self.is_light_theme);
                 let theme_button = ui
@@ -123,7 +138,7 @@ impl App for MainWindow {
                     ui.selectable_value(&mut self.tab_state, TabState::Session, "Session");
 
                 if counter_tab.clicked() {
-                    frame.set_window_size(vec2(500.0, 350.0));
+                    frame.set_window_size(vec2(550.0, 350.0));
                 }
                 if user_table_tab.clicked() {
                     frame.set_window_size(vec2(1000.0, 700.0));
