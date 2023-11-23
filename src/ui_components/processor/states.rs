@@ -1,5 +1,14 @@
 use std::fmt::{self, Display};
 
+#[derive(Default)]
+pub enum AppState {
+    #[default]
+    LoadingFonts,
+    CheckingAPIKeys,
+    InputAPIKeys,
+    InitializedUI,
+}
+
 #[derive(PartialEq)]
 pub enum TabState {
     Counter,

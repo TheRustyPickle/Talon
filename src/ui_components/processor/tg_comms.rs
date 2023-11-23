@@ -1,7 +1,8 @@
 use log::{error, info};
 
 use crate::tg_handler::{ProcessError, ProcessResult};
-use crate::ui_components::{MainWindow, ProcessState};
+use crate::ui_components::processor::ProcessState;
+use crate::ui_components::MainWindow;
 
 impl MainWindow {
     pub fn check_receiver(&mut self) {
