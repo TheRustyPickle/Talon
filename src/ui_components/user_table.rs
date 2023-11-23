@@ -366,14 +366,8 @@ impl UserTableData {
 
         // if for example drag started on row 5 and ended on row 10 but missed drag on row 7
         // Mark the rows as selected till the drag start row is hit (if recursively going that way)
-        if check_previous && drag_start <= index {
-            if index >= drag_start {
-                unselected_row = false
-            }
-        } else if !check_previous && drag_start >= index {
-            if index <= drag_start {
-                unselected_row = false
-            }
+        if (check_previous && index >= drag_start) || (!check_previous && index <= drag_start) {
+            unselected_row = false
         }
 
         let target_row = self.rows.get_mut(&current_row.id).unwrap();

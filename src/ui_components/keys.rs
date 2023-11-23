@@ -1,7 +1,7 @@
 use eframe::egui::{vec2, Align, Button, Grid, Label, Layout, TextEdit, Ui};
 use serde::{Deserialize, Serialize};
 
-use crate::ui_components::MainWindow;
+use crate::ui_components::{AppState, MainWindow};
 use crate::utils::save_api_keys;
 
 #[derive(Deserialize, Serialize, Default)]
@@ -65,7 +65,7 @@ To get your API key, visit the link below ➡ API development tools ➡ Create a
                 && !self.tg_keys.api_id.is_empty()
             {
                 save_api_keys(&self.tg_keys);
-                self.keys_verified = true;
+                self.app_state = AppState::InitializedUI;
             }
         });
     }
