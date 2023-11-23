@@ -331,15 +331,26 @@ impl UserTableData {
             }
             let current_row_index = all_rows.iter().position(|row| row.id == user_id).unwrap();
 
-            self.check_row_selection(true, &all_rows, current_row_index);
-            self.check_row_selection(false, &all_rows, current_row_index);
+            let drag_start_index = all_rows
+                .iter()
+                .position(|row| row.id == drag_start.0)
+                .unwrap();
+
+            self.check_row_selection(true, &all_rows, current_row_index, drag_start_index);
+            self.check_row_selection(false, &all_rows, current_row_index, drag_start_index);
         }
     }
 
     /// Recursively check the rows by either increasing or decreasing the initial index
     /// till the end point or an unselected row is found. Add all columns that are selected by at least one row as selected
     /// for the rows that have at least one column selected.
-    fn check_row_selection(&mut self, check_previous: bool, rows: &Vec<UserRowData>, index: usize) {
+    fn check_row_selection(
+        &mut self,
+        check_previous: bool,
+        rows: &Vec<UserRowData>,
+        index: usize,
+        drag_start: usize,
+    ) {
         if index == 0 && check_previous {
             return;
         }
@@ -351,7 +362,19 @@ impl UserTableData {
         let index = if check_previous { index - 1 } else { index + 1 };
 
         let current_row = rows.get(index).unwrap();
-        let unselected_row = current_row.selected_columns.is_empty();
+        let mut unselected_row = current_row.selected_columns.is_empty();
+
+        // if for example drag started on row 5 and ended on row 10 but missed drag on row 7
+        // Mark the rows as selected till the drag start row is hit (if recursively going that way)
+        if check_previous && drag_start <= index {
+            if index >= drag_start {
+                unselected_row = false
+            }
+        } else if !check_previous && drag_start >= index {
+            if index <= drag_start {
+                unselected_row = false
+            }
+        }
 
         let target_row = self.rows.get_mut(&current_row.id).unwrap();
 
@@ -361,10 +384,10 @@ impl UserTableData {
             }
             if check_previous {
                 if index != 0 {
-                    self.check_row_selection(check_previous, rows, index);
+                    self.check_row_selection(check_previous, rows, index, drag_start);
                 }
             } else if index + 1 != rows.len() {
-                self.check_row_selection(check_previous, rows, index);
+                self.check_row_selection(check_previous, rows, index, drag_start);
             }
         }
     }
