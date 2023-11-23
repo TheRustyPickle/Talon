@@ -4,9 +4,8 @@ mod utils;
 
 use crate::ui_components::MainWindow;
 use dirs::data_local_dir;
-use eframe::egui;
-use eframe::Theme;
-use egui::vec2;
+use eframe::{egui, Theme};
+use egui::{vec2, ViewportBuilder};
 use env::set_current_dir;
 use log::{info, LevelFilter};
 use std::env;
@@ -39,10 +38,13 @@ fn main() {
         set_current_dir(target_location).unwrap();
 
         info!("Starting app");
+        let viewport = ViewportBuilder::default()
+            .with_title("Talon")
+            .with_inner_size(vec2(550.0, 380.0))
+            .with_resizable(true);
         let native_options = eframe::NativeOptions {
-            initial_window_size: Some(vec2(550.0, 380.0)),
+            viewport,
             default_theme: Theme::Light,
-            resizable: true,
             ..Default::default()
         };
         eframe::run_native(

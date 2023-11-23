@@ -1,7 +1,7 @@
 use eframe::{egui, App, Frame};
 use egui::{
     vec2, Align, Button, CentralPanel, Context, FontData, FontDefinitions, FontFamily, Layout,
-    Spinner, Visuals,
+    Spinner, ViewportCommand, Visuals,
 };
 use egui_extras::{Size, StripBuilder};
 use log::info;
@@ -60,25 +60,23 @@ impl Default for MainWindow {
 }
 
 impl App for MainWindow {
-    fn on_close_event(&mut self) -> bool {
-        let mut joins = Vec::new();
-        for (_, client) in self.tg_clients.clone().into_iter() {
-            if client.is_temporary() {
-                let joiner =
-                    thread::spawn(move || client.start_process(ProcessStart::SessionLogout));
-                joins.push(joiner)
+    fn update(&mut self, ctx: &Context, _: &mut Frame) {
+        ctx.set_pixels_per_point(1.1);
+
+        if ctx.input(|i| i.viewport().close_requested()) {
+            let mut joins = Vec::new();
+            for (_, client) in self.tg_clients.clone().into_iter() {
+                if client.is_temporary() {
+                    let joiner =
+                        thread::spawn(move || client.start_process(ProcessStart::SessionLogout));
+                    joins.push(joiner)
+                }
+            }
+
+            for join in joins {
+                join.join().unwrap();
             }
         }
-
-        for join in joins {
-            join.join().unwrap();
-        }
-
-        true
-    }
-
-    fn update(&mut self, ctx: &Context, frame: &mut Frame) {
-        ctx.set_pixels_per_point(1.1);
 
         let font_data_cjk = include_bytes!("../../fonts/NotoSansCJK-Regular.ttc");
         let font_data_gentium = include_bytes!("../../fonts/GentiumBookPlus-Regular.ttf");
@@ -138,13 +136,13 @@ impl App for MainWindow {
                     ui.selectable_value(&mut self.tab_state, TabState::Session, "Session");
 
                 if counter_tab.clicked() {
-                    frame.set_window_size(vec2(550.0, 350.0));
+                    ctx.send_viewport_cmd(ViewportCommand::InnerSize(vec2(550.0, 350.0)));
                 }
                 if user_table_tab.clicked() {
-                    frame.set_window_size(vec2(1000.0, 700.0));
+                    ctx.send_viewport_cmd(ViewportCommand::InnerSize(vec2(1000.0, 700.0)));
                 }
                 if session_tab.clicked() {
-                    frame.set_window_size(vec2(500.0, 320.0));
+                    ctx.send_viewport_cmd(ViewportCommand::InnerSize(vec2(500.0, 320.0)));
                 }
             });
             ui.separator();
