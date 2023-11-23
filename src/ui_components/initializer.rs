@@ -10,10 +10,11 @@ use std::sync::mpsc::{channel, Receiver, Sender};
 use std::thread;
 
 use crate::tg_handler::{start_process, NewProcess, ProcessResult, ProcessStart, TGClient};
-use crate::ui_components::{
-    AppState, ChartsData, CounterData, ProcessState, SessionData, TGKeys, TabState, UserTableData,
-    WhitelistData,
+use crate::ui_components::processor::{AppState, ProcessState, TabState};
+use crate::ui_components::tab_ui::{
+    ChartsData, CounterData, SessionData, UserTableData, WhitelistData,
 };
+use crate::ui_components::TGKeys;
 use crate::utils::{find_session_files, get_api_keys, get_theme_emoji, parse_tg_chat};
 
 pub struct MainWindow {

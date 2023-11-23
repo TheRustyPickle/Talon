@@ -1,7 +1,8 @@
 use eframe::egui::{vec2, Align, Button, Grid, Label, Layout, TextEdit, Ui};
 use serde::{Deserialize, Serialize};
 
-use crate::ui_components::{AppState, MainWindow};
+use crate::ui_components::processor::AppState;
+use crate::ui_components::MainWindow;
 use crate::utils::save_api_keys;
 
 #[derive(Deserialize, Serialize, Default)]
