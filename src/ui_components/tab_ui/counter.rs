@@ -1,5 +1,5 @@
 use arboard::Clipboard;
-use eframe::egui::{vec2, Align, Button, Grid, Label, Layout, ProgressBar, TextEdit, Ui};
+use eframe::egui::{vec2, Align, Button, ComboBox, Grid, Label, Layout, ProgressBar, TextEdit, Ui};
 use log::info;
 use std::thread;
 
@@ -10,7 +10,7 @@ use crate::utils::parse_tg_chat;
 
 #[derive(Default, Clone)]
 pub struct CounterData {
-    selected_session: String,
+    session_index: usize,
     start_from: String,
     end_at: String,
     total_message: i32,
@@ -23,14 +23,6 @@ pub struct CounterData {
 }
 
 impl CounterData {
-    pub fn get_selected_session(&self) -> String {
-        self.selected_session.to_owned()
-    }
-
-    pub fn update_selected_session(&mut self, name: String) {
-        self.selected_session = name;
-    }
-
     pub fn get_start_from(&self) -> String {
         self.start_from.to_owned()
     }
@@ -159,7 +151,21 @@ impl MainWindow {
             ui.add(Label::new("Selected Session:"));
         });
         ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
-            ui.add(Label::new(self.counter_data.selected_session.to_string()));
+            let values = {
+                let names = self.get_session_names();
+
+                if names.is_empty() {
+                    vec!["No Session Found".to_string()]
+                } else {
+                    names
+                }
+            };
+            ComboBox::from_id_source("Session Box").show_index(
+                ui,
+                &mut self.counter_data.session_index,
+                self.tg_clients.len(),
+                |i| &values[i],
+            );
         });
         ui.end_row();
 
@@ -256,6 +262,13 @@ To count all messages in a chat, paste the very first message link or keep it em
     }
 
     fn start_counting(&mut self) {
+        let selected_client = self.get_selected_session();
+
+        if selected_client.is_empty() {
+            self.process_state = ProcessState::EmptySelectedSession;
+            return;
+        }
+
         let start_from = self.counter_data.get_start_from();
         let end_at = self.counter_data.get_end_at();
 
@@ -283,13 +296,6 @@ To count all messages in a chat, paste the very first message link or keep it em
             }
         }
 
-        let selected_client = self.counter_data.get_selected_session();
-
-        if selected_client.is_empty() {
-            self.process_state = ProcessState::EmptySelectedSession;
-            return;
-        }
-
         info!("Starting counting");
         self.user_table.clear_row_data();
         self.process_state = ProcessState::Counting(0);
@@ -308,11 +314,13 @@ To count all messages in a chat, paste the very first message link or keep it em
         }
     }
 
-    // TODO update to combo box
-    pub fn update_counter_session(&mut self) {
-        if let Some((session_name, _)) = self.tg_clients.iter().next() {
-            self.counter_data
-                .update_selected_session(session_name.to_owned());
+    fn get_selected_session(&self) -> String {
+        let all_sessions = self.get_session_names();
+        let selected_index = self.counter_data.session_index;
+        if let Some(session) = all_sessions.get(selected_index) {
+            session.to_owned()
+        } else {
+            String::new()
         }
     }
 }
