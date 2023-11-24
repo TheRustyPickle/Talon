@@ -600,14 +600,24 @@ impl MainWindow {
                 ui.available_size(),
                 RowLabel::new(is_selected, is_whitelisted, &row_text),
             )
-            .interact(Sense::drag());
+            .interact(Sense::drag())
+            .context_menu(|ui| {
+                if ui.button("Copy selected rows").clicked() {
+                    self.copy_selected_cells(ui)
+                };
+                if ui.button("whitelist selected rows").clicked() {
+                    self.whitelist_selected_rows()
+                };
+            });
 
         if show_tooltip {
             label = label.on_hover_text(row_text);
         }
 
         if label.drag_started() {
-            if !ui.ctx().input(|i| i.modifiers.ctrl) {
+            if !ui.ctx().input(|i| i.modifiers.ctrl) && !ui.ctx().is_context_menu_open()
+                
+            {
                 self.user_table.unselected_all();
             }
             self.user_table.drag_started_on = Some((row_data.id, column_name.clone()));
@@ -779,5 +789,21 @@ impl MainWindow {
 
         ui.ctx().output_mut(|i| i.copied_text = to_copy);
         self.process_state = ProcessState::DataCopied(total_cells);
+    }
+
+    fn whitelist_selected_rows(&mut self) {
+        let all_rows = self.user_table.rows();
+        let mut selected_rows = Vec::new();
+
+        for row in all_rows {
+            if !row.selected_columns.is_empty() {
+                selected_rows.push(row)
+            }
+        }
+
+        for row in selected_rows {
+            let target_row = self.user_table.rows.get_mut(&row.id).unwrap();
+            target_row.whitelisted = true;
+        }
     }
 }
