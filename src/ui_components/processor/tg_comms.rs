@@ -13,7 +13,6 @@ impl MainWindow {
                     self.process_state =
                         ProcessState::InitialClientConnectionSuccessful(client.name());
                     self.tg_clients.insert(client.name(), client);
-                    self.update_counter_session()
                 }
                 ProcessResult::InvalidChat(chat_name) => {
                     info!("Invalid chat name found: {}", chat_name);
@@ -131,7 +130,6 @@ impl MainWindow {
                     self.stop_process();
                     self.session_data.reset_data();
                     self.process_state = ProcessState::LoggedIn(name);
-                    self.update_counter_session()
                 }
                 ProcessResult::FloodWait => {
                     info!("Flood wait triggered");

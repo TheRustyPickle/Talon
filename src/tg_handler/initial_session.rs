@@ -36,7 +36,10 @@ pub async fn connect_to_session(
         .await
         .map_err(ProcessError::UnknownError)?;
 
-    info!("Client authorization status: {}", authorized);
+    info!(
+        "Client {} authorization status: {}",
+        name_without_session, authorized
+    );
 
     if !authorized {
         sender

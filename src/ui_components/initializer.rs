@@ -4,7 +4,7 @@ use egui::{
     Spinner, ViewportCommand, Visuals,
 };
 use egui_extras::{Size, StripBuilder};
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::thread;
 
@@ -28,7 +28,7 @@ pub struct MainWindow {
     pub process_state: ProcessState,
     pub tg_sender: Sender<ProcessResult>,
     pub tg_receiver: Receiver<ProcessResult>,
-    pub tg_clients: HashMap<String, TGClient>,
+    pub tg_clients: BTreeMap<String, TGClient>,
     existing_sessions_checked: bool,
     is_light_theme: bool,
     pub is_processing: bool,
@@ -49,7 +49,7 @@ impl Default for MainWindow {
             process_state: ProcessState::Idle,
             tg_sender: sender,
             tg_receiver: receiver,
-            tg_clients: HashMap::new(),
+            tg_clients: BTreeMap::new(),
             existing_sessions_checked: false,
             is_light_theme: true,
             is_processing: false,
@@ -213,5 +213,9 @@ impl MainWindow {
             ctx.set_visuals(Visuals::light());
             self.is_light_theme = true;
         }
+    }
+
+    pub fn get_session_names(&self) -> Vec<String> {
+        self.tg_clients.keys().map(|s| s.to_string()).collect()
     }
 }
