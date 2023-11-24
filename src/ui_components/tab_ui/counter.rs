@@ -1,7 +1,12 @@
 use arboard::Clipboard;
 use eframe::egui::{vec2, Align, Button, Grid, Label, Layout, ProgressBar, TextEdit, Ui};
+use log::info;
+use std::thread;
 
+use crate::tg_handler::ProcessStart;
+use crate::ui_components::processor::ProcessState;
 use crate::ui_components::MainWindow;
+use crate::utils::parse_tg_chat;
 
 #[derive(Default, Clone)]
 pub struct CounterData {
@@ -248,5 +253,66 @@ To count all messages in a chat, paste the very first message link or keep it em
             );
         });
         ui.end_row();
+    }
+
+    fn start_counting(&mut self) {
+        let start_from = self.counter_data.get_start_from();
+        let end_at = self.counter_data.get_end_at();
+
+        let (start_chat, start_num) = parse_tg_chat(start_from);
+        let (end_chat, end_num) = parse_tg_chat(end_at);
+
+        if start_chat.is_none() {
+            self.process_state = ProcessState::InvalidStartChat;
+            return;
+        }
+
+        let start_chat = start_chat.unwrap();
+
+        if let Some(end_chat) = end_chat {
+            if end_chat != start_chat {
+                self.process_state = ProcessState::UnmatchedChat;
+                return;
+            }
+        }
+
+        if let (Some(start_num), Some(end_num)) = (start_num, end_num) {
+            if start_num < end_num {
+                self.process_state = ProcessState::SmallerStartNumber;
+                return;
+            }
+        }
+
+        let selected_client = self.counter_data.get_selected_session();
+
+        if selected_client.is_empty() {
+            self.process_state = ProcessState::EmptySelectedSession;
+            return;
+        }
+
+        info!("Starting counting");
+        self.user_table.clear_row_data();
+        self.process_state = ProcessState::Counting(0);
+        self.counter_data.counting_started();
+        self.is_processing = true;
+
+        let client = self.tg_clients.get(&selected_client);
+
+        if let Some(client) = client {
+            let client = client.clone();
+            thread::spawn(move || {
+                client.start_process(ProcessStart::StartCount(start_chat, start_num, end_num));
+            });
+        } else {
+            panic!("TO be handled")
+        }
+    }
+
+    // TODO update to combo box
+    pub fn update_counter_session(&mut self) {
+        if let Some((session_name, _)) = self.tg_clients.iter().next() {
+            self.counter_data
+                .update_selected_session(session_name.to_owned());
+        }
     }
 }
