@@ -1,8 +1,11 @@
-use eframe::egui::{vec2, Align, Button, Checkbox, Grid, Label, Layout, TextEdit, Ui};
+use eframe::egui::{vec2, Align, Button, Checkbox, Context, Grid, Label, Layout, TextEdit, Ui};
 use grammers_client::types::{LoginToken, PasswordToken};
 use std::sync::Arc;
+use std::thread;
 use tokio::sync::Mutex;
 
+use crate::tg_handler::{start_process, NewProcess, ProcessStart};
+use crate::ui_components::processor::ProcessState;
 use crate::ui_components::MainWindow;
 
 #[derive(Default)]
@@ -218,5 +221,56 @@ If yes, it will try to log out before the app is closed and no session file will
                 }
             }
         });
+    }
+
+    fn request_login_code(&mut self, context: Context) {
+        let phone_num = self.session_data.get_phone_number();
+        let session_name = self.session_data.get_session_name();
+        let is_temporary = self.session_data.get_is_temporary();
+
+        let sender_clone = self.tg_sender.clone();
+
+        self.is_processing = true;
+        self.process_state = ProcessState::SendingTGCode;
+
+        thread::spawn(move || {
+            start_process(
+                NewProcess::SendLoginCode(session_name, phone_num, is_temporary),
+                sender_clone,
+                context,
+            );
+        });
+    }
+
+    fn sign_in_code(&mut self) {
+        self.is_processing = true;
+        self.process_state = ProcessState::LogInWithCode;
+
+        let code = self.session_data.get_tg_code();
+        let token = self.session_data.get_tg_code_token();
+        let session_name = self.session_data.get_session_name();
+
+        let client = self.tg_clients.get(&session_name);
+        if let Some(client) = client {
+            let client = client.clone();
+            thread::spawn(move || client.start_process(ProcessStart::SignInCode(token, code)));
+        }
+    }
+
+    fn sign_in_password(&mut self) {
+        self.is_processing = true;
+        self.process_state = ProcessState::LogInWithPassword;
+
+        let password = self.session_data.get_password();
+        let token = self.session_data.get_password_token();
+        let session_name = self.session_data.get_session_name();
+
+        let client = self.tg_clients.get(&session_name);
+        if let Some(client) = client {
+            let client = client.clone();
+            thread::spawn(move || {
+                client.start_process(ProcessStart::SignInPasswords(token, password))
+            });
+        }
     }
 }

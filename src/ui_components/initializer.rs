@@ -4,8 +4,7 @@ use egui::{
     Spinner, ViewportCommand, Visuals,
 };
 use egui_extras::{Size, StripBuilder};
-use log::info;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::thread;
 
@@ -15,7 +14,7 @@ use crate::ui_components::tab_ui::{
     ChartsData, CounterData, SessionData, UserTableData, WhitelistData,
 };
 use crate::ui_components::TGKeys;
-use crate::utils::{find_session_files, get_api_keys, get_theme_emoji, parse_tg_chat};
+use crate::utils::{find_session_files, get_api_keys, get_theme_emoji};
 
 pub struct MainWindow {
     pub app_state: AppState,
@@ -27,9 +26,9 @@ pub struct MainWindow {
     pub whitelist_data: WhitelistData,
     tab_state: TabState,
     pub process_state: ProcessState,
-    tg_sender: Sender<ProcessResult>,
+    pub tg_sender: Sender<ProcessResult>,
     pub tg_receiver: Receiver<ProcessResult>,
-    pub tg_clients: HashMap<String, TGClient>,
+    pub tg_clients: BTreeMap<String, TGClient>,
     existing_sessions_checked: bool,
     is_light_theme: bool,
     pub is_processing: bool,
@@ -50,7 +49,7 @@ impl Default for MainWindow {
             process_state: ProcessState::Idle,
             tg_sender: sender,
             tg_receiver: receiver,
-            tg_clients: HashMap::new(),
+            tg_clients: BTreeMap::new(),
             existing_sessions_checked: false,
             is_light_theme: true,
             is_processing: false,
@@ -77,7 +76,7 @@ impl App for MainWindow {
 
         CentralPanel::default().show(ctx, |ui| {
             match self.app_state {
-                AppState::LoadingFonts => {
+                AppState::LoadingFontsAPI => {
                     ctx.set_pixels_per_point(1.1);
                     let font_data_cjk = include_bytes!("../../fonts/NotoSansCJK-Regular.ttc");
                     let font_data_gentium =
@@ -102,9 +101,7 @@ impl App for MainWindow {
                         .extend(["NotoSansCJK".to_owned(), "GentiumBookPlus".to_owned()]);
 
                     ctx.set_fonts(font_definitions);
-                    self.app_state = AppState::CheckingAPIKeys;
-                }
-                AppState::CheckingAPIKeys => {
+
                     if get_api_keys().is_some() {
                         self.app_state = AppState::InitializedUI
                     } else {
@@ -208,118 +205,6 @@ impl App for MainWindow {
 }
 
 impl MainWindow {
-    // TODO update to combo box
-    pub fn update_counter_session(&mut self) {
-        if let Some((session_name, _)) = self.tg_clients.iter().next() {
-            self.counter_data
-                .update_selected_session(session_name.to_owned());
-        }
-    }
-
-    pub fn start_counting(&mut self) {
-        let start_from = self.counter_data.get_start_from();
-        let end_at = self.counter_data.get_end_at();
-
-        let (start_chat, start_num) = parse_tg_chat(start_from);
-        let (end_chat, end_num) = parse_tg_chat(end_at);
-
-        if start_chat.is_none() {
-            self.process_state = ProcessState::InvalidStartChat;
-            return;
-        }
-
-        let start_chat = start_chat.unwrap();
-
-        if let Some(end_chat) = end_chat {
-            if end_chat != start_chat {
-                self.process_state = ProcessState::UnmatchedChat;
-                return;
-            }
-        }
-
-        if let (Some(start_num), Some(end_num)) = (start_num, end_num) {
-            if start_num < end_num {
-                self.process_state = ProcessState::SmallerStartNumber;
-                return;
-            }
-        }
-
-        let selected_client = self.counter_data.get_selected_session();
-
-        if selected_client.is_empty() {
-            self.process_state = ProcessState::EmptySelectedSession;
-            return;
-        }
-
-        info!("Starting counting");
-        self.user_table.clear_row_data();
-        self.process_state = ProcessState::Counting(0);
-        self.counter_data.counting_started();
-        self.is_processing = true;
-
-        let client = self.tg_clients.get(&selected_client);
-
-        if let Some(client) = client {
-            let client = client.clone();
-            thread::spawn(move || {
-                client.start_process(ProcessStart::StartCount(start_chat, start_num, end_num));
-            });
-        } else {
-            panic!("TO be handled")
-        }
-    }
-
-    pub fn request_login_code(&mut self, context: Context) {
-        let phone_num = self.session_data.get_phone_number();
-        let session_name = self.session_data.get_session_name();
-        let is_temporary = self.session_data.get_is_temporary();
-
-        let sender_clone = self.tg_sender.clone();
-
-        self.is_processing = true;
-        self.process_state = ProcessState::SendingTGCode;
-
-        thread::spawn(move || {
-            start_process(
-                NewProcess::SendLoginCode(session_name, phone_num, is_temporary),
-                sender_clone,
-                context,
-            );
-        });
-    }
-
-    pub fn sign_in_code(&mut self) {
-        self.is_processing = true;
-        self.process_state = ProcessState::LogInWithCode;
-
-        let code = self.session_data.get_tg_code();
-        let token = self.session_data.get_tg_code_token();
-        let session_name = self.session_data.get_session_name();
-
-        let client = self.tg_clients.get(&session_name);
-        if let Some(client) = client {
-            let client = client.clone();
-            thread::spawn(move || client.start_process(ProcessStart::SignInCode(token, code)));
-        }
-    }
-
-    pub fn sign_in_password(&mut self) {
-        self.is_processing = true;
-        self.process_state = ProcessState::LogInWithPassword;
-
-        let password = self.session_data.get_password();
-        let token = self.session_data.get_password_token();
-        let session_name = self.session_data.get_session_name();
-
-        let client = self.tg_clients.get(&session_name);
-        if let Some(client) = client {
-            let client = client.clone();
-            thread::spawn(move || {
-                client.start_process(ProcessStart::SignInPasswords(token, password))
-            });
-        }
-    }
-
     fn switch_theme(&mut self, ctx: &Context) {
         if self.is_light_theme {
             ctx.set_visuals(Visuals::dark());
@@ -328,5 +213,9 @@ impl MainWindow {
             ctx.set_visuals(Visuals::light());
             self.is_light_theme = true;
         }
+    }
+
+    pub fn get_session_names(&self) -> Vec<String> {
+        self.tg_clients.keys().map(|s| s.to_string()).collect()
     }
 }
