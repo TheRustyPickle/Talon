@@ -5,7 +5,7 @@ use tokio::sync::Mutex;
 use crate::tg_handler::{TGClient, TGCountData};
 
 pub enum ProcessResult {
-    InitialSessionSuccess(TGClient),
+    InitialSessionSuccess((Vec<TGClient>, Vec<String>, Vec<String>)),
     InvalidChat(String),
     UnauthorizedClient(String),
     /// Message + Started from + End at
@@ -40,5 +40,5 @@ pub enum ProcessStart {
 /// Used when trying to create a new TGClient by processing some operations
 pub enum NewProcess {
     SendLoginCode(String, String, bool),
-    InitialSessionConnect(String),
+    InitialSessionConnect(Vec<String>),
 }

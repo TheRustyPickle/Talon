@@ -42,6 +42,7 @@ pub enum ProcessState {
     InvalidPhoneOrAPI,
     PasswordRequired,
     FloodWait,
+    UsersWhitelisted(usize),
 }
 
 impl ProcessState {
@@ -60,8 +61,8 @@ impl Display for ProcessState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ProcessState::Idle => write!(f, "Status: Idle"),
-            ProcessState::InitialClientConnectionSuccessful(name) => {
-                write!(f, "Status: Connection successful with session: {}", name)
+            ProcessState::InitialClientConnectionSuccessful(text) => {
+                write!(f, "Status: {}", text)
             }
             ProcessState::Counting(count) => {
                 write!(f, "Status: Checking messages")?;
@@ -106,6 +107,7 @@ impl Display for ProcessState {
             ProcessState::InvalidPhoneOrAPI => write!(f, "Status: Unknown error acquired. Possibly invalid phone number given or API keys are invalid"),
             ProcessState::PasswordRequired => write!(f, "Status: Account requires a password authentication"),
             ProcessState::FloodWait => write!(f, "Status: Flood wait triggered. Will resume again soon"),
+            ProcessState::UsersWhitelisted(num) => write!(f, "Status: Whitelisted {num} users")
         }
     }
 }

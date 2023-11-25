@@ -8,11 +8,21 @@ impl MainWindow {
     pub fn check_receiver(&mut self) {
         while let Ok(data) = self.tg_receiver.try_recv() {
             match data {
-                ProcessResult::InitialSessionSuccess(client) => {
-                    info!("Initial connection to session {} successful", client.name());
+                ProcessResult::InitialSessionSuccess((clients, success, failed)) => {
+                    let mut status_text =
+                        format!("Successfully connected to: {}.", success.join(", "));
+
+                    if !failed.is_empty() {
+                        status_text
+                            .push_str(&format!(" Failed connection to: {}", failed.join(", ")));
+                    }
+
+                    for client in clients {
+                        self.tg_clients.insert(client.name(), client);
+                    }
+
                     self.process_state =
-                        ProcessState::InitialClientConnectionSuccessful(client.name());
-                    self.tg_clients.insert(client.name(), client);
+                        ProcessState::InitialClientConnectionSuccessful(status_text);
                 }
                 ProcessResult::InvalidChat(chat_name) => {
                     info!("Invalid chat name found: {}", chat_name);

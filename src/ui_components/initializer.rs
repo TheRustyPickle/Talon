@@ -133,7 +133,11 @@ impl App for MainWindow {
                         ui.separator();
                         ui.selectable_value(&mut self.tab_state, TabState::Charts, "Charts");
                         ui.separator();
-                        ui.selectable_value(&mut self.tab_state, TabState::Whitelist, "Whitelist");
+                        let whitelist_tab = ui.selectable_value(
+                            &mut self.tab_state,
+                            TabState::Whitelist,
+                            "Whitelist",
+                        );
                         ui.separator();
                         let session_tab =
                             ui.selectable_value(&mut self.tab_state, TabState::Session, "Session");
@@ -146,6 +150,9 @@ impl App for MainWindow {
                         }
                         if session_tab.clicked() {
                             ctx.send_viewport_cmd(ViewportCommand::InnerSize(vec2(500.0, 320.0)));
+                        }
+                        if whitelist_tab.clicked() {
+                            ctx.send_viewport_cmd(ViewportCommand::InnerSize(vec2(550.0, 350.0)));
                         }
                     });
                     ui.separator();
@@ -183,18 +190,15 @@ impl App for MainWindow {
                         self.existing_sessions_checked = true;
                         let existing_sessions = find_session_files();
 
-                        // All sessions gets the same sender and receiver to avoid having to check multiple channels
-                        for session_name in existing_sessions {
-                            let sender_clone = self.tg_sender.clone();
-                            let ctx_clone = ctx.clone();
-                            thread::spawn(move || {
-                                start_process(
-                                    NewProcess::InitialSessionConnect(session_name),
-                                    sender_clone,
-                                    ctx_clone,
-                                );
-                            });
-                        }
+                        let sender_clone = self.tg_sender.clone();
+                        let ctx_clone = ctx.clone();
+                        thread::spawn(move || {
+                            start_process(
+                                NewProcess::InitialSessionConnect(existing_sessions),
+                                sender_clone,
+                                ctx_clone,
+                            );
+                        });
                     } else {
                         self.check_receiver()
                     }
