@@ -7,6 +7,7 @@ use std::sync::mpsc::Sender;
 use crate::tg_handler::{ProcessError, ProcessResult, TGClient};
 use crate::utils::get_api_keys;
 
+/// Tries to establish a connection to the local Telegram session files
 pub async fn connect_to_session(
     sender: Sender<ProcessResult>,
     names: Vec<String>,

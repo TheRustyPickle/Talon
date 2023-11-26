@@ -311,6 +311,7 @@ To count all messages in a chat, paste the very first message link or keep it em
         });
     }
 
+    /// Returns the session name that is selected on the combo box
     pub fn get_selected_session(&self) -> String {
         let all_sessions = self.get_session_names();
         let selected_index = self.counter_data.session_index;

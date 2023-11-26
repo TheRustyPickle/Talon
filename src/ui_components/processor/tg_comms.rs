@@ -5,6 +5,7 @@ use crate::ui_components::processor::ProcessState;
 use crate::ui_components::MainWindow;
 
 impl MainWindow {
+    /// Checks if there are any new message from the async side
     pub fn check_receiver(&mut self) {
         while let Ok(data) = self.tg_receiver.try_recv() {
             match data {
@@ -154,8 +155,14 @@ impl MainWindow {
                 }
                 ProcessResult::UnpackedChats(chats) => {
                     let total_chat = chats.len();
+                    info!("Unpacked {total_chat} for whitelist");
+
                     for chat in chats {
-                        let username = chat.username().map(|s| s.to_owned());
+                        let username = if let Some(name) = chat.username() {
+                            name.to_string()
+                        } else {
+                            String::from("Empty")
+                        };
                         self.whitelist_data.add_to_whitelist(
                             chat.name().to_string(),
                             username,
@@ -169,13 +176,21 @@ impl MainWindow {
                 ProcessResult::WhiteListUser(chat) => {
                     self.stop_process();
                     let user_id = chat.id();
-                    let username = chat.username().map(|s| s.to_owned());
+
+                    info!("Adding {user_id} to whitelist");
+
+                    let username = if let Some(name) = chat.username() {
+                        name.to_string()
+                    } else {
+                        String::from("Empty")
+                    };
                     self.whitelist_data.add_to_whitelist(
                         chat.name().to_string(),
                         username,
                         user_id,
                         chat,
                     );
+                    self.whitelist_data.clear_text_box();
                     self.user_table.set_as_whitelisted(&user_id);
                     self.process_state = ProcessState::AddedToWhitelist
                 }

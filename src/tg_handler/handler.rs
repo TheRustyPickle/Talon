@@ -35,6 +35,7 @@ impl TGClient {
         }
     }
 
+    /// Start an operation with a telegram client
     pub fn start_process(self, process_type: ProcessStart) {
         let runtime = get_runtime();
 
@@ -63,6 +64,7 @@ impl TGClient {
         self.name.to_owned()
     }
 
+    /// Sends a process result to the GUI side, the only way to communicate with the GUI from async
     pub fn send(&self, data: ProcessResult) {
         self.sender.send(data).unwrap();
         self.context.request_repaint();
@@ -84,6 +86,7 @@ impl TGClient {
         self.context.clone()
     }
 
+    /// Verifies if the current client is authorizes for usage
     pub async fn check_authorization(&self) -> Result<bool, ProcessError> {
         let authorized: bool = self
             .client()
@@ -100,6 +103,7 @@ impl TGClient {
         Ok(true)
     }
 
+    /// Tries to resolve a username to get a Telegram chat account
     pub async fn check_username(&self, chat_name: &str) -> Result<Chat, ProcessResult> {
         let tg_chat = self.client().resolve_username(chat_name).await;
 
@@ -122,12 +126,14 @@ impl TGClient {
         Ok(tg_chat)
     }
 
+    /// Logs out of the client
     pub async fn logout(&self) -> Result<(), ProcessError> {
         let _ = self.client().sign_out().await;
         Ok(())
     }
 }
 
+/// Start a process that will result in the creation of a TGClient if successful
 pub fn start_process(process: NewProcess, sender: Sender<ProcessResult>, context: Context) {
     let runtime = get_runtime();
     let result = match process {

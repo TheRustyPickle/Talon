@@ -5,6 +5,7 @@ use crate::tg_handler::{ProcessError, ProcessResult, TGClient};
 use crate::utils::get_whitelisted_users;
 
 impl TGClient {
+    /// Unpacks existing PackedChat hex string and sends it to the GUI
     pub async fn load_whitelisted_users(&self) -> Result<(), ProcessError> {
         let packed_user_list = get_whitelisted_users();
 
@@ -30,6 +31,7 @@ impl TGClient {
         Ok(())
     }
 
+    /// Tries to get a Telegram chat with the given chat name
     pub async fn new_whitelist(&self, chat_name: String) -> Result<(), ProcessError> {
         if !self.check_authorization().await? {
             return Ok(());

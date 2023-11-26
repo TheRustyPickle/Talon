@@ -15,14 +15,14 @@ use crate::utils::{get_whitelisted_users, save_whitelisted_users};
 #[derive(Clone)]
 struct WhiteListRowData {
     name: String,
-    username: Option<String>,
+    username: String,
     id: i64,
     is_selected: bool,
     belongs_to: Chat,
 }
 
 impl WhiteListRowData {
-    fn new(name: String, username: Option<String>, id: i64, belongs_to: Chat) -> Self {
+    fn new(name: String, username: String, id: i64, belongs_to: Chat) -> Self {
         WhiteListRowData {
             name,
             username,
@@ -41,10 +41,12 @@ pub struct WhitelistData {
 }
 
 impl WhitelistData {
+    /// Get all rows in a vector
     fn rows(&self) -> Vec<WhiteListRowData> {
         self.rows.values().cloned().collect()
     }
 
+    /// Remove selection from all rows
     fn unselected_all(&mut self) {
         for (_, row) in self.rows.iter_mut() {
             row.is_selected = false;
@@ -52,6 +54,7 @@ impl WhitelistData {
         self.active_rows.clear();
     }
 
+    /// Select all rows
     fn select_all(&mut self) {
         let mut rows = HashSet::new();
         for (_, row) in self.rows.iter_mut() {
@@ -61,13 +64,8 @@ impl WhitelistData {
         self.active_rows = rows;
     }
 
-    pub fn add_to_whitelist(
-        &mut self,
-        name: String,
-        username: Option<String>,
-        id: i64,
-        belongs_to: Chat,
-    ) {
+    /// Add a new row to the UI
+    pub fn add_to_whitelist(&mut self, name: String, username: String, id: i64, belongs_to: Chat) {
         let name = if name.is_empty() {
             String::from("Deleted Account")
         } else {
@@ -79,10 +77,12 @@ impl WhitelistData {
         self.rows.insert(id, to_add);
     }
 
+    /// Check if user is whitelisted/in the whitelist UI
     pub fn is_user_whitelisted(&self, id: &i64) -> bool {
         self.rows.contains_key(id)
     }
 
+    /// Overwrite the current row data in the whitelist json
     fn save_whitelisted_users(&self) {
         let mut packed_chats = Vec::new();
 
@@ -93,6 +93,7 @@ impl WhitelistData {
         save_whitelisted_users(packed_chats, true)
     }
 
+    /// Removes selected row from whitelist and saves the result
     fn remove_selected(&mut self) -> HashSet<i64> {
         let active_rows = self.active_rows.clone();
 
@@ -104,6 +105,7 @@ impl WhitelistData {
         active_rows
     }
 
+    /// Removes all row from whitelist and saves the result
     fn remove_all(&mut self) -> Vec<i64> {
         info!("Removing all users from whitelist");
         let row_keys = self.rows.keys().map(|a| a.to_owned()).collect();
@@ -111,6 +113,10 @@ impl WhitelistData {
         self.save_whitelisted_users();
 
         row_keys
+    }
+
+    pub fn clear_text_box(&mut self) {
+        self.target_username.clear()
     }
 }
 
@@ -260,13 +266,7 @@ then right click on User Table to whitelist",
     ) {
         let row_text = match column {
             ColumnName::Name => row_data.name.to_owned(),
-            ColumnName::Username => {
-                if let Some(name) = &row_data.username {
-                    name.to_string()
-                } else {
-                    "Empty".to_string()
-                }
-            }
+            ColumnName::Username => row_data.username.to_owned(),
             ColumnName::UserID => row_data.id.to_string(),
             _ => unreachable!(),
         };

@@ -41,6 +41,7 @@ impl TGCountData {
 }
 
 impl TGClient {
+    /// Iters through a Telegram chat from a given point to the first message or until the end point is reached
     pub async fn start_count(
         &self,
         start_chat: String,
@@ -77,6 +78,8 @@ impl TGClient {
         let sender = self.sender();
         let context = self.context();
 
+        // Every 500 ms, check when the last communication was made with the GUI.
+        // If over 500, let the GUI side know that a flood wait was triggered
         thread::spawn(move || loop {
             sleep(Duration::from_millis(500));
 

@@ -223,6 +223,7 @@ If yes, it will try to log out before the app is closed and no session file will
         });
     }
 
+    /// Starts a thread to send a Telegram login code to the phone number
     fn request_login_code(&mut self, context: Context) {
         let phone_num = self.session_data.get_phone_number();
         let session_name = self.session_data.get_session_name();
@@ -242,6 +243,7 @@ If yes, it will try to log out before the app is closed and no session file will
         });
     }
 
+    /// Starts a thread to try to log in with the given login code
     fn sign_in_code(&mut self) {
         self.is_processing = true;
         self.process_state = ProcessState::LogInWithCode;
@@ -257,6 +259,7 @@ If yes, it will try to log out before the app is closed and no session file will
         }
     }
 
+    /// Starts a thread to try to log in with the given login password
     fn sign_in_password(&mut self) {
         self.is_processing = true;
         self.process_state = ProcessState::LogInWithPassword;
