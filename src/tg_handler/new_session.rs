@@ -11,6 +11,7 @@ use tokio::sync::Mutex;
 use crate::tg_handler::{ProcessError, ProcessResult, TGClient};
 use crate::utils::get_api_keys;
 
+/// Tries to send Telegram login code to the given phone number
 pub async fn send_login_code(
     sender: Sender<ProcessResult>,
     context: &Context,
@@ -57,6 +58,7 @@ pub async fn send_login_code(
 }
 
 impl TGClient {
+    /// Tries to sign in to a Telegram account with the given Telegram login code
     pub async fn sign_in_code(
         &self,
         token: Arc<Mutex<LoginToken>>,
@@ -94,6 +96,8 @@ impl TGClient {
         Ok(())
     }
 
+    /// Tries to sign in to a Telegram account with the given login password.
+    /// May continue to fail if the first time password was not correct
     pub async fn sign_in_password(
         &self,
         token: Arc<Mutex<PasswordToken>>,

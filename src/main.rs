@@ -41,7 +41,8 @@ fn main() {
         let viewport = ViewportBuilder::default()
             .with_title("Talon")
             .with_inner_size(vec2(550.0, 380.0))
-            .with_resizable(true);
+            .with_resizable(true)
+            .with_minimize_button(false);
         let native_options = eframe::NativeOptions {
             viewport,
             default_theme: Theme::Light,

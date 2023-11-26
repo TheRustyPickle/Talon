@@ -1,21 +1,22 @@
-use grammers_client::types::{iter_buffer::InvocationError, LoginToken, PasswordToken};
+use grammers_client::types::{iter_buffer::InvocationError, Chat, LoginToken, PasswordToken};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use crate::tg_handler::{TGClient, TGCountData};
 
 pub enum ProcessResult {
-    InitialSessionSuccess(TGClient),
+    InitialSessionSuccess((Vec<TGClient>, Vec<String>, Vec<String>)),
     InvalidChat(String),
     UnauthorizedClient(String),
-    /// Message + Started from + End at
     CountingMessage(TGCountData),
     CountingEnd((i32, i32)),
     ProcessFailed(ProcessError),
     LoginCodeSent(LoginToken, TGClient),
     PasswordRequired(Box<PasswordToken>),
     LoggedIn(String),
+    UnpackedChats(Vec<Chat>),
     FloodWait,
+    WhiteListUser(Chat),
 }
 
 #[derive(Debug)]
@@ -35,10 +36,12 @@ pub enum ProcessStart {
     SignInCode(Arc<Mutex<LoginToken>>, String),
     SignInPasswords(Arc<Mutex<PasswordToken>>, String),
     SessionLogout,
+    LoadWhitelistedUsers,
+    NewWhitelistUser(String),
 }
 
 /// Used when trying to create a new TGClient by processing some operations
 pub enum NewProcess {
     SendLoginCode(String, String, bool),
-    InitialSessionConnect(String),
+    InitialSessionConnect(Vec<String>),
 }

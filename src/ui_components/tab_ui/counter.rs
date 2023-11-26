@@ -61,7 +61,9 @@ impl CounterData {
     }
 
     pub fn add_deleted_message(&mut self, to_add: i32) {
-        self.deleted_message += to_add;
+        if to_add > 0 {
+            self.deleted_message += to_add;
+        }
     }
 }
 
@@ -302,19 +304,15 @@ To count all messages in a chat, paste the very first message link or keep it em
         self.counter_data.counting_started();
         self.is_processing = true;
 
-        let client = self.tg_clients.get(&selected_client);
+        let client = self.tg_clients.get(&selected_client).unwrap().clone();
 
-        if let Some(client) = client {
-            let client = client.clone();
-            thread::spawn(move || {
-                client.start_process(ProcessStart::StartCount(start_chat, start_num, end_num));
-            });
-        } else {
-            panic!("TO be handled")
-        }
+        thread::spawn(move || {
+            client.start_process(ProcessStart::StartCount(start_chat, start_num, end_num));
+        });
     }
 
-    fn get_selected_session(&self) -> String {
+    /// Returns the session name that is selected on the combo box
+    pub fn get_selected_session(&self) -> String {
         let all_sessions = self.get_session_names();
         let selected_index = self.counter_data.session_index;
         if let Some(session) = all_sessions.get(selected_index) {

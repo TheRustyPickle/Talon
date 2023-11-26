@@ -59,6 +59,7 @@ impl Default for MainWindow {
 
 impl App for MainWindow {
     fn update(&mut self, ctx: &Context, _: &mut Frame) {
+        // If asked to close the app, search for any temporary client and if any, logout then close the window
         if ctx.input(|i| i.viewport().close_requested()) {
             let mut joins = Vec::new();
             for (_, client) in self.tg_clients.clone().into_iter() {
@@ -77,6 +78,7 @@ impl App for MainWindow {
         CentralPanel::default().show(ctx, |ui| {
             match self.app_state {
                 AppState::LoadingFontsAPI => {
+                    // Add the fonts on top of the default ones
                     ctx.set_pixels_per_point(1.1);
                     let font_data_cjk = include_bytes!("../../fonts/NotoSansCJK-Regular.ttc");
                     let font_data_gentium =
@@ -102,6 +104,7 @@ impl App for MainWindow {
 
                     ctx.set_fonts(font_definitions);
 
+                    // If API keys are found, start the main UI otherwise show the UI to input the api keys
                     if get_api_keys().is_some() {
                         self.app_state = AppState::InitializedUI
                     } else {
@@ -133,11 +136,16 @@ impl App for MainWindow {
                         ui.separator();
                         ui.selectable_value(&mut self.tab_state, TabState::Charts, "Charts");
                         ui.separator();
-                        ui.selectable_value(&mut self.tab_state, TabState::Whitelist, "Whitelist");
+                        let whitelist_tab = ui.selectable_value(
+                            &mut self.tab_state,
+                            TabState::Whitelist,
+                            "Whitelist",
+                        );
                         ui.separator();
                         let session_tab =
                             ui.selectable_value(&mut self.tab_state, TabState::Session, "Session");
 
+                        // Set window size on tab switch
                         if counter_tab.clicked() {
                             ctx.send_viewport_cmd(ViewportCommand::InnerSize(vec2(550.0, 350.0)));
                         }
@@ -146,6 +154,9 @@ impl App for MainWindow {
                         }
                         if session_tab.clicked() {
                             ctx.send_viewport_cmd(ViewportCommand::InnerSize(vec2(500.0, 320.0)));
+                        }
+                        if whitelist_tab.clicked() {
+                            ctx.send_viewport_cmd(ViewportCommand::InnerSize(vec2(500.0, 600.0)));
                         }
                     });
                     ui.separator();
@@ -182,20 +193,20 @@ impl App for MainWindow {
                     if !self.existing_sessions_checked {
                         self.existing_sessions_checked = true;
                         let existing_sessions = find_session_files();
-
-                        // All sessions gets the same sender and receiver to avoid having to check multiple channels
-                        for session_name in existing_sessions {
+                        if !existing_sessions.is_empty() {
+                            self.is_processing = true;
                             let sender_clone = self.tg_sender.clone();
                             let ctx_clone = ctx.clone();
                             thread::spawn(move || {
                                 start_process(
-                                    NewProcess::InitialSessionConnect(session_name),
+                                    NewProcess::InitialSessionConnect(existing_sessions),
                                     sender_clone,
                                     ctx_clone,
                                 );
                             });
                         }
                     } else {
+                        // At each UI loop, check on the receiver channel to check if there is anything
                         self.check_receiver()
                     }
                 }
@@ -205,6 +216,7 @@ impl App for MainWindow {
 }
 
 impl MainWindow {
+    /// Switch to light or dark mode
     fn switch_theme(&mut self, ctx: &Context) {
         if self.is_light_theme {
             ctx.set_visuals(Visuals::dark());
@@ -215,6 +227,7 @@ impl MainWindow {
         }
     }
 
+    /// Get all the added session names
     pub fn get_session_names(&self) -> Vec<String> {
         self.tg_clients.keys().map(|s| s.to_string()).collect()
     }

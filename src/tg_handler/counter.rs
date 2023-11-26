@@ -1,5 +1,5 @@
 use grammers_client::types::Message;
-use log::{debug, error, info};
+use log::{debug, info};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, sleep};
 use std::time::{Duration, Instant};
@@ -41,34 +41,25 @@ impl TGCountData {
 }
 
 impl TGClient {
+    /// Iters through a Telegram chat from a given point to the first message or until the end point is reached
     pub async fn start_count(
         &self,
         start_chat: String,
         start_num: Option<i32>,
         end_num: Option<i32>,
     ) -> Result<(), ProcessError> {
-        let authorized = self.check_authorization().await?;
-
-        if !authorized {
+        if !self.check_authorization().await? {
             return Ok(());
         }
 
-        let tg_chat = self.client().resolve_username(&start_chat).await;
+        let tg_chat = self.check_username(&start_chat).await;
 
-        let tg_chat = if let Ok(chat) = tg_chat {
-            chat
-        } else {
-            error!("Failed to resolve username");
-            self.send(ProcessResult::InvalidChat(start_chat));
-            return Ok(());
-        };
-
-        let tg_chat = if let Some(chat) = tg_chat {
-            chat
-        } else {
-            error!("Found None value for target chat. Stopping processing");
-            self.send(ProcessResult::InvalidChat(start_chat));
-            return Ok(());
+        let tg_chat = match tg_chat {
+            Ok(chat) => chat,
+            Err(e) => {
+                self.send(e);
+                return Ok(());
+            }
         };
 
         info!("{} exists. Starting iterating messages", tg_chat.name());
@@ -87,6 +78,8 @@ impl TGClient {
         let sender = self.sender();
         let context = self.context();
 
+        // Every 500 ms, check when the last communication was made with the GUI.
+        // If over 500, let the GUI side know that a flood wait was triggered
         thread::spawn(move || loop {
             sleep(Duration::from_millis(500));
 

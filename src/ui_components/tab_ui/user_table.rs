@@ -8,11 +8,12 @@ use std::collections::{HashMap, HashSet};
 use crate::ui_components::processor::{ColumnName, ProcessState, SortOrder};
 use crate::ui_components::widgets::RowLabel;
 use crate::ui_components::MainWindow;
+use crate::utils::save_whitelisted_users;
 
 #[derive(Clone)]
-pub struct UserRowData {
+struct UserRowData {
     name: String,
-    username: Option<String>,
+    username: String,
     id: i64,
     total_message: u32,
     total_word: u32,
@@ -21,11 +22,23 @@ pub struct UserRowData {
     average_char: u32,
     whitelisted: bool,
     selected_columns: HashSet<ColumnName>,
+    belongs_to: Option<Chat>,
 }
 
 impl UserRowData {
-    fn new(name: &str, username: Option<&str>, id: i64, whitelisted: bool) -> Self {
-        let username = username.map(|s| s.to_owned());
+    fn new(
+        name: &str,
+        username: Option<&str>,
+        id: i64,
+        whitelisted: bool,
+        belongs_to: Option<Chat>,
+    ) -> Self {
+        let username = if let Some(name) = username {
+            name.to_string()
+        } else {
+            String::from("Empty")
+        };
+
         UserRowData {
             name: name.to_string(),
             username,
@@ -37,6 +50,7 @@ impl UserRowData {
             average_char: 0,
             whitelisted,
             selected_columns: HashSet::new(),
+            belongs_to,
         }
     }
 
@@ -54,10 +68,11 @@ impl UserRowData {
         self.average_char = self.total_char / self.total_message;
     }
 
+    /// Get the current length of a column of this row
     fn get_column_length(&self, column: &ColumnName) -> usize {
         match column {
             ColumnName::Name => self.name.len(),
-            ColumnName::Username => self.username.as_ref().map_or(5, |u| u.len()),
+            ColumnName::Username => self.username.len(),
             ColumnName::UserID => self.id.to_string().len(),
             ColumnName::TotalMessage => self.total_message.to_string().len(),
             ColumnName::TotalWord => self.total_word.to_string().len(),
@@ -68,13 +83,11 @@ impl UserRowData {
         }
     }
 
+    /// Get the text of a column of this row
     fn get_column_text(&self, column: &ColumnName) -> String {
         match column {
             ColumnName::Name => self.name.to_string(),
-            ColumnName::Username => self
-                .username
-                .as_ref()
-                .map_or("Empty".to_string(), |u| u.to_string()),
+            ColumnName::Username => self.username.to_string(),
             ColumnName::UserID => self.id.to_string().to_string(),
             ColumnName::TotalMessage => self.total_message.to_string().to_string(),
             ColumnName::TotalWord => self.total_word.to_string().to_string(),
@@ -100,6 +113,7 @@ pub struct UserTableData {
 }
 
 impl UserTableData {
+    /// Clear all the rows
     pub fn clear_row_data(&mut self) {
         self.rows.clear();
         self.sorted_by = ColumnName::default();
@@ -111,15 +125,17 @@ impl UserTableData {
         self.beyond_drag_point = false;
     }
 
+    /// Add a user to the table
     pub fn add_user(&mut self, sender: Option<Chat>) -> Option<i64> {
         let mut to_return = None;
         if let Some(chat_data) = sender {
             let user_id = chat_data.id();
             to_return = Some(user_id);
 
-            if let Chat::User(user) = chat_data {
+            if let Chat::User(user) = chat_data.to_owned() {
                 let full_name = user.full_name();
 
+                // As per grammers lib, empty name can be given if it's a deleted account
                 let chat_name = if full_name.is_empty() {
                     "Deleted Account"
                 } else {
@@ -128,9 +144,9 @@ impl UserTableData {
 
                 let user_name = user.username();
 
-                self.rows
-                    .entry(user_id)
-                    .or_insert_with(|| UserRowData::new(chat_name, user_name, user_id, false));
+                self.rows.entry(user_id).or_insert_with(|| {
+                    UserRowData::new(chat_name, user_name, user_id, false, Some(chat_data))
+                });
             } else {
                 let chat_name = chat_data.name();
 
@@ -141,18 +157,26 @@ impl UserTableData {
                 };
 
                 self.rows.entry(user_id).or_insert_with(|| {
-                    UserRowData::new(chat_name, chat_data.username(), user_id, false)
+                    UserRowData::new(
+                        chat_name,
+                        chat_data.username(),
+                        user_id,
+                        false,
+                        Some(chat_data.to_owned()),
+                    )
                 });
             }
         } else {
+            // If there is no Chat value then it could be an anonymous user
             self.rows
                 .entry(0)
-                .or_insert_with(|| UserRowData::new("Anonymous/Unknown", None, 0, false));
+                .or_insert_with(|| UserRowData::new("Anonymous/Unknown", None, 0, false, None));
         }
 
         to_return
     }
 
+    /// Update message related column values of a row
     pub fn count_user_message(&mut self, user_id: Option<i64>, message: &Message) {
         let user_id = if let Some(num) = user_id { num } else { 0 };
 
@@ -172,7 +196,8 @@ impl UserTableData {
         self.rows.len() as i32
     }
 
-    pub fn rows(&self) -> Vec<UserRowData> {
+    /// Returns all existing row in the current sorted format in a vector
+    fn rows(&self) -> Vec<UserRowData> {
         let mut row_data: Vec<UserRowData> = self.rows.values().cloned().collect();
 
         match self.sorted_by {
@@ -237,6 +262,7 @@ impl UserTableData {
         row_data
     }
 
+    /// Marks a single column of a row as selected
     fn select_single_row_cell(&mut self, user_id: i64, column_name: &ColumnName) {
         self.active_columns.insert(column_name.clone());
         self.rows
@@ -246,7 +272,9 @@ impl UserTableData {
             .insert(column_name.clone());
     }
 
+    /// Continuously called to select rows and columns when dragging has started
     fn select_dragged_row_cell(&mut self, user_id: i64, column_name: &ColumnName) {
+        // If both same then the mouse is still on the same column on the same row so nothing to process
         if self.last_active_row == Some(user_id)
             && self.last_active_column == Some(column_name.clone())
         {
@@ -293,6 +321,12 @@ impl UserTableData {
 
             // Remove the last column selection from the current row where the mouse is if
             // the previous row and the current one matches
+            //
+            // column column column
+            // column column column
+            // column column (mouse is currently here) column(mouse was here)
+            //
+            // We unselect the bottom right corner column
             if last_active_column != *column_name && self.last_active_row.unwrap() == user_id {
                 current_row.selected_columns.remove(&last_active_column);
                 self.active_columns.remove(&last_active_column);
@@ -308,15 +342,23 @@ impl UserTableData {
                 if last_active_column != *column_name {
                     self.last_active_column = Some(column_name.clone());
 
+                    // Position where the mouse is
                     let current_row_index =
                         all_rows.iter().position(|row| row.id == user_id).unwrap();
 
+                    // This solution is not perfect.
+                    // In case of fast mouse movement it fails to call this function as if mouse was not over that cell
+
+                    // If current position is row 5 column 2 then check row from 4 to 1 or 4 till a row with no active column is found
+                    // Remove the last selected column from the selection from all the rows are that found
                     self.remove_row_column_selection(
                         true,
                         &all_rows,
                         current_row_index,
                         &last_active_column,
                     );
+                    // If current position is row 5 column 2 then check row from 6 to final row or 6 till a row with no active column is found
+                    // Remove the last selected column from the selection from all the rows are that found
                     self.remove_row_column_selection(
                         false,
                         &all_rows,
@@ -325,9 +367,11 @@ impl UserTableData {
                     );
                 }
             } else {
+                // Mouse went 1 row above or below. So just clear all selection from that previous row
                 last_row.selected_columns.clear();
             }
         } else {
+            // We are in a new row which we have not selected before
             self.last_active_row = Some(user_id);
             self.last_active_column = Some(column_name.clone());
             for column in self.active_columns.iter() {
@@ -335,11 +379,15 @@ impl UserTableData {
             }
             let current_row_index = all_rows.iter().position(|row| row.id == user_id).unwrap();
 
+            // Get the row number where the drag started on
             let drag_start_index = all_rows
                 .iter()
                 .position(|row| row.id == drag_start.0)
                 .unwrap();
 
+            // If drag started on row 1, currently on row 5, check from row 4 to 1 and select all columns
+            // else go through all rows till a row without any selected column is found. Applied both by incrementing or decrementing index.
+            // In case of fast mouse movement following drag started point mitigates the risk of some rows not getting selected
             self.check_row_selection(true, &all_rows, current_row_index, drag_start_index);
             self.check_row_selection(false, &all_rows, current_row_index, drag_start_index);
         }
@@ -428,6 +476,7 @@ impl UserTableData {
         }
     }
 
+    /// Unselect all rows and columns
     fn unselected_all(&mut self) {
         for (_, row) in self.rows.iter_mut() {
             row.selected_columns.clear()
@@ -437,6 +486,7 @@ impl UserTableData {
         self.last_active_column = None;
     }
 
+    /// Select all rows and columns
     fn select_all(&mut self) {
         let mut all_columns = vec![ColumnName::Name];
         let mut current_column = ColumnName::Name.get_next();
@@ -454,17 +504,33 @@ impl UserTableData {
         self.last_active_column = None;
     }
 
+    /// Change the value it is currently sorted by. Called on header column click
     fn change_sorted_by(&mut self, sort_by: ColumnName) {
         self.unselected_all();
         self.sorted_by = sort_by;
         self.sort_order = SortOrder::default()
     }
 
+    /// Change the order of row sorting. Called on header column click
     fn change_sort_order(&mut self) {
         if let SortOrder::Ascending = self.sort_order {
             self.sort_order = SortOrder::Descending;
         } else {
             self.sort_order = SortOrder::Ascending
+        }
+    }
+
+    /// Mark a row as whitelisted if exists
+    pub fn set_as_whitelisted(&mut self, user_id: &i64) {
+        if let Some(row) = self.rows.get_mut(user_id) {
+            row.whitelisted = true;
+        }
+    }
+
+    /// Remove whitelist status from a row if exists
+    pub fn remove_whitelist(&mut self, user_id: &i64) {
+        if let Some(row) = self.rows.get_mut(user_id) {
+            row.whitelisted = false;
         }
     }
 }
@@ -561,25 +627,15 @@ impl MainWindow {
             });
     }
 
-    pub fn create_table_row(
-        &mut self,
-        column_name: ColumnName,
-        row_data: &UserRowData,
-        ui: &mut Ui,
-    ) {
+    /// Create a table row from a column name and the row data
+    fn create_table_row(&mut self, column_name: ColumnName, row_data: &UserRowData, ui: &mut Ui) {
         let mut show_tooltip = false;
         let row_text = match column_name {
             ColumnName::Name => {
                 show_tooltip = true;
                 row_data.name.to_owned()
             }
-            ColumnName::Username => {
-                if let Some(name) = &row_data.username {
-                    name.to_string()
-                } else {
-                    "Empty".to_string()
-                }
-            }
+            ColumnName::Username => row_data.username.to_owned(),
             ColumnName::UserID => row_data.id.to_string(),
             ColumnName::TotalMessage => row_data.total_message.to_string(),
             ColumnName::TotalWord => row_data.total_word.to_string(),
@@ -595,19 +651,32 @@ impl MainWindow {
         let is_selected = row_data.selected_columns.contains(&column_name);
         let is_whitelisted = row_data.whitelisted;
 
+        // On normal click both drag and click are returned for handling
+        // A single click can return 2-3 result, 1 click and the rest are drag
         let mut label = ui
             .add_sized(
                 ui.available_size(),
                 RowLabel::new(is_selected, is_whitelisted, &row_text),
             )
-            .interact(Sense::drag());
+            .interact(Sense::drag())
+            .context_menu(|ui| {
+                if ui.button("Copy selected rows").clicked() {
+                    self.copy_selected_cells(ui);
+                    ui.close_menu()
+                };
+                if ui.button("whitelist selected rows").clicked() {
+                    self.whitelist_selected_rows();
+                    ui.close_menu()
+                };
+            });
 
         if show_tooltip {
             label = label.on_hover_text(row_text);
         }
 
         if label.drag_started() {
-            if !ui.ctx().input(|i| i.modifiers.ctrl) {
+            // If CTRL is not pressed down, unselect all cells
+            if !ui.ctx().input(|i| i.modifiers.ctrl) && !ui.ctx().is_context_menu_open() {
                 self.user_table.unselected_all();
             }
             self.user_table.drag_started_on = Some((row_data.id, column_name.clone()));
@@ -620,6 +689,7 @@ impl MainWindow {
         }
 
         if label.clicked() {
+            // If CTRL is not pressed down, unselect all cells
             if !ui.ctx().input(|i| i.modifiers.ctrl) {
                 self.user_table.unselected_all();
             }
@@ -642,7 +712,8 @@ impl MainWindow {
         }
     }
 
-    pub fn create_header(&mut self, column_name: ColumnName, ui: &mut Ui) {
+    /// Create a header column
+    fn create_header(&mut self, column_name: ColumnName, ui: &mut Ui) {
         let is_selected = self.user_table.sorted_by == column_name;
         let (label_text, hover_text) = self.get_header_text(&column_name);
 
@@ -656,7 +727,8 @@ impl MainWindow {
         self.handle_header_selection(response, is_selected, column_name);
     }
 
-    pub fn handle_header_selection(
+    /// Handles sort order and value on header click
+    fn handle_header_selection(
         &mut self,
         response: Response,
         is_selected: bool,
@@ -671,7 +743,7 @@ impl MainWindow {
         }
     }
 
-    pub fn get_header_text(&mut self, header_type: &ColumnName) -> (RichText, String) {
+    fn get_header_text(&mut self, header_type: &ColumnName) -> (RichText, String) {
         let (mut text, hover_text) = match header_type {
             ColumnName::Name => (
                 "Name".to_string(),
@@ -721,12 +793,15 @@ impl MainWindow {
         (RichText::new(text).strong(), hover_text)
     }
 
+    /// Copy the selected rows in an organized manner
     fn copy_selected_cells(&mut self, ui: &mut Ui) {
         let all_rows = self.user_table.rows();
         let mut selected_rows = Vec::new();
 
         let mut column_max_length = HashMap::new();
 
+        // Iter through all the rows and find the rows that have at least one column as selected
+        // Keep track of the biggest length of a value of a column
         for row in all_rows.into_iter() {
             if !row.selected_columns.is_empty() {
                 for column in self.user_table.active_columns.iter() {
@@ -744,6 +819,11 @@ impl MainWindow {
 
         let mut to_copy = String::new();
         let mut total_cells = 0;
+
+        // Target is to ensure a fixed length after each column value of a row
+        // If for example highest len is 10 but the current row's
+        // column value is 5, we will add the column value and add 5 more space after that
+        // to ensure alignment
         for row in selected_rows.into_iter() {
             let mut ongoing_column = ColumnName::Name;
             let mut row_text = String::new();
@@ -779,5 +859,33 @@ impl MainWindow {
 
         ui.ctx().output_mut(|i| i.copied_text = to_copy);
         self.process_state = ProcessState::DataCopied(total_cells);
+    }
+
+    /// Marks all the rows with at least 1 column selected as whitelisted
+    fn whitelist_selected_rows(&mut self) {
+        let all_rows = self.user_table.rows();
+        let mut selected_rows = Vec::new();
+
+        for row in all_rows {
+            if !row.selected_columns.is_empty() && row.name != "Anonymous/Unknown" {
+                selected_rows.push(row)
+            }
+        }
+        let total_to_whitelist = selected_rows.len();
+        let mut packed_chats = Vec::new();
+
+        for row in selected_rows {
+            self.user_table.set_as_whitelisted(&row.id);
+            self.whitelist_data.add_to_whitelist(
+                row.name,
+                row.username,
+                row.id,
+                row.belongs_to.clone().unwrap(),
+            );
+            packed_chats.push(row.belongs_to.unwrap().pack().to_hex())
+        }
+
+        save_whitelisted_users(packed_chats, false);
+        self.process_state = ProcessState::UsersWhitelisted(total_to_whitelist)
     }
 }

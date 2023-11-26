@@ -1,4 +1,5 @@
 use eframe::egui::Context;
+use grammers_client::types::Chat;
 use grammers_client::Client;
 use log::{error, info};
 use std::sync::mpsc::Sender;
@@ -34,6 +35,7 @@ impl TGClient {
         }
     }
 
+    /// Start an operation with a telegram client
     pub fn start_process(self, process_type: ProcessStart) {
         let runtime = get_runtime();
 
@@ -48,6 +50,8 @@ impl TGClient {
                 runtime.block_on(self.sign_in_password(token, password))
             }
             ProcessStart::SessionLogout => runtime.block_on(self.logout()),
+            ProcessStart::LoadWhitelistedUsers => runtime.block_on(self.load_whitelisted_users()),
+            ProcessStart::NewWhitelistUser(name) => runtime.block_on(self.new_whitelist(name)),
         };
 
         if let Err(err) = result {
@@ -60,6 +64,7 @@ impl TGClient {
         self.name.to_owned()
     }
 
+    /// Sends a process result to the GUI side, the only way to communicate with the GUI from async
     pub fn send(&self, data: ProcessResult) {
         self.sender.send(data).unwrap();
         self.context.request_repaint();
@@ -81,6 +86,7 @@ impl TGClient {
         self.context.clone()
     }
 
+    /// Verifies if the current client is authorizes for usage
     pub async fn check_authorization(&self) -> Result<bool, ProcessError> {
         let authorized: bool = self
             .client()
@@ -97,12 +103,37 @@ impl TGClient {
         Ok(true)
     }
 
+    /// Tries to resolve a username to get a Telegram chat account
+    pub async fn check_username(&self, chat_name: &str) -> Result<Chat, ProcessResult> {
+        let tg_chat = self.client().resolve_username(chat_name).await;
+
+        let tg_chat = if let Ok(chat) = tg_chat {
+            chat
+        } else {
+            error!("Failed to resolve username");
+            return Err(ProcessResult::InvalidChat(chat_name.to_owned()));
+        };
+
+        let tg_chat = if let Some(chat) = tg_chat {
+            chat
+        } else {
+            error!("Found None value for target chat. Stopping processing");
+            return Err(ProcessResult::InvalidChat(chat_name.to_owned()));
+        };
+
+        info!("Target chat {} exist", tg_chat.name());
+
+        Ok(tg_chat)
+    }
+
+    /// Logs out of the client
     pub async fn logout(&self) -> Result<(), ProcessError> {
         let _ = self.client().sign_out().await;
         Ok(())
     }
 }
 
+/// Start a process that will result in the creation of a TGClient if successful
 pub fn start_process(process: NewProcess, sender: Sender<ProcessResult>, context: Context) {
     let runtime = get_runtime();
     let result = match process {

@@ -5,14 +5,26 @@ use crate::ui_components::processor::ProcessState;
 use crate::ui_components::MainWindow;
 
 impl MainWindow {
+    /// Checks if there are any new message from the async side
     pub fn check_receiver(&mut self) {
         while let Ok(data) = self.tg_receiver.try_recv() {
             match data {
-                ProcessResult::InitialSessionSuccess(client) => {
-                    info!("Initial connection to session {} successful", client.name());
+                ProcessResult::InitialSessionSuccess((clients, success, failed)) => {
+                    let mut status_text =
+                        format!("Successfully connected to: {}.", success.join(", "));
+
+                    if !failed.is_empty() {
+                        status_text
+                            .push_str(&format!(" Failed connection to: {}", failed.join(", ")));
+                    }
+
+                    for client in clients {
+                        self.tg_clients.insert(client.name(), client);
+                    }
+
                     self.process_state =
-                        ProcessState::InitialClientConnectionSuccessful(client.name());
-                    self.tg_clients.insert(client.name(), client);
+                        ProcessState::InitialClientConnectionSuccessful(status_text);
+                    self.load_whitelisted_users();
                 }
                 ProcessResult::InvalidChat(chat_name) => {
                     info!("Invalid chat name found: {}", chat_name);
@@ -47,6 +59,12 @@ impl MainWindow {
 
                     let sender = message.sender();
                     let sender_id = self.user_table.add_user(sender);
+
+                    if let Some(id) = sender_id {
+                        if self.whitelist_data.is_user_whitelisted(&id) {
+                            self.user_table.set_as_whitelisted(&id)
+                        }
+                    }
 
                     self.user_table.count_user_message(sender_id, message);
 
@@ -134,6 +152,47 @@ impl MainWindow {
                 ProcessResult::FloodWait => {
                     info!("Flood wait triggered");
                     self.process_state = ProcessState::FloodWait;
+                }
+                ProcessResult::UnpackedChats(chats) => {
+                    let total_chat = chats.len();
+                    info!("Unpacked {total_chat} for whitelist");
+
+                    for chat in chats {
+                        let username = if let Some(name) = chat.username() {
+                            name.to_string()
+                        } else {
+                            String::from("Empty")
+                        };
+                        self.whitelist_data.add_to_whitelist(
+                            chat.name().to_string(),
+                            username,
+                            chat.id(),
+                            chat,
+                        );
+                    }
+                    self.is_processing = false;
+                    self.process_state = ProcessState::LoadedWhitelistedUsers(total_chat)
+                }
+                ProcessResult::WhiteListUser(chat) => {
+                    self.stop_process();
+                    let user_id = chat.id();
+
+                    info!("Adding {user_id} to whitelist");
+
+                    let username = if let Some(name) = chat.username() {
+                        name.to_string()
+                    } else {
+                        String::from("Empty")
+                    };
+                    self.whitelist_data.add_to_whitelist(
+                        chat.name().to_string(),
+                        username,
+                        user_id,
+                        chat,
+                    );
+                    self.whitelist_data.clear_text_box();
+                    self.user_table.set_as_whitelisted(&user_id);
+                    self.process_state = ProcessState::AddedToWhitelist
                 }
             }
         }
