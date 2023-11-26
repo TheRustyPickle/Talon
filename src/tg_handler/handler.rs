@@ -1,4 +1,5 @@
 use eframe::egui::Context;
+use grammers_client::types::Chat;
 use grammers_client::Client;
 use log::{error, info};
 use std::sync::mpsc::Sender;
@@ -48,6 +49,8 @@ impl TGClient {
                 runtime.block_on(self.sign_in_password(token, password))
             }
             ProcessStart::SessionLogout => runtime.block_on(self.logout()),
+            ProcessStart::LoadWhitelistedUsers => runtime.block_on(self.load_whitelisted_users()),
+            ProcessStart::NewWhitelistUser(name) => runtime.block_on(self.new_whitelist(name)),
         };
 
         if let Err(err) = result {
@@ -95,6 +98,28 @@ impl TGClient {
             return Ok(false);
         }
         Ok(true)
+    }
+
+    pub async fn check_username(&self, chat_name: &str) -> Result<Chat, ProcessResult> {
+        let tg_chat = self.client().resolve_username(chat_name).await;
+
+        let tg_chat = if let Ok(chat) = tg_chat {
+            chat
+        } else {
+            error!("Failed to resolve username");
+            return Err(ProcessResult::InvalidChat(chat_name.to_owned()));
+        };
+
+        let tg_chat = if let Some(chat) = tg_chat {
+            chat
+        } else {
+            error!("Found None value for target chat. Stopping processing");
+            return Err(ProcessResult::InvalidChat(chat_name.to_owned()));
+        };
+
+        info!("Target chat {} exist", tg_chat.name());
+
+        Ok(tg_chat)
     }
 
     pub async fn logout(&self) -> Result<(), ProcessError> {

@@ -1,4 +1,5 @@
 use log::info;
+use std::collections::HashSet;
 use std::fs::{self, File};
 use std::io::{Read, Write};
 use std::path::PathBuf;
@@ -104,4 +105,48 @@ pub fn save_api_keys(api_keys: &TGKeys) {
         let mut file = File::create(api_key_path).unwrap();
         file.write_all(data.as_bytes()).unwrap();
     };
+}
+
+pub fn get_whitelisted_users() -> Vec<String> {
+    let mut to_return = Vec::new();
+
+    let mut whitelist_path = PathBuf::from(".");
+    whitelist_path.push("whitelist.json");
+
+    let file = File::open(whitelist_path);
+
+    if let Ok(mut file) = file {
+        let mut contents = String::new();
+        file.read_to_string(&mut contents)
+            .expect("Failed to read file");
+        to_return = serde_json::from_str(&contents).unwrap();
+    }
+
+    to_return
+}
+
+pub fn save_whitelisted_users(packed_chats: Vec<String>, overwrite: bool) {
+    let mut existing_data: HashSet<String> = HashSet::new();
+
+    let mut whitelist_path = PathBuf::from(".");
+    whitelist_path.push("whitelist.json");
+
+    let file = File::open(&whitelist_path);
+
+    if !overwrite {
+        if let Ok(mut file) = file {
+            let mut contents = String::new();
+            file.read_to_string(&mut contents)
+                .expect("Failed to read file");
+
+            existing_data = serde_json::from_str(&contents).unwrap();
+        }
+    }
+
+    existing_data.extend(packed_chats);
+
+    let data = serde_json::to_string(&existing_data).unwrap();
+
+    let mut file = File::create(whitelist_path).unwrap();
+    file.write_all(data.as_bytes()).unwrap();
 }

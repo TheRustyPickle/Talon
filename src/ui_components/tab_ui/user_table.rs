@@ -8,9 +8,10 @@ use std::collections::{HashMap, HashSet};
 use crate::ui_components::processor::{ColumnName, ProcessState, SortOrder};
 use crate::ui_components::widgets::RowLabel;
 use crate::ui_components::MainWindow;
+use crate::utils::save_whitelisted_users;
 
 #[derive(Clone)]
-pub struct UserRowData {
+struct UserRowData {
     name: String,
     username: Option<String>,
     id: i64,
@@ -21,10 +22,17 @@ pub struct UserRowData {
     average_char: u32,
     whitelisted: bool,
     selected_columns: HashSet<ColumnName>,
+    belongs_to: Option<Chat>,
 }
 
 impl UserRowData {
-    fn new(name: &str, username: Option<&str>, id: i64, whitelisted: bool) -> Self {
+    fn new(
+        name: &str,
+        username: Option<&str>,
+        id: i64,
+        whitelisted: bool,
+        belongs_to: Option<Chat>,
+    ) -> Self {
         let username = username.map(|s| s.to_owned());
         UserRowData {
             name: name.to_string(),
@@ -37,6 +45,7 @@ impl UserRowData {
             average_char: 0,
             whitelisted,
             selected_columns: HashSet::new(),
+            belongs_to,
         }
     }
 
@@ -117,7 +126,7 @@ impl UserTableData {
             let user_id = chat_data.id();
             to_return = Some(user_id);
 
-            if let Chat::User(user) = chat_data {
+            if let Chat::User(user) = chat_data.to_owned() {
                 let full_name = user.full_name();
 
                 let chat_name = if full_name.is_empty() {
@@ -128,9 +137,9 @@ impl UserTableData {
 
                 let user_name = user.username();
 
-                self.rows
-                    .entry(user_id)
-                    .or_insert_with(|| UserRowData::new(chat_name, user_name, user_id, false));
+                self.rows.entry(user_id).or_insert_with(|| {
+                    UserRowData::new(chat_name, user_name, user_id, false, Some(chat_data))
+                });
             } else {
                 let chat_name = chat_data.name();
 
@@ -141,13 +150,19 @@ impl UserTableData {
                 };
 
                 self.rows.entry(user_id).or_insert_with(|| {
-                    UserRowData::new(chat_name, chat_data.username(), user_id, false)
+                    UserRowData::new(
+                        chat_name,
+                        chat_data.username(),
+                        user_id,
+                        false,
+                        Some(chat_data.to_owned()),
+                    )
                 });
             }
         } else {
             self.rows
                 .entry(0)
-                .or_insert_with(|| UserRowData::new("Anonymous/Unknown", None, 0, false));
+                .or_insert_with(|| UserRowData::new("Anonymous/Unknown", None, 0, false, None));
         }
 
         to_return
@@ -172,7 +187,7 @@ impl UserTableData {
         self.rows.len() as i32
     }
 
-    pub fn rows(&self) -> Vec<UserRowData> {
+    fn rows(&self) -> Vec<UserRowData> {
         let mut row_data: Vec<UserRowData> = self.rows.values().cloned().collect();
 
         match self.sorted_by {
@@ -467,6 +482,18 @@ impl UserTableData {
             self.sort_order = SortOrder::Ascending
         }
     }
+
+    pub fn set_as_whitelisted(&mut self, user_id: &i64) {
+        if let Some(row) = self.rows.get_mut(user_id) {
+            row.whitelisted = true;
+        }
+    }
+
+    pub fn remove_whitelist(&mut self, user_id: &i64) {
+        if let Some(row) = self.rows.get_mut(user_id) {
+            row.whitelisted = false;
+        }
+    }
 }
 
 impl MainWindow {
@@ -561,12 +588,7 @@ impl MainWindow {
             });
     }
 
-    pub fn create_table_row(
-        &mut self,
-        column_name: ColumnName,
-        row_data: &UserRowData,
-        ui: &mut Ui,
-    ) {
+    fn create_table_row(&mut self, column_name: ColumnName, row_data: &UserRowData, ui: &mut Ui) {
         let mut show_tooltip = false;
         let row_text = match column_name {
             ColumnName::Name => {
@@ -603,10 +625,12 @@ impl MainWindow {
             .interact(Sense::drag())
             .context_menu(|ui| {
                 if ui.button("Copy selected rows").clicked() {
-                    self.copy_selected_cells(ui)
+                    self.copy_selected_cells(ui);
+                    ui.close_menu()
                 };
                 if ui.button("whitelist selected rows").clicked() {
-                    self.whitelist_selected_rows()
+                    self.whitelist_selected_rows();
+                    ui.close_menu()
                 };
             });
 
@@ -615,9 +639,7 @@ impl MainWindow {
         }
 
         if label.drag_started() {
-            if !ui.ctx().input(|i| i.modifiers.ctrl) && !ui.ctx().is_context_menu_open()
-                
-            {
+            if !ui.ctx().input(|i| i.modifiers.ctrl) && !ui.ctx().is_context_menu_open() {
                 self.user_table.unselected_all();
             }
             self.user_table.drag_started_on = Some((row_data.id, column_name.clone()));
@@ -652,7 +674,7 @@ impl MainWindow {
         }
     }
 
-    pub fn create_header(&mut self, column_name: ColumnName, ui: &mut Ui) {
+    fn create_header(&mut self, column_name: ColumnName, ui: &mut Ui) {
         let is_selected = self.user_table.sorted_by == column_name;
         let (label_text, hover_text) = self.get_header_text(&column_name);
 
@@ -666,7 +688,7 @@ impl MainWindow {
         self.handle_header_selection(response, is_selected, column_name);
     }
 
-    pub fn handle_header_selection(
+    fn handle_header_selection(
         &mut self,
         response: Response,
         is_selected: bool,
@@ -681,7 +703,7 @@ impl MainWindow {
         }
     }
 
-    pub fn get_header_text(&mut self, header_type: &ColumnName) -> (RichText, String) {
+    fn get_header_text(&mut self, header_type: &ColumnName) -> (RichText, String) {
         let (mut text, hover_text) = match header_type {
             ColumnName::Name => (
                 "Name".to_string(),
@@ -796,14 +818,25 @@ impl MainWindow {
         let mut selected_rows = Vec::new();
 
         for row in all_rows {
-            if !row.selected_columns.is_empty() {
+            if !row.selected_columns.is_empty() && row.name != "Anonymous/Unknown" {
                 selected_rows.push(row)
             }
         }
+        let total_to_whitelist = selected_rows.len();
+        let mut packed_chats = Vec::new();
 
         for row in selected_rows {
-            let target_row = self.user_table.rows.get_mut(&row.id).unwrap();
-            target_row.whitelisted = true;
+            self.user_table.set_as_whitelisted(&row.id);
+            self.whitelist_data.add_to_whitelist(
+                row.name,
+                row.username,
+                row.id,
+                row.belongs_to.clone().unwrap(),
+            );
+            packed_chats.push(row.belongs_to.unwrap().pack().to_hex())
         }
+
+        save_whitelisted_users(packed_chats, false);
+        self.process_state = ProcessState::UsersWhitelisted(total_to_whitelist)
     }
 }

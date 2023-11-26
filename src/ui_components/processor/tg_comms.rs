@@ -23,6 +23,7 @@ impl MainWindow {
 
                     self.process_state =
                         ProcessState::InitialClientConnectionSuccessful(status_text);
+                    self.load_whitelisted_users();
                 }
                 ProcessResult::InvalidChat(chat_name) => {
                     info!("Invalid chat name found: {}", chat_name);
@@ -57,6 +58,12 @@ impl MainWindow {
 
                     let sender = message.sender();
                     let sender_id = self.user_table.add_user(sender);
+
+                    if let Some(id) = sender_id {
+                        if self.whitelist_data.is_user_whitelisted(&id) {
+                            self.user_table.set_as_whitelisted(&id)
+                        }
+                    }
 
                     self.user_table.count_user_message(sender_id, message);
 
@@ -144,6 +151,33 @@ impl MainWindow {
                 ProcessResult::FloodWait => {
                     info!("Flood wait triggered");
                     self.process_state = ProcessState::FloodWait;
+                }
+                ProcessResult::UnpackedChats(chats) => {
+                    let total_chat = chats.len();
+                    for chat in chats {
+                        let username = chat.username().map(|s| s.to_owned());
+                        self.whitelist_data.add_to_whitelist(
+                            chat.name().to_string(),
+                            username,
+                            chat.id(),
+                            chat,
+                        );
+                    }
+                    self.is_processing = false;
+                    self.process_state = ProcessState::LoadedWhitelistedUsers(total_chat)
+                }
+                ProcessResult::WhiteListUser(chat) => {
+                    self.stop_process();
+                    let user_id = chat.id();
+                    let username = chat.username().map(|s| s.to_owned());
+                    self.whitelist_data.add_to_whitelist(
+                        chat.name().to_string(),
+                        username,
+                        user_id,
+                        chat,
+                    );
+                    self.user_table.set_as_whitelisted(&user_id);
+                    self.process_state = ProcessState::AddedToWhitelist
                 }
             }
         }

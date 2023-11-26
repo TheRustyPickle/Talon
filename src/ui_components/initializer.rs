@@ -152,7 +152,7 @@ impl App for MainWindow {
                             ctx.send_viewport_cmd(ViewportCommand::InnerSize(vec2(500.0, 320.0)));
                         }
                         if whitelist_tab.clicked() {
-                            ctx.send_viewport_cmd(ViewportCommand::InnerSize(vec2(550.0, 350.0)));
+                            ctx.send_viewport_cmd(ViewportCommand::InnerSize(vec2(500.0, 600.0)));
                         }
                     });
                     ui.separator();
@@ -187,6 +187,7 @@ impl App for MainWindow {
                             })
                         });
                     if !self.existing_sessions_checked {
+                        self.is_processing = true;
                         self.existing_sessions_checked = true;
                         let existing_sessions = find_session_files();
 

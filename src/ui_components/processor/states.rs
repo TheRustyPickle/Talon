@@ -43,6 +43,8 @@ pub enum ProcessState {
     PasswordRequired,
     FloodWait,
     UsersWhitelisted(usize),
+    LoadedWhitelistedUsers(usize),
+    AddedToWhitelist,
 }
 
 impl ProcessState {
@@ -107,7 +109,9 @@ impl Display for ProcessState {
             ProcessState::InvalidPhoneOrAPI => write!(f, "Status: Unknown error acquired. Possibly invalid phone number given or API keys are invalid"),
             ProcessState::PasswordRequired => write!(f, "Status: Account requires a password authentication"),
             ProcessState::FloodWait => write!(f, "Status: Flood wait triggered. Will resume again soon"),
-            ProcessState::UsersWhitelisted(num) => write!(f, "Status: Whitelisted {num} users")
+            ProcessState::UsersWhitelisted(num) => write!(f, "Status: Whitelisted {num} users"),
+            ProcessState::LoadedWhitelistedUsers(num) => write!(f, "Status: Loaded {num} whitelisted users"),
+            ProcessState::AddedToWhitelist => write!(f, "Status: User added to whitelist"),
         }
     }
 }
