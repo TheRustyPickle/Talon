@@ -275,6 +275,16 @@ then right click on User Table to whitelist",
                 ui.available_size(),
                 SelectableLabel::new(row_data.is_selected, row_text),
             )
+            .context_menu(|ui| {
+                if ui.button("Delete Selected").clicked() {
+                    let deleted = self.whitelist_data.remove_selected();
+
+                    for i in deleted {
+                        self.user_table.remove_whitelist(&i);
+                    }
+                    ui.close_menu();
+                }
+            })
             .clicked()
         {
             if !ui.ctx().input(|i| i.modifiers.ctrl) {
