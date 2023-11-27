@@ -4,17 +4,18 @@ use egui::{
     Spinner, ViewportCommand, Visuals,
 };
 use egui_extras::{Size, StripBuilder};
+use log::info;
 use std::collections::BTreeMap;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::thread;
 
 use crate::tg_handler::{start_process, NewProcess, ProcessResult, ProcessStart, TGClient};
-use crate::ui_components::processor::{AppState, ProcessState, TabState};
+use crate::ui_components::processor::{download_font, AppState, ProcessState, TabState};
 use crate::ui_components::tab_ui::{
     ChartsData, CounterData, SessionData, UserTableData, WhitelistData,
 };
 use crate::ui_components::TGKeys;
-use crate::utils::{find_session_files, get_api_keys, get_theme_emoji};
+use crate::utils::{find_session_files, get_api_keys, get_font_data, get_theme_emoji};
 
 pub struct MainWindow {
     pub app_state: AppState,
@@ -78,31 +79,8 @@ impl App for MainWindow {
         CentralPanel::default().show(ctx, |ui| {
             match self.app_state {
                 AppState::LoadingFontsAPI => {
-                    // Add the fonts on top of the default ones
                     ctx.set_pixels_per_point(1.1);
-                    let font_data_cjk = include_bytes!("../../fonts/NotoSansCJK-Regular.ttc");
-                    let font_data_gentium =
-                        include_bytes!("../../fonts/GentiumBookPlus-Regular.ttf");
-
-                    let font_cjk = FontData::from_static(font_data_cjk);
-                    let font_gentium = FontData::from_static(font_data_gentium);
-
-                    let mut font_definitions = FontDefinitions::default();
-
-                    font_definitions
-                        .font_data
-                        .insert("NotoSansCJK".to_owned(), font_cjk);
-                    font_definitions
-                        .font_data
-                        .insert("GentiumBookPlus".to_owned(), font_gentium);
-
-                    font_definitions
-                        .families
-                        .get_mut(&FontFamily::Proportional)
-                        .unwrap()
-                        .extend(["NotoSansCJK".to_owned(), "GentiumBookPlus".to_owned()]);
-
-                    ctx.set_fonts(font_definitions);
+                    self.set_fonts(ctx);
 
                     // If API keys are found, start the main UI otherwise show the UI to input the api keys
                     if get_api_keys().is_some() {
@@ -230,5 +208,39 @@ impl MainWindow {
     /// Get all the added session names
     pub fn get_session_names(&self) -> Vec<String> {
         self.tg_clients.keys().map(|s| s.to_string()).collect()
+    }
+
+    /// Set the fonts for egui to use or download them if does not exist
+    pub fn set_fonts(&self, ctx: &Context) {
+        let font_data = get_font_data();
+
+        if let Some((cjk, gentium)) = font_data {
+            // Add the fonts on top of the default ones
+            let font_cjk = FontData::from_owned(cjk);
+            let font_gentium = FontData::from_owned(gentium);
+            let mut font_definitions = FontDefinitions::default();
+
+            font_definitions
+                .font_data
+                .insert("NotoSansCJK".to_owned(), font_cjk);
+            font_definitions
+                .font_data
+                .insert("GentiumBookPlus".to_owned(), font_gentium);
+
+            font_definitions
+                .families
+                .get_mut(&FontFamily::Proportional)
+                .unwrap()
+                .extend(["NotoSansCJK".to_owned(), "GentiumBookPlus".to_owned()]);
+
+            ctx.set_fonts(font_definitions);
+        } else {
+            info!("Could not find font data. Starting download");
+            let ctx_clone = ctx.clone();
+
+            thread::spawn(move || {
+                download_font(ctx_clone);
+            });
+        }
     }
 }

@@ -150,3 +150,34 @@ pub fn save_whitelisted_users(packed_chats: Vec<String>, overwrite: bool) {
     let mut file = File::create(whitelist_path).unwrap();
     file.write_all(data.as_bytes()).unwrap();
 }
+
+pub fn get_font_data() -> Option<(Vec<u8>, Vec<u8>)> {
+    let mut gentium_font = PathBuf::from(".");
+    let mut cjk_font = PathBuf::from(".");
+
+    gentium_font.push("fonts");
+    cjk_font.push("fonts");
+    fs::create_dir_all(&gentium_font).unwrap();
+
+    gentium_font.push("GentiumBookPlus-Regular.ttf");
+    cjk_font.push("NotoSansCJK-Regular.ttc");
+
+    let mut gentium_font_data = Vec::new();
+    let mut cjk_font_data = Vec::new();
+
+    if let Ok(mut file) = File::open(gentium_font) {
+        file.read_to_end(&mut gentium_font_data)
+            .expect("Failed to read file");
+    } else {
+        return None;
+    }
+
+    if let Ok(mut file) = File::open(cjk_font) {
+        file.read_to_end(&mut cjk_font_data)
+            .expect("Failed to read file");
+    } else {
+        return None;
+    }
+
+    Some((cjk_font_data, gentium_font_data))
+}
