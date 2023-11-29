@@ -152,3 +152,20 @@ impl ColumnName {
         }
     }
 }
+
+#[derive(Default, PartialEq)]
+pub enum ChartType {
+    #[default]
+    Message,
+    MessageWeekDay,
+    ActiveUser,
+}
+
+#[derive(Default, PartialEq)]
+pub enum ChartTiming {
+    #[default]
+    Hourly,
+    Daily,
+    Weekly,
+    Monthly,
+}

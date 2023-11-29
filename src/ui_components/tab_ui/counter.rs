@@ -139,11 +139,9 @@ impl MainWindow {
         });
 
         ui.with_layout(Layout::bottom_up(Align::Min), |ui| {
-            let mut progress_bar =
-                ProgressBar::new(self.counter_data.bar_percentage).show_percentage();
-            if self.is_processing {
-                progress_bar = progress_bar.animate(true);
-            }
+            let progress_bar = ProgressBar::new(self.counter_data.bar_percentage)
+                .show_percentage()
+                .animate(self.counter_data.counting);
             ui.add(progress_bar);
         });
     }
