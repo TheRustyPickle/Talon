@@ -914,6 +914,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "egui-dropdown"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "76f1cb943de7df003392d98d191ef20facde15467ce05cc952b00750e8e9d035"
+dependencies = [
+ "egui",
+]
+
+[[package]]
 name = "egui-winit"
 version = "0.24.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -956,6 +965,15 @@ dependencies = [
  "memoffset 0.7.1",
  "wasm-bindgen",
  "web-sys",
+]
+
+[[package]]
+name = "egui_plot"
+version = "0.24.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7659d721c5d7f05827ea947e18f766c15332d2ee8635a24e3356645d90f3e272"
+dependencies = [
+ "egui",
 ]
 
 [[package]]
@@ -3011,7 +3029,9 @@ dependencies = [
  "arboard",
  "dirs",
  "eframe",
+ "egui-dropdown",
  "egui_extras",
+ "egui_plot",
  "grammers-client",
  "grammers-session",
  "log",
