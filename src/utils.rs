@@ -1,3 +1,4 @@
+use eframe::epaint::Color32;
 use log::info;
 use std::collections::HashSet;
 use std::fs::{self, File};
@@ -180,4 +181,42 @@ pub fn get_font_data() -> Option<(Vec<u8>, Vec<u8>)> {
     }
 
     Some((cjk_font_data, gentium_font_data))
+}
+
+const PEACH: Color32 = Color32::from_rgb(255, 218, 185);
+const LAVENDER: Color32 = Color32::from_rgb(230, 230, 250);
+const CORAL: Color32 = Color32::from_rgb(255, 127, 80);
+const SKY_BLUE: Color32 = Color32::from_rgb(135, 206, 250);
+const ORCHID: Color32 = Color32::from_rgb(218, 112, 214);
+const TURQUOISE: Color32 = Color32::from_rgb(64, 224, 208);
+
+pub fn get_next_color(color: &Color32) -> Color32 {
+    match *color {
+        Color32::BLACK => Color32::DARK_GRAY,
+        Color32::DARK_GRAY => Color32::GRAY,
+        Color32::GRAY => Color32::LIGHT_GRAY,
+        Color32::LIGHT_GRAY => Color32::WHITE,
+        Color32::WHITE => Color32::BROWN,
+        Color32::BROWN => Color32::DARK_RED,
+        Color32::DARK_RED => Color32::RED,
+        Color32::RED => Color32::LIGHT_RED,
+        Color32::LIGHT_RED => Color32::YELLOW,
+        Color32::YELLOW => Color32::LIGHT_YELLOW,
+        Color32::LIGHT_YELLOW => Color32::KHAKI,
+        Color32::KHAKI => Color32::DARK_GREEN,
+        Color32::DARK_GREEN => Color32::GREEN,
+        Color32::GREEN => Color32::LIGHT_GREEN,
+        Color32::LIGHT_GREEN => Color32::DARK_BLUE,
+        Color32::DARK_BLUE => Color32::BLUE,
+        Color32::BLUE => Color32::LIGHT_BLUE,
+        Color32::LIGHT_BLUE => Color32::GOLD,
+        Color32::GOLD => PEACH,
+        PEACH => LAVENDER,
+        LAVENDER => CORAL,
+        CORAL => SKY_BLUE,
+        SKY_BLUE => ORCHID,
+        ORCHID => TURQUOISE,
+        TURQUOISE => Color32::BLACK,
+        _ => unreachable!(),
+    }
 }
