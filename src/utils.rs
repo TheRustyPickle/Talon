@@ -1,4 +1,4 @@
-use eframe::epaint::Color32;
+use chrono::{NaiveDate, NaiveDateTime};
 use log::info;
 use std::collections::HashSet;
 use std::fs::{self, File};
@@ -6,6 +6,7 @@ use std::io::{Read, Write};
 use std::path::PathBuf;
 use tokio::runtime::{self, Runtime};
 
+use crate::ui_components::processor::ChartTiming;
 use crate::ui_components::TGKeys;
 
 pub fn find_session_files() -> Vec<String> {
@@ -183,40 +184,20 @@ pub fn get_font_data() -> Option<(Vec<u8>, Vec<u8>)> {
     Some((cjk_font_data, gentium_font_data))
 }
 
-const PEACH: Color32 = Color32::from_rgb(255, 218, 185);
-const LAVENDER: Color32 = Color32::from_rgb(230, 230, 250);
-const CORAL: Color32 = Color32::from_rgb(255, 127, 80);
-const SKY_BLUE: Color32 = Color32::from_rgb(135, 206, 250);
-const ORCHID: Color32 = Color32::from_rgb(218, 112, 214);
-const TURQUOISE: Color32 = Color32::from_rgb(64, 224, 208);
+pub fn days_in_month(month: u32, year: i32) -> i64 {
+    let date = if month == 12 {
+        NaiveDate::from_ymd_opt(year + 1, 1, 1).unwrap()
+    } else {
+        NaiveDate::from_ymd_opt(year, month + 1, 1).unwrap()
+    };
 
-pub fn get_next_color(color: &Color32) -> Color32 {
-    match *color {
-        Color32::BLACK => Color32::DARK_GRAY,
-        Color32::DARK_GRAY => Color32::GRAY,
-        Color32::GRAY => Color32::LIGHT_GRAY,
-        Color32::LIGHT_GRAY => Color32::WHITE,
-        Color32::WHITE => Color32::BROWN,
-        Color32::BROWN => Color32::DARK_RED,
-        Color32::DARK_RED => Color32::RED,
-        Color32::RED => Color32::LIGHT_RED,
-        Color32::LIGHT_RED => Color32::YELLOW,
-        Color32::YELLOW => Color32::LIGHT_YELLOW,
-        Color32::LIGHT_YELLOW => Color32::KHAKI,
-        Color32::KHAKI => Color32::DARK_GREEN,
-        Color32::DARK_GREEN => Color32::GREEN,
-        Color32::GREEN => Color32::LIGHT_GREEN,
-        Color32::LIGHT_GREEN => Color32::DARK_BLUE,
-        Color32::DARK_BLUE => Color32::BLUE,
-        Color32::BLUE => Color32::LIGHT_BLUE,
-        Color32::LIGHT_BLUE => Color32::GOLD,
-        Color32::GOLD => PEACH,
-        PEACH => LAVENDER,
-        LAVENDER => CORAL,
-        CORAL => SKY_BLUE,
-        SKY_BLUE => ORCHID,
-        ORCHID => TURQUOISE,
-        TURQUOISE => Color32::BLACK,
-        _ => unreachable!(),
+    date.signed_duration_since(NaiveDate::from_ymd_opt(year, month, 1).unwrap())
+        .num_days()
+}
+
+pub fn time_to_string(time: &NaiveDateTime, timing: &ChartTiming) -> String {
+    match timing {
+        ChartTiming::Hourly => time.to_string(),
+        _ => time.format("%Y-%m-%d").to_string(),
     }
 }

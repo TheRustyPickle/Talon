@@ -1,6 +1,6 @@
 mod initializer;
 mod keys_ui;
-mod processor;
+pub mod processor;
 mod tab_ui;
 mod widgets;
 

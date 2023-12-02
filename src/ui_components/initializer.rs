@@ -137,9 +137,8 @@ impl App for MainWindow {
                         if whitelist_tab.clicked() {
                             ctx.send_viewport_cmd(ViewportCommand::InnerSize(vec2(500.0, 600.0)));
                         }
-
                         if chart_tab.clicked() {
-                            ctx.send_viewport_cmd(ViewportCommand::InnerSize(vec2(500.0, 350.0)));
+                            ctx.send_viewport_cmd(ViewportCommand::InnerSize(vec2(1000.0, 700.0)));
                         }
                     });
                     ui.separator();

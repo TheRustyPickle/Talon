@@ -298,6 +298,7 @@ To count all messages in a chat, paste the very first message link or keep it em
 
         info!("Starting counting");
         self.user_table.clear_row_data();
+        self.charts_data.reset_chart();
         self.process_state = ProcessState::Counting(0);
         self.counter_data.counting_started();
         self.is_processing = true;
