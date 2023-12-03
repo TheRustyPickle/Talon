@@ -201,3 +201,16 @@ pub fn time_to_string(time: &NaiveDateTime, timing: &ChartTiming) -> String {
         _ => time.format("%Y-%m-%d").to_string(),
     }
 }
+
+pub fn weekday_num_to_string(weekday: &u8) -> String {
+    match weekday {
+        0 => String::from("Monday"),
+        1 => String::from("Tuesday"),
+        2 => String::from("Wednesday"),
+        3 => String::from("Thursday"),
+        4 => String::from("Friday"),
+        5 => String::from("Saturday"),
+        6 => String::from("Sunday"),
+        _ => unreachable!(),
+    }
+}

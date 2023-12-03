@@ -157,8 +157,9 @@ impl ColumnName {
 pub enum ChartType {
     #[default]
     Message,
-    MessageWeekDay,
     ActiveUser,
+    MessageWeekDay,
+    ActiveUserWeekDay,
 }
 
 #[derive(Default, PartialEq)]

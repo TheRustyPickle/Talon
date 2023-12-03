@@ -560,7 +560,7 @@ impl MainWindow {
                     .resizable(true)
                     .cell_layout(Layout::left_to_right(Align::Center))
                     .column(Column::initial(100.0).clip(true))
-                    .column(Column::initial(100.0))
+                    .column(Column::initial(100.0).clip(true))
                     .column(Column::initial(100.0))
                     .column(Column::initial(100.0))
                     .column(Column::initial(100.0))
@@ -640,7 +640,10 @@ impl MainWindow {
                 show_tooltip = true;
                 row_data.name.to_owned()
             }
-            ColumnName::Username => row_data.username.to_owned(),
+            ColumnName::Username => {
+                show_tooltip = true;
+                row_data.username.to_owned()
+            }
             ColumnName::UserID => row_data.id.to_string(),
             ColumnName::TotalMessage => row_data.total_message.to_string(),
             ColumnName::TotalWord => row_data.total_word.to_string(),
