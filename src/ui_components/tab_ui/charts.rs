@@ -74,10 +74,16 @@ impl ChartsData {
         let week_num = time.iso_week().week();
         let time_year = time.year();
 
-        let weekly_time = NaiveDate::from_isoywd_opt(time_year, week_num, week_day_name)
+        // On this date 2021-01-03 the year is 2021 but the week number is 53 according to ISO week.
+        // Reduce the year by 1 in such cases 
+        let weekly_time = if let Some(time) = NaiveDate::from_isoywd_opt(time_year, week_num, week_day_name) {
+            time.and_hms_opt(0, 0, 0).unwrap()
+        } else {
+            NaiveDate::from_isoywd_opt(time_year - 1, week_num, week_day_name)
             .unwrap()
             .and_hms_opt(0, 0, 0)
-            .unwrap();
+            .unwrap()
+        };
 
         // If last day is January 10, current day is January 5, add january 6 to 9 with 0 value
         // Apply the same for all of them
