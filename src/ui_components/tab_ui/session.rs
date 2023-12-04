@@ -20,19 +20,19 @@ pub struct SessionData {
 }
 
 impl SessionData {
-    pub fn get_session_name(&self) -> String {
+    fn get_session_name(&self) -> String {
         self.session_name.to_string()
     }
 
-    pub fn get_phone_number(&self) -> String {
+    fn get_phone_number(&self) -> String {
         self.phone_number.replace('+', "")
     }
 
-    pub fn get_password(&self) -> String {
+    fn get_password(&self) -> String {
         self.tg_password.to_string()
     }
 
-    pub fn get_is_temporary(&self) -> bool {
+    fn get_is_temporary(&self) -> bool {
         self.is_temporary
     }
 
@@ -44,15 +44,15 @@ impl SessionData {
         self.password_token = Some(Arc::new(Mutex::new(token)));
     }
 
-    pub fn get_tg_code(&self) -> String {
+    fn get_tg_code(&self) -> String {
         self.tg_code.to_string()
     }
 
-    pub fn get_tg_code_token(&self) -> Arc<Mutex<LoginToken>> {
+    fn get_tg_code_token(&self) -> Arc<Mutex<LoginToken>> {
         self.tg_code_token.clone().unwrap()
     }
 
-    pub fn get_password_token(&self) -> Arc<Mutex<PasswordToken>> {
+    fn get_password_token(&self) -> Arc<Mutex<PasswordToken>> {
         self.password_token.clone().unwrap()
     }
 
@@ -191,7 +191,8 @@ If yes, it will try to log out before the app is closed and no session file will
                             .on_hover_text("Reset and clear new session creation data")
                             .clicked()
                         {
-                            self.session_data.reset_data()
+                            self.session_data.reset_data();
+                            self.incomplete_tg_client = None;
                         }
                     })
                 });
@@ -250,13 +251,10 @@ If yes, it will try to log out before the app is closed and no session file will
 
         let code = self.session_data.get_tg_code();
         let token = self.session_data.get_tg_code_token();
-        let session_name = self.session_data.get_session_name();
 
-        let client = self.tg_clients.get(&session_name);
-        if let Some(client) = client {
-            let client = client.clone();
-            thread::spawn(move || client.start_process(ProcessStart::SignInCode(token, code)));
-        }
+        let client = self.incomplete_tg_client.clone().unwrap();
+        thread::spawn(move || client.start_process(ProcessStart::SignInCode(token, code)));
+        
     }
 
     /// Starts a thread to try to log in with the given login password
@@ -266,14 +264,11 @@ If yes, it will try to log out before the app is closed and no session file will
 
         let password = self.session_data.get_password();
         let token = self.session_data.get_password_token();
-        let session_name = self.session_data.get_session_name();
 
-        let client = self.tg_clients.get(&session_name);
-        if let Some(client) = client {
-            let client = client.clone();
-            thread::spawn(move || {
-                client.start_process(ProcessStart::SignInPasswords(token, password))
-            });
-        }
+        let client = self.incomplete_tg_client.clone().unwrap();
+        thread::spawn(move || {
+            client.start_process(ProcessStart::SignInPasswords(token, password))
+        });
+        
     }
 }

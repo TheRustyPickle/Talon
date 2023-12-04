@@ -23,15 +23,15 @@ pub struct CounterData {
 }
 
 impl CounterData {
-    pub fn get_start_from(&self) -> String {
+    fn get_start_from(&self) -> String {
         self.start_from.to_owned()
     }
 
-    pub fn get_end_at(&self) -> String {
+    fn get_end_at(&self) -> String {
         self.end_at.to_owned()
     }
 
-    pub fn counting_started(&mut self) {
+    fn counting_started(&mut self) {
         self.counting = true;
         self.bar_percentage = 0.0;
         self.total_user = 0;

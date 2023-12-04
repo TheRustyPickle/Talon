@@ -147,7 +147,7 @@ impl MainWindow {
                 ProcessResult::LoginCodeSent(token, client) => {
                     info!("Login code sent to the client");
                     self.stop_process();
-                    self.tg_clients.insert(client.name(), client);
+                    self.incomplete_tg_client = Some(client);
                     self.session_data.set_login_token(token);
                     self.process_state = ProcessState::TGCodeSent;
                 }
@@ -161,6 +161,8 @@ impl MainWindow {
                     info!("Logged in to the client {name}");
                     self.stop_process();
                     self.session_data.reset_data();
+                    let incomplete_client = self.incomplete_tg_client.take().unwrap();
+                    self.tg_clients.insert(incomplete_client.name(), incomplete_client);
                     self.process_state = ProcessState::LoggedIn(name);
                 }
                 ProcessResult::FloodWait => {
