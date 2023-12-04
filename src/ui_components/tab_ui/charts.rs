@@ -29,6 +29,7 @@ pub struct ChartsData {
 }
 
 impl ChartsData {
+    /// Adds the user specified in the text edit in the chart
     fn add_to_chart(&mut self) {
         self.added_to_chart.insert(self.dropdown_user.to_owned());
         self.available_users.remove(&self.dropdown_user);
@@ -37,11 +38,13 @@ impl ChartsData {
         self.dropdown_user.clear();
     }
 
+    /// Removes the user that was clicked on from the chart
     fn remove_from_chart(&mut self, user: &str) {
         self.added_to_chart.remove(user);
         self.available_users.insert(user.to_string());
     }
 
+    /// Adds a user available for adding in the chart
     pub fn add_user(&mut self, user: String, user_id: i64) {
         self.available_users.insert(user.to_owned());
         self.user_ids.insert(user, user_id);
@@ -115,10 +118,10 @@ impl ChartsData {
         self.last_day = Some(daily_time);
 
         if let Some(last_week) = self.last_week {
-            let missing_day = (last_week - weekly_time).num_weeks();
+            let missing_week = (last_week - weekly_time).num_weeks();
 
             let mut ongoing_week = last_week;
-            for _ in 0..missing_day {
+            for _ in 0..missing_week {
                 let to_add = ongoing_week.checked_sub_signed(Duration::weeks(1)).unwrap();
                 self.weekly_message.entry(to_add).or_default();
                 ongoing_week = to_add;
@@ -127,22 +130,6 @@ impl ChartsData {
         self.last_week = Some(weekly_time);
 
         if let Some(last_month) = self.last_month {
-            println!("{} {monthly_time}", last_month);
-            /*let missing_month = (last_month.year() - monthly_time.year()) * 12
-                + (last_month.month() - monthly_time.month()) as i32;
-
-            let mut ongoing_month = last_month;
-            for _ in 0..missing_month {
-                let total_days = days_in_month(ongoing_month.month(), ongoing_month.year());
-                let to_add = ongoing_month
-                    .checked_sub_signed(Duration::days(total_days))
-                    .unwrap()
-                    .with_day(1)
-                    .unwrap();
-                self.monthly_message.entry(to_add).or_default();
-                ongoing_month = to_add;
-            }*/
-
             let mut ongoing_month = last_month;
 
             while ongoing_month > monthly_time {
@@ -180,6 +167,7 @@ impl ChartsData {
         *target_user += 1;
     }
 
+    /// Reset chart data
     pub fn reset_chart(&mut self) {
         self.available_users.clear();
         self.dropdown_user.clear();
@@ -361,7 +349,7 @@ impl MainWindow {
                         });
                     }
 
-                    // If any pending button remains, add them
+                    // If any pending button remains example the max length of the width was not reached, add them
                     if index == self.charts_data.added_to_chart.len() - 1 {
                         ui.horizontal(|ui| {
                             for button in &to_add {
@@ -599,6 +587,8 @@ impl MainWindow {
             .added_to_chart
             .contains(&"Show whitelisted data".to_string());
 
+        // Key = The common time where one or more message may have been sent
+        // user = All users that sent messages to this common time + the amount of message
         for (key, user) in to_iter {
             let mut total_message = 0;
             let mut whitelisted_message = 0;
@@ -670,6 +660,8 @@ impl MainWindow {
             .added_to_chart
             .contains(&"Show whitelisted data".to_string());
 
+        // Key = The common time where one or more message may have been sent
+        // user = All users that sent messages to this common time + the amount of message
         for (key, user) in to_iter {
             let mut total_user = 0;
             let mut whitelisted_user = 0;
@@ -728,18 +720,28 @@ impl MainWindow {
     ) {
         let mut all_charts = Vec::new();
 
+        let total_data_name = match self.charts_data.chart_type {
+            ChartType::Message | ChartType::MessageWeekDay => "Total Message",
+            ChartType::ActiveUser | ChartType::ActiveUserWeekDay => "Total User",
+        };
+
+        let whitelist_data_name = match self.charts_data.chart_type {
+            ChartType::Message | ChartType::MessageWeekDay => "Whitelisted Message",
+            ChartType::ActiveUser | ChartType::ActiveUserWeekDay => "Whitelisted User",
+        };
+
         // Whitelist message should be above the total message
         if show_whitelisted_message {
             let whitelist_bar = bar_list.remove("Show whitelisted data").unwrap();
             let mut whitelist_chart = BarChart::new(whitelist_bar)
                 .width(point_value)
-                .name("Whitelisted data");
+                .name(whitelist_data_name);
 
             if show_total_message {
                 let total_message_bars = bar_list.remove("Show total data").unwrap();
                 let total_message_chart = BarChart::new(total_message_bars)
                     .width(point_value)
-                    .name("Total data");
+                    .name(total_data_name);
 
                 whitelist_chart = whitelist_chart.stack_on(&[&total_message_chart]);
                 all_charts.push(total_message_chart);
@@ -749,10 +751,11 @@ impl MainWindow {
             let total_message_bars = bar_list.remove("Show total data").unwrap();
             let total_message_chart = BarChart::new(total_message_bars)
                 .width(point_value)
-                .name("Total data");
+                .name(total_data_name);
             all_charts.push(total_message_chart);
         };
 
+        // User data stacking only happens on Message chart
         if self.charts_data.chart_type == ChartType::Message {
             // All charts must be stacked by all the previous charts
             // Chart 3 will be stacked by chart 1 and 2
