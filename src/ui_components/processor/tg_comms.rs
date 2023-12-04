@@ -1,3 +1,4 @@
+use chrono::{Local, TimeZone};
 use log::{error, info};
 
 use crate::tg_handler::{ProcessError, ProcessResult};
@@ -58,15 +59,24 @@ impl MainWindow {
                     let last_number = count_data.last_number();
 
                     let sender = message.sender();
-                    let sender_id = self.user_table.add_user(sender);
+                    let (user_id, full_name, user_name) = self.user_table.add_user(sender);
 
-                    if let Some(id) = sender_id {
-                        if self.whitelist_data.is_user_whitelisted(&id) {
-                            self.user_table.set_as_whitelisted(&id)
-                        }
+                    if user_id != 0 && self.whitelist_data.is_user_whitelisted(&user_id) {
+                        self.user_table.set_as_whitelisted(&user_id)
                     }
 
-                    self.user_table.count_user_message(sender_id, message);
+                    let chart_user = {
+                        if user_name != "Empty" {
+                            user_name
+                        } else if full_name == "Deleted Account" {
+                            user_id.to_string()
+                        } else {
+                            full_name
+                        }
+                    };
+
+                    self.charts_data.add_user(chart_user.to_owned(), user_id);
+                    self.user_table.count_user_message(user_id, message);
 
                     let total_user = self.user_table.get_total_user();
                     self.counter_data.set_total_user(total_user);
@@ -96,6 +106,10 @@ impl MainWindow {
                     self.counter_data.add_one_total_message();
                     self.counter_data
                         .set_bar_percentage(processed_percentage / 100.0);
+
+                    let message_sent_at = message.date().naive_utc();
+                    let local_time = Local.from_utc_datetime(&message_sent_at).naive_local();
+                    self.charts_data.add_message(local_time, chart_user);
                 }
                 ProcessResult::ProcessFailed(err) => {
                     self.stop_process();

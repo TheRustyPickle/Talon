@@ -139,11 +139,9 @@ impl MainWindow {
         });
 
         ui.with_layout(Layout::bottom_up(Align::Min), |ui| {
-            let mut progress_bar =
-                ProgressBar::new(self.counter_data.bar_percentage).show_percentage();
-            if self.is_processing {
-                progress_bar = progress_bar.animate(true);
-            }
+            let progress_bar = ProgressBar::new(self.counter_data.bar_percentage)
+                .show_percentage()
+                .animate(self.counter_data.counting);
             ui.add(progress_bar);
         });
     }
@@ -300,6 +298,7 @@ To count all messages in a chat, paste the very first message link or keep it em
 
         info!("Starting counting");
         self.user_table.clear_row_data();
+        self.charts_data.reset_chart();
         self.process_state = ProcessState::Counting(0);
         self.counter_data.counting_started();
         self.is_processing = true;

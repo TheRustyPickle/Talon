@@ -1,3 +1,4 @@
+use chrono::{NaiveDate, NaiveDateTime};
 use log::info;
 use std::collections::HashSet;
 use std::fs::{self, File};
@@ -5,6 +6,7 @@ use std::io::{Read, Write};
 use std::path::PathBuf;
 use tokio::runtime::{self, Runtime};
 
+use crate::ui_components::processor::ChartTiming;
 use crate::ui_components::TGKeys;
 
 pub fn find_session_files() -> Vec<String> {
@@ -180,4 +182,35 @@ pub fn get_font_data() -> Option<(Vec<u8>, Vec<u8>)> {
     }
 
     Some((cjk_font_data, gentium_font_data))
+}
+
+pub fn days_in_month(month: u32, year: i32) -> i64 {
+    let date = if month == 12 {
+        NaiveDate::from_ymd_opt(year + 1, 1, 1).unwrap()
+    } else {
+        NaiveDate::from_ymd_opt(year, month + 1, 1).unwrap()
+    };
+
+    date.signed_duration_since(NaiveDate::from_ymd_opt(year, month, 1).unwrap())
+        .num_days()
+}
+
+pub fn time_to_string(time: &NaiveDateTime, timing: &ChartTiming) -> String {
+    match timing {
+        ChartTiming::Hourly => time.to_string(),
+        _ => time.format("%Y-%m-%d").to_string(),
+    }
+}
+
+pub fn weekday_num_to_string(weekday: &u8) -> String {
+    match weekday {
+        0 => String::from("Monday"),
+        1 => String::from("Tuesday"),
+        2 => String::from("Wednesday"),
+        3 => String::from("Thursday"),
+        4 => String::from("Friday"),
+        5 => String::from("Saturday"),
+        6 => String::from("Sunday"),
+        _ => unreachable!(),
+    }
 }

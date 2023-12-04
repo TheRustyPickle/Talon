@@ -112,7 +112,8 @@ impl App for MainWindow {
                             "User Table",
                         );
                         ui.separator();
-                        ui.selectable_value(&mut self.tab_state, TabState::Charts, "Charts");
+                        let chart_tab =
+                            ui.selectable_value(&mut self.tab_state, TabState::Charts, "Charts");
                         ui.separator();
                         let whitelist_tab = ui.selectable_value(
                             &mut self.tab_state,
@@ -135,6 +136,9 @@ impl App for MainWindow {
                         }
                         if whitelist_tab.clicked() {
                             ctx.send_viewport_cmd(ViewportCommand::InnerSize(vec2(500.0, 600.0)));
+                        }
+                        if chart_tab.clicked() {
+                            ctx.send_viewport_cmd(ViewportCommand::InnerSize(vec2(1000.0, 700.0)));
                         }
                     });
                     ui.separator();

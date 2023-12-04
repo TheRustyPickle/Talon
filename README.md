@@ -5,14 +5,14 @@
 
 Talon is a tool to generate on-demand data insights from public Telegram chats. Powered by Rust, grammers, and egui, it offers a straightforward interface that leverages the Telegram account API.
 
-![Screenshot from 2023-11-21 00-03-40](https://github.com/TheRustyPickle/Talon/assets/35862475/b4e08326-d1bc-4048-ac5c-2d3092b4c345)
+![Screenshot](https://github.com/TheRustyPickle/Talon/assets/35862475/68b5f14f-d717-4911-b42d-9f15088a48ac)
 
 ## Features
 
 **Counter:**
 
 - Checks Telegram messages from a given message link (and an optional ending point).
-- Displays the total number of unique users found and the total messages counted.
+- Displays the number of unique users found, the total messages counted, and others.
 - Utilizes gathered data to visualize additional analytics.
 
 **User Table:**
@@ -26,10 +26,15 @@ Talon is a tool to generate on-demand data insights from public Telegram chats. 
 - Takes relevant input to log in to a Telegram account and create a new session.
 - Choose between a temporary session (logs out on app close) or a non-temporary session (creates a file for persistent login).
 
-## Work In Progress
+**Whitelist:**
 
-- **Whitelisting**: Allow users to highlight and separate data for specific whitelisted users.
-- **Charts**: Visualize chat data with different charts, including message activity.
+- Allows grouping specific users and enabling viewing their data separately.
+- Easily add or remove users from the whitelist as necessary.
+
+**Charts:**
+
+- Visualize message counts or active users on an hourly, daily, weekly, or monthly basis.
+- Explore chat activity based on the day of the week.
 
 ## Important Note
 
@@ -52,7 +57,7 @@ To be added
 
 ## App Data Location
 
-See [here](https://docs.rs/dirs/latest/dirs/fn.data_local_dir.html) for location info where app data is saved which is determined based on the OS. Files can be added, deleted or modified here to reflect in the application.
+See [here](https://docs.rs/dirs/latest/dirs/fn.data_local_dir.html) for location info where app data is saved which is determined based on the OS. Files can be added, deleted, or modified here to reflect in the application.
 
 ## Feedback and Contributions
 

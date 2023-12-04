@@ -28,16 +28,12 @@ struct UserRowData {
 impl UserRowData {
     fn new(
         name: &str,
-        username: Option<&str>,
+        username: &str,
         id: i64,
         whitelisted: bool,
         belongs_to: Option<Chat>,
     ) -> Self {
-        let username = if let Some(name) = username {
-            name.to_string()
-        } else {
-            String::from("Empty")
-        };
+        let username = username.to_string();
 
         UserRowData {
             name: name.to_string(),
@@ -126,40 +122,48 @@ impl UserTableData {
     }
 
     /// Add a user to the table
-    pub fn add_user(&mut self, sender: Option<Chat>) -> Option<i64> {
-        let mut to_return = None;
+    pub fn add_user(&mut self, sender: Option<Chat>) -> (i64, String, String) {
+        let mut user_id = 0;
+        let full_name;
+        let user_name;
+
         if let Some(chat_data) = sender {
-            let user_id = chat_data.id();
-            to_return = Some(user_id);
+            user_id = chat_data.id();
 
             if let Chat::User(user) = chat_data.to_owned() {
-                let full_name = user.full_name();
-
                 // As per grammers lib, empty name can be given if it's a deleted account
-                let chat_name = if full_name.is_empty() {
-                    "Deleted Account"
+                full_name = if user.full_name().is_empty() {
+                    "Deleted Account".to_string()
                 } else {
-                    &full_name
+                    user.full_name()
                 };
 
-                let user_name = user.username();
+                user_name = if let Some(name) = user.username() {
+                    name.to_string()
+                } else {
+                    "Empty".to_string()
+                };
 
                 self.rows.entry(user_id).or_insert_with(|| {
-                    UserRowData::new(chat_name, user_name, user_id, false, Some(chat_data))
+                    UserRowData::new(&full_name, &user_name, user_id, false, Some(chat_data))
                 });
             } else {
-                let chat_name = chat_data.name();
-
-                let chat_name = if chat_name.is_empty() {
-                    "Deleted Account"
+                full_name = if chat_data.name().is_empty() {
+                    "Deleted Account".to_string()
                 } else {
-                    chat_name
+                    chat_data.name().to_string()
+                };
+
+                user_name = if let Some(name) = chat_data.username() {
+                    name.to_string()
+                } else {
+                    "Empty".to_string()
                 };
 
                 self.rows.entry(user_id).or_insert_with(|| {
                     UserRowData::new(
-                        chat_name,
-                        chat_data.username(),
+                        &full_name,
+                        &user_name,
                         user_id,
                         false,
                         Some(chat_data.to_owned()),
@@ -168,18 +172,19 @@ impl UserTableData {
             }
         } else {
             // If there is no Chat value then it could be an anonymous user
+            full_name = "Anonymous/Unknown".to_string();
+            user_name = "Empty".to_string();
+
             self.rows
                 .entry(0)
-                .or_insert_with(|| UserRowData::new("Anonymous/Unknown", None, 0, false, None));
+                .or_insert_with(|| UserRowData::new(&full_name, &user_name, user_id, false, None));
         }
 
-        to_return
+        (user_id, full_name, user_name)
     }
 
     /// Update message related column values of a row
-    pub fn count_user_message(&mut self, user_id: Option<i64>, message: &Message) {
-        let user_id = if let Some(num) = user_id { num } else { 0 };
-
+    pub fn count_user_message(&mut self, user_id: i64, message: &Message) {
         let user_row_data = self.rows.get_mut(&user_id).unwrap();
 
         let message_text = message.text();
@@ -555,7 +560,7 @@ impl MainWindow {
                     .resizable(true)
                     .cell_layout(Layout::left_to_right(Align::Center))
                     .column(Column::initial(100.0).clip(true))
-                    .column(Column::initial(100.0))
+                    .column(Column::initial(100.0).clip(true))
                     .column(Column::initial(100.0))
                     .column(Column::initial(100.0))
                     .column(Column::initial(100.0))
@@ -635,7 +640,10 @@ impl MainWindow {
                 show_tooltip = true;
                 row_data.name.to_owned()
             }
-            ColumnName::Username => row_data.username.to_owned(),
+            ColumnName::Username => {
+                show_tooltip = true;
+                row_data.username.to_owned()
+            }
             ColumnName::UserID => row_data.id.to_string(),
             ColumnName::TotalMessage => row_data.total_message.to_string(),
             ColumnName::TotalWord => row_data.total_word.to_string(),
