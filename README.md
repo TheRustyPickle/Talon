@@ -12,6 +12,7 @@ Talon is a tool to generate on-demand data insights from public Telegram chats. 
 **Counter:**
 
 - Checks Telegram messages from a given message link (and an optional ending point).
+- Able to utilize multiple sessions, dramatically increasing checking speed. Tested with up to 8 sessions and 300k messages
 - Displays the number of unique users found, the total messages counted, and others.
 - Utilizes gathered data to visualize additional analytics.
 
