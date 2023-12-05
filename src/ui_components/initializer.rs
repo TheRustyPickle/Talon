@@ -30,6 +30,7 @@ pub struct MainWindow {
     pub tg_sender: Sender<ProcessResult>,
     pub tg_receiver: Receiver<ProcessResult>,
     pub tg_clients: BTreeMap<String, TGClient>,
+    pub incomplete_tg_client: Option<TGClient>,
     existing_sessions_checked: bool,
     is_light_theme: bool,
     pub is_processing: bool,
@@ -51,6 +52,7 @@ impl Default for MainWindow {
             tg_sender: sender,
             tg_receiver: receiver,
             tg_clients: BTreeMap::new(),
+            incomplete_tg_client: None,
             existing_sessions_checked: false,
             is_light_theme: true,
             is_processing: false,
@@ -189,7 +191,13 @@ impl App for MainWindow {
                         }
                     } else {
                         // At each UI loop, check on the receiver channel to check if there is anything
-                        self.check_receiver()
+                        // Check 10 message in a sequence in a single frame load
+                        // In case of multi session while loop can completely block the gui loading
+                        for _ in 0..10 {
+                            if !self.check_receiver() {
+                                break;
+                            }
+                        }
                     }
                 }
             }

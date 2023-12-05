@@ -1,4 +1,4 @@
-use chrono::{NaiveDate, NaiveDateTime};
+use chrono::NaiveDateTime;
 use log::info;
 use std::collections::HashSet;
 use std::fs::{self, File};
@@ -182,17 +182,6 @@ pub fn get_font_data() -> Option<(Vec<u8>, Vec<u8>)> {
     }
 
     Some((cjk_font_data, gentium_font_data))
-}
-
-pub fn days_in_month(month: u32, year: i32) -> i64 {
-    let date = if month == 12 {
-        NaiveDate::from_ymd_opt(year + 1, 1, 1).unwrap()
-    } else {
-        NaiveDate::from_ymd_opt(year, month + 1, 1).unwrap()
-    };
-
-    date.signed_duration_since(NaiveDate::from_ymd_opt(year, month, 1).unwrap())
-        .num_days()
 }
 
 pub fn time_to_string(time: &NaiveDateTime, timing: &ChartTiming) -> String {

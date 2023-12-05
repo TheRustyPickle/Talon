@@ -6,7 +6,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use crate::ui_components::processor::{ChartTiming, ChartType};
 use crate::ui_components::MainWindow;
-use crate::utils::{days_in_month, time_to_string, weekday_num_to_string};
+use crate::utils::{time_to_string, weekday_num_to_string};
 
 #[derive(Default)]
 pub struct ChartsData {
@@ -21,10 +21,10 @@ pub struct ChartsData {
     weekly_message: BTreeMap<NaiveDateTime, HashMap<String, u64>>,
     monthly_message: BTreeMap<NaiveDateTime, HashMap<String, u64>>,
     weekday_message: BTreeMap<u8, HashMap<String, u64>>,
-    last_hour: Option<NaiveDateTime>,
-    last_day: Option<NaiveDateTime>,
-    last_week: Option<NaiveDateTime>,
-    last_month: Option<NaiveDateTime>,
+    last_hour: HashMap<String, Option<NaiveDateTime>>,
+    last_day: HashMap<String, Option<NaiveDateTime>>,
+    last_week: HashMap<String, Option<NaiveDateTime>>,
+    last_month: HashMap<String, Option<NaiveDateTime>>,
     user_ids: HashMap<String, i64>,
 }
 
@@ -51,7 +51,7 @@ impl ChartsData {
     }
 
     /// Takes a message creation time to create necessary data to form a chart
-    pub fn add_message(&mut self, time: NaiveDateTime, add_to: String) {
+    pub fn add_message(&mut self, time: NaiveDateTime, add_to: String, client_name: String) {
         // keep a common value among messages for example messages sent within the same hour,
         // reset the second and minute value to 0 so these messages can be grouped
         let hourly_time = time.with_second(0).unwrap().with_minute(0).unwrap();
@@ -77,74 +77,78 @@ impl ChartsData {
         // We only care about the week number for this. Set it as Monday to keep a common ground
         let week_day_name = Weekday::Mon;
         let week_num = time.iso_week().week();
-        let time_year = time.year();
+        let time_year = time.iso_week().year();
 
-        // On this date 2021-01-03 the year is 2021 but the week number is 53 according to ISO week.
-        // Reduce the year by 1 in such cases
-        let weekly_time =
-            if let Some(time) = NaiveDate::from_isoywd_opt(time_year, week_num, week_day_name) {
-                time.and_hms_opt(0, 0, 0).unwrap()
-            } else {
-                NaiveDate::from_isoywd_opt(time_year - 1, week_num, week_day_name)
-                    .unwrap()
-                    .and_hms_opt(0, 0, 0)
-                    .unwrap()
-            };
+        let weekly_time = NaiveDate::from_isoywd_opt(time_year, week_num, week_day_name)
+            .unwrap()
+            .and_hms_opt(0, 0, 0)
+            .unwrap();
 
         // If last day is January 10, current day is January 5, add january 6 to 9 with 0 value
         // Apply the same for all of them
-        if let Some(last_hour) = self.last_hour {
-            let missing_hour = (last_hour - hourly_time).num_hours();
+        if let Some(Some(last_hour)) = self.last_hour.get_mut(&client_name) {
+            let missing_hour = (*last_hour - hourly_time).num_hours();
 
-            let mut ongoing_hour = last_hour;
+            let mut ongoing_hour = *last_hour;
             for _ in 0..missing_hour {
                 let to_add = ongoing_hour.checked_sub_signed(Duration::hours(1)).unwrap();
                 self.hourly_message.entry(to_add).or_default();
                 ongoing_hour = to_add;
             }
+            *last_hour = hourly_time;
+        } else {
+            self.last_hour
+                .insert(client_name.to_owned(), Some(hourly_time));
         }
-        self.last_hour = Some(hourly_time);
 
-        if let Some(last_day) = self.last_day {
-            let missing_day = (last_day - daily_time).num_days();
+        if let Some(Some(last_day)) = self.last_day.get_mut(&client_name) {
+            let missing_day = (*last_day - daily_time).num_days();
 
-            let mut ongoing_day = last_day;
+            let mut ongoing_day = *last_day;
             for _ in 0..missing_day {
                 let to_add = ongoing_day.checked_sub_signed(Duration::days(1)).unwrap();
                 self.daily_message.entry(to_add).or_default();
                 ongoing_day = to_add;
             }
+            *last_day = daily_time;
+        } else {
+            self.last_day
+                .insert(client_name.to_owned(), Some(daily_time));
         }
-        self.last_day = Some(daily_time);
 
-        if let Some(last_week) = self.last_week {
-            let missing_week = (last_week - weekly_time).num_weeks();
+        if let Some(Some(last_week)) = self.last_week.get_mut(&client_name) {
+            let missing_week = (*last_week - weekly_time).num_weeks();
 
-            let mut ongoing_week = last_week;
+            let mut ongoing_week = *last_week;
             for _ in 0..missing_week {
                 let to_add = ongoing_week.checked_sub_signed(Duration::weeks(1)).unwrap();
                 self.weekly_message.entry(to_add).or_default();
                 ongoing_week = to_add;
             }
+            *last_week = weekly_time;
+        } else {
+            self.last_week
+                .insert(client_name.to_owned(), Some(weekly_time));
         }
-        self.last_week = Some(weekly_time);
 
-        if let Some(last_month) = self.last_month {
-            let mut ongoing_month = last_month;
+        if let Some(Some(last_month)) = self.last_month.get_mut(&client_name) {
+            let mut ongoing_month = *last_month;
 
+            // All monthly date has the day set as 1. Reducing 2 days would take us to the previous month
             while ongoing_month > monthly_time {
-                let total_days = days_in_month(ongoing_month.month(), ongoing_month.year());
                 let to_add = ongoing_month
-                    .checked_sub_signed(Duration::days(total_days))
+                    .checked_sub_signed(Duration::days(2))
                     .unwrap()
                     .with_day(1)
                     .unwrap();
-
                 self.monthly_message.entry(to_add).or_default();
                 ongoing_month = to_add;
             }
+            *last_month = monthly_time;
+        } else {
+            self.last_month
+                .insert(client_name.to_owned(), Some(monthly_time));
         }
-        self.last_month = Some(monthly_time);
 
         let counter = self.hourly_message.entry(hourly_time).or_default();
         let target_user = counter.entry(add_to.to_owned()).or_insert(0);
@@ -173,10 +177,10 @@ impl ChartsData {
         self.dropdown_user.clear();
         self.added_to_chart.clear();
         self.button_sizes.clear();
-        self.last_day = None;
-        self.last_hour = None;
-        self.last_month = None;
-        self.last_week = None;
+        self.last_day = HashMap::new();
+        self.last_hour = HashMap::new();
+        self.last_month = HashMap::new();
+        self.last_week = HashMap::new();
         self.daily_message.clear();
         self.hourly_message.clear();
         self.weekly_message.clear();

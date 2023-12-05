@@ -1,14 +1,15 @@
 use chrono::{Local, TimeZone};
 use log::{error, info};
+use std::thread;
 
-use crate::tg_handler::{ProcessError, ProcessResult};
+use crate::tg_handler::{ProcessError, ProcessResult, ProcessStart};
 use crate::ui_components::processor::ProcessState;
 use crate::ui_components::MainWindow;
 
 impl MainWindow {
     /// Checks if there are any new message from the async side
-    pub fn check_receiver(&mut self) {
-        while let Ok(data) = self.tg_receiver.try_recv() {
+    pub fn check_receiver(&mut self) -> bool {
+        if let Ok(data) = self.tg_receiver.try_recv() {
             match data {
                 ProcessResult::InitialSessionSuccess((clients, success, failed)) => {
                     let mut status_text =
@@ -46,9 +47,16 @@ impl MainWindow {
                         self.counter_data.add_deleted_message(total_deleted);
                     }
 
-                    info!("Counting ended");
-                    self.process_state = ProcessState::Idle;
-                    self.stop_process()
+                    info!("Counting ended for a session");
+
+                    // Stop process sets the progress bar to 100
+                    // Progress only if 1 session is remaining to be completed or it was 0 (0 in normal counting)
+                    if self.counter_data.session_remaining() <= 1 {
+                        self.stop_process();
+                        self.process_state = ProcessState::Idle;
+                    } else {
+                        self.counter_data.reduce_session()
+                    }
                 }
                 ProcessResult::CountingMessage(count_data) => {
                     self.process_state = self.process_state.next_dot();
@@ -57,6 +65,7 @@ impl MainWindow {
                     let start_from = count_data.start_at();
                     let end_at = count_data.end_at();
                     let last_number = count_data.last_number();
+                    let multi_session = count_data.multi_session();
 
                     let sender = message.sender();
                     let (user_id, full_name, user_name) = self.user_table.add_user(sender);
@@ -104,12 +113,23 @@ impl MainWindow {
                         message_value
                     };
                     self.counter_data.add_one_total_message();
-                    self.counter_data
-                        .set_bar_percentage(processed_percentage / 100.0);
+
+                    // In single session set the progress by explicitly by counting it on the go
+                    // On multi session add whatever percentage there is + new value for this session
+                    if multi_session {
+                        self.counter_data.set_session_percentage(
+                            &count_data.name(),
+                            processed_percentage / 100.0,
+                        );
+                    } else {
+                        self.counter_data
+                            .set_bar_percentage(processed_percentage / 100.0);
+                    }
 
                     let message_sent_at = message.date().naive_utc();
                     let local_time = Local.from_utc_datetime(&message_sent_at).naive_local();
-                    self.charts_data.add_message(local_time, chart_user);
+                    self.charts_data
+                        .add_message(local_time, chart_user, count_data.name());
                 }
                 ProcessResult::ProcessFailed(err) => {
                     self.stop_process();
@@ -142,12 +162,16 @@ impl MainWindow {
                             error!("Possibly invalid phone number given or API keys error");
                             self.process_state = ProcessState::InvalidPhoneOrAPI
                         }
+                        ProcessError::FailedLatestMessage => {
+                            error!("Failed to get the latest message ID");
+                            self.process_state = ProcessState::LatestMessageLoadingFailed
+                        }
                     }
                 }
                 ProcessResult::LoginCodeSent(token, client) => {
                     info!("Login code sent to the client");
                     self.stop_process();
-                    self.tg_clients.insert(client.name(), client);
+                    self.incomplete_tg_client = Some(client);
                     self.session_data.set_login_token(token);
                     self.process_state = ProcessState::TGCodeSent;
                 }
@@ -161,6 +185,9 @@ impl MainWindow {
                     info!("Logged in to the client {name}");
                     self.stop_process();
                     self.session_data.reset_data();
+                    let incomplete_client = self.incomplete_tg_client.take().unwrap();
+                    self.tg_clients
+                        .insert(incomplete_client.name(), incomplete_client);
                     self.process_state = ProcessState::LoggedIn(name);
                 }
                 ProcessResult::FloodWait => {
@@ -208,7 +235,64 @@ impl MainWindow {
                     self.user_table.set_as_whitelisted(&user_id);
                     self.process_state = ProcessState::AddedToWhitelist
                 }
+                ProcessResult::ChatExists(chat_name, start_at, end_at) => {
+                    // Because we count both the start and ending message ID
+                    let total_to_count = start_at - end_at + 1;
+                    let total_session = self.tg_clients.len();
+                    let per_session_value = total_to_count / total_session as i32;
+
+                    info!("Each session to process {}~ messages", per_session_value);
+
+                    self.counter_data.set_session_count(total_session);
+
+                    let mut ongoing_start_at = start_at;
+                    let mut ongoing_end_at = start_at - per_session_value;
+
+                    let mut negative_added = false;
+
+                    for (index, client) in self.tg_clients.values().enumerate() {
+                        self.counter_data.add_session(client.name());
+
+                        let client = client.clone();
+                        let chat_name = chat_name.to_owned();
+                        if index == total_session - 1 {
+                            ongoing_end_at = end_at;
+                        }
+                        info!(
+                            "{} start point {} end point {}",
+                            client.name(),
+                            ongoing_start_at,
+                            ongoing_end_at
+                        );
+                        thread::spawn(move || {
+                            client.start_process(ProcessStart::StartCount(
+                                chat_name,
+                                Some(ongoing_start_at),
+                                Some(ongoing_end_at),
+                                true,
+                            ));
+                        });
+                        ongoing_start_at -= per_session_value;
+                        ongoing_end_at -= per_session_value;
+
+                        // because we count both starting and end point
+                        // Example starting point 100, end point 1. Total session 4, per session to process 25 messages
+                        // First session start at 100 end at 100 - 25 = 75
+                        // Next session start at (last session start - per session process) end at (last session end - per session process)
+                        //
+                        // Here start at would be 75 which will overlap a message so reduce 1
+                        //
+                        // next session start at 49 end at 25 and so on
+                        if !negative_added {
+                            ongoing_start_at -= 1;
+                            negative_added = true;
+                        }
+                    }
+                }
             }
+            true
+        } else {
+            false
         }
     }
 

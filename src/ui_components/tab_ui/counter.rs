@@ -1,6 +1,7 @@
 use arboard::Clipboard;
 use eframe::egui::{vec2, Align, Button, ComboBox, Grid, Label, Layout, ProgressBar, TextEdit, Ui};
 use log::info;
+use std::collections::HashMap;
 use std::thread;
 
 use crate::tg_handler::ProcessStart;
@@ -19,19 +20,49 @@ pub struct CounterData {
     whitelisted_user: i32,
     deleted_message: i32,
     bar_percentage: f32,
+    use_all_sessions: bool,
     counting: bool,
+    session_count: usize,
+    session_percentage: HashMap<String, f32>,
 }
 
 impl CounterData {
-    pub fn get_start_from(&self) -> String {
+    pub fn add_session(&mut self, to_add: String) {
+        self.session_percentage.entry(to_add).or_default();
+    }
+
+    pub fn set_session_percentage(&mut self, key: &str, value: f32) {
+        *self.session_percentage.get_mut(key).unwrap() = value;
+        let mut progress_bar = 0.0;
+
+        for val in self.session_percentage.values() {
+            progress_bar += val;
+        }
+
+        progress_bar /= self.session_percentage.len() as f32;
+        self.bar_percentage = progress_bar;
+    }
+
+    pub fn session_remaining(&self) -> usize {
+        self.session_count
+    }
+    pub fn set_session_count(&mut self, count: usize) {
+        self.session_count = count;
+    }
+
+    pub fn reduce_session(&mut self) {
+        self.session_count -= 1;
+    }
+
+    fn get_start_from(&self) -> String {
         self.start_from.to_owned()
     }
 
-    pub fn get_end_at(&self) -> String {
+    fn get_end_at(&self) -> String {
         self.end_at.to_owned()
     }
 
-    pub fn counting_started(&mut self) {
+    fn counting_started(&mut self) {
         self.counting = true;
         self.bar_percentage = 0.0;
         self.total_user = 0;
@@ -39,6 +70,8 @@ impl CounterData {
         self.whitelisted_message = 0;
         self.whitelisted_user = 0;
         self.deleted_message = 0;
+        self.session_count = 0;
+        self.session_percentage.clear();
     }
 
     pub fn counting_ended(&mut self) {
@@ -166,6 +199,12 @@ impl MainWindow {
                 self.tg_clients.len(),
                 |i| &values[i],
             );
+            ui.checkbox(&mut self.counter_data.use_all_sessions, "Use all sessions").on_hover_text("Whether to use all the available sessions for counting
+            
+Automatically divides the tasks among sessions, dramatically increasing speed.
+
+How to get more sessions?
+Login to one or more accounts multiple times with different session names!");
         });
         ui.end_row();
 
@@ -305,9 +344,19 @@ To count all messages in a chat, paste the very first message link or keep it em
 
         let client = self.tg_clients.get(&selected_client).unwrap().clone();
 
-        thread::spawn(move || {
-            client.start_process(ProcessStart::StartCount(start_chat, start_num, end_num));
-        });
+        if self.counter_data.use_all_sessions && self.tg_clients.len() > 1 {
+            thread::spawn(move || {
+                client.start_process(ProcessStart::CheckChatExistence(
+                    start_chat, start_num, end_num,
+                ));
+            });
+        } else {
+            thread::spawn(move || {
+                client.start_process(ProcessStart::StartCount(
+                    start_chat, start_num, end_num, false,
+                ));
+            });
+        }
     }
 
     /// Returns the session name that is selected on the combo box

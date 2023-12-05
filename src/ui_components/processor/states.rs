@@ -45,6 +45,7 @@ pub enum ProcessState {
     UsersWhitelisted(usize),
     LoadedWhitelistedUsers(usize),
     AddedToWhitelist,
+    LatestMessageLoadingFailed,
 }
 
 impl ProcessState {
@@ -112,6 +113,7 @@ impl Display for ProcessState {
             ProcessState::UsersWhitelisted(num) => write!(f, "Status: Whitelisted {num} users"),
             ProcessState::LoadedWhitelistedUsers(num) => write!(f, "Status: Loaded {num} whitelisted users"),
             ProcessState::AddedToWhitelist => write!(f, "Status: User added to whitelist"),
+            ProcessState::LatestMessageLoadingFailed => write!(f, "Status: Failed to get the latest message"),
         }
     }
 }

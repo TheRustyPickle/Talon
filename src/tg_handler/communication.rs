@@ -17,6 +17,7 @@ pub enum ProcessResult {
     UnpackedChats(Vec<Chat>),
     FloodWait,
     WhiteListUser(Chat),
+    ChatExists(String, i32, i32),
 }
 
 #[derive(Debug)]
@@ -27,17 +28,19 @@ pub enum ProcessError {
     InvalidPassword,
     NotSignedUp,
     InvalidPhoneOrAPI,
+    FailedLatestMessage,
     UnknownError(InvocationError),
 }
 
 /// Use by TGClient struct to handle operations
 pub enum ProcessStart {
-    StartCount(String, Option<i32>, Option<i32>),
+    StartCount(String, Option<i32>, Option<i32>, bool),
     SignInCode(Arc<Mutex<LoginToken>>, String),
     SignInPasswords(Arc<Mutex<PasswordToken>>, String),
     SessionLogout,
     LoadWhitelistedUsers,
     NewWhitelistUser(String),
+    CheckChatExistence(String, Option<i32>, Option<i32>),
 }
 
 /// Used when trying to create a new TGClient by processing some operations
