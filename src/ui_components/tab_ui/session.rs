@@ -254,7 +254,6 @@ If yes, it will try to log out before the app is closed and no session file will
 
         let client = self.incomplete_tg_client.clone().unwrap();
         thread::spawn(move || client.start_process(ProcessStart::SignInCode(token, code)));
-        
     }
 
     /// Starts a thread to try to log in with the given login password
@@ -266,9 +265,6 @@ If yes, it will try to log out before the app is closed and no session file will
         let token = self.session_data.get_password_token();
 
         let client = self.incomplete_tg_client.clone().unwrap();
-        thread::spawn(move || {
-            client.start_process(ProcessStart::SignInPasswords(token, password))
-        });
-        
+        thread::spawn(move || client.start_process(ProcessStart::SignInPasswords(token, password)));
     }
 }

@@ -7,22 +7,36 @@ use std::time::{Duration, Instant};
 use crate::tg_handler::{ProcessError, ProcessResult, TGClient};
 
 pub struct TGCountData {
+    name: String,
     message: Message,
     start_at: i32,
     end_at: i32,
+    multi_session: bool,
     last_number: i32,
 }
 
 impl TGCountData {
-    pub fn new(message: Message, start_at: i32, end_at: i32, last_number: i32) -> Self {
+    pub fn new(
+        name: String,
+        message: Message,
+        start_at: i32,
+        end_at: i32,
+        last_number: i32,
+        multi_session: bool,
+    ) -> Self {
         TGCountData {
+            name,
             message,
             start_at,
             end_at,
+            multi_session,
             last_number,
         }
     }
 
+    pub fn name(&self) -> String {
+        self.name.to_string()
+    }
     pub fn message(&self) -> &Message {
         &self.message
     }
@@ -38,6 +52,10 @@ impl TGCountData {
     pub fn last_number(&self) -> i32 {
         self.last_number
     }
+
+    pub fn multi_session(&self) -> bool {
+        self.multi_session
+    }
 }
 
 impl TGClient {
@@ -47,6 +65,7 @@ impl TGClient {
         start_chat: String,
         start_num: Option<i32>,
         end_num: Option<i32>,
+        multi_session: bool,
     ) -> Result<(), ProcessError> {
         if !self.check_authorization().await? {
             return Ok(());
@@ -130,7 +149,14 @@ impl TGClient {
             }
 
             if message_num <= start_at {
-                let count_data = TGCountData::new(message, start_at, end_at, last_number);
+                let count_data = TGCountData::new(
+                    self.name(),
+                    message,
+                    start_at,
+                    end_at,
+                    last_number,
+                    multi_session,
+                );
                 self.send(ProcessResult::CountingMessage(count_data));
                 last_number = message_num;
             }
@@ -152,6 +178,52 @@ impl TGClient {
         *last_sent_lock = None;
 
         self.send(ProcessResult::CountingEnd((end_at, last_number)));
+        Ok(())
+    }
+
+    pub async fn check_chat_status(
+        &self,
+        start_chat: String,
+        start_point: Option<i32>,
+        end_point: Option<i32>,
+    ) -> Result<(), ProcessError> {
+        if !self.check_authorization().await? {
+            return Ok(());
+        }
+
+        let tg_chat = self.check_username(&start_chat).await;
+
+        let tg_chat = match tg_chat {
+            Ok(chat) => chat,
+            Err(e) => {
+                self.send(e);
+                return Ok(());
+            }
+        };
+
+        let end_point = if let Some(num) = end_point { num } else { 1 };
+
+        let start_point = if let Some(num) = start_point {
+            num
+        } else {
+            let mut iter_message = self.client().iter_messages(tg_chat).limit(1);
+
+            if let Some(message) = iter_message
+                .next()
+                .await
+                .map_err(ProcessError::UnknownError)?
+            {
+                message.id()
+            } else {
+                return Err(ProcessError::FailedLatestMessage);
+            }
+        };
+
+        self.send(ProcessResult::ChatExists(
+            start_chat,
+            start_point,
+            end_point,
+        ));
         Ok(())
     }
 }

@@ -40,8 +40,8 @@ impl TGClient {
         let runtime = get_runtime();
 
         let result = match process_type {
-            ProcessStart::StartCount(start_chat, start_num, end_num) => {
-                runtime.block_on(self.start_count(start_chat, start_num, end_num))
+            ProcessStart::StartCount(start_chat, start_num, end_num, multi_session) => {
+                runtime.block_on(self.start_count(start_chat, start_num, end_num, multi_session))
             }
             ProcessStart::SignInCode(token, code) => {
                 runtime.block_on(self.sign_in_code(token, code))
@@ -52,6 +52,9 @@ impl TGClient {
             ProcessStart::SessionLogout => runtime.block_on(self.logout()),
             ProcessStart::LoadWhitelistedUsers => runtime.block_on(self.load_whitelisted_users()),
             ProcessStart::NewWhitelistUser(name) => runtime.block_on(self.new_whitelist(name)),
+            ProcessStart::CheckChatExistence(name, start, end) => {
+                runtime.block_on(self.check_chat_status(name, start, end))
+            }
         };
 
         if let Err(err) = result {
