@@ -3023,8 +3023,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "talon"
-version = "0.1.0"
+name = "talon-gui"
+version = "1.0.0"
 dependencies = [
  "arboard",
  "chrono",

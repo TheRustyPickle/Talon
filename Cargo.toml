@@ -1,7 +1,21 @@
 [package]
-name = "talon"
-version = "0.1.0"
+name = "talon-gui"
+version = "1.0.0"
 edition = "2021"
+authors = ["TheRustyPickle <rusty.pickle94@gmail.com>"]
+readme = "README.md"
+description = """
+On-demand Telegram chat analytic generator
+"""
+homepage = "https://github.com/TheRustyPickle/Talon"
+repository = "https://github.com/TheRustyPickle/Talon"
+license = "MIT"
+keywords = ["telegram", "analytics", "gui", "data", "data-visualization"]
+categories = ["gui"]
+
+[[bin]]
+name = "talon"
+path = "src/main.rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
