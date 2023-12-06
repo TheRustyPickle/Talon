@@ -1291,9 +1291,9 @@ dependencies = [
 
 [[package]]
 name = "getrandom"
-version = "0.2.10"
+version = "0.2.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "be4136b2a15dd319360be1c07d9933517ccf0be8f16bf62a3bee4f0d618df427"
+checksum = "fe9006bed769170c11f845cf00c7c1e9092aeb3f268e007c3e760ac68008070f"
 dependencies = [
  "cfg-if",
  "libc",
@@ -1409,8 +1409,9 @@ dependencies = [
 
 [[package]]
 name = "grammers-client"
-version = "0.4.0"
-source = "git+https://github.com/Lonami/grammers.git#47cb50e35c969998a41dc32f2fe126a7d1ffcdb5"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f1828943fed91f5ebadab1c92a0b57242742bc5bde05b3df660519434f1031da"
 dependencies = [
  "chrono",
  "futures-util",
@@ -1430,8 +1431,9 @@ dependencies = [
 
 [[package]]
 name = "grammers-crypto"
-version = "0.4.0"
-source = "git+https://github.com/Lonami/grammers.git#47cb50e35c969998a41dc32f2fe126a7d1ffcdb5"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "254345cd0fa28c9b2b74a40c9ed188fb130c0df11298d09e735f4341551f67ef"
 dependencies = [
  "aes",
  "getrandom",
@@ -1445,8 +1447,9 @@ dependencies = [
 
 [[package]]
 name = "grammers-mtproto"
-version = "0.4.0"
-source = "git+https://github.com/Lonami/grammers.git#47cb50e35c969998a41dc32f2fe126a7d1ffcdb5"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9b1a23888b124593be72c9b0ef4273df45ebea2eeaffcf6299277468731c1209"
 dependencies = [
  "bytes",
  "crc32fast",
@@ -1461,8 +1464,9 @@ dependencies = [
 
 [[package]]
 name = "grammers-mtsender"
-version = "0.4.0"
-source = "git+https://github.com/Lonami/grammers.git#47cb50e35c969998a41dc32f2fe126a7d1ffcdb5"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "259d91a5ec03559098ace925793a9d50bb2c28b09f2a290353f9b49b93f1394d"
 dependencies = [
  "bytes",
  "futures-util",
@@ -1474,8 +1478,9 @@ dependencies = [
 
 [[package]]
 name = "grammers-session"
-version = "0.4.1"
-source = "git+https://github.com/Lonami/grammers.git#47cb50e35c969998a41dc32f2fe126a7d1ffcdb5"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "056d8827f45b7ade5fd279632afc36f34481aca342d075ac8385a3433c650db4"
 dependencies = [
  "grammers-crypto",
  "grammers-tl-gen",
@@ -1486,24 +1491,27 @@ dependencies = [
 
 [[package]]
 name = "grammers-tl-gen"
-version = "0.4.1"
-source = "git+https://github.com/Lonami/grammers.git#47cb50e35c969998a41dc32f2fe126a7d1ffcdb5"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3062d0b1f3a2c620153e02a937c62be5ce956c9347621202ae6a81640bc0277a"
 dependencies = [
  "grammers-tl-parser",
 ]
 
 [[package]]
 name = "grammers-tl-parser"
-version = "1.1.0"
-source = "git+https://github.com/Lonami/grammers.git#47cb50e35c969998a41dc32f2fe126a7d1ffcdb5"
+version = "1.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "841979c055383e4fb3a15efcde3052fe653793ce3491851799be32c91e421d14"
 dependencies = [
  "crc32fast",
 ]
 
 [[package]]
 name = "grammers-tl-types"
-version = "0.4.0"
-source = "git+https://github.com/Lonami/grammers.git#47cb50e35c969998a41dc32f2fe126a7d1ffcdb5"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6821c0f3ddc9289aa91586b782edf15087e10d94345f0508d33c028864dca21b"
 dependencies = [
  "grammers-tl-gen",
  "grammers-tl-parser",
@@ -3023,8 +3031,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "talon"
-version = "0.1.0"
+name = "talon-gui"
+version = "1.0.0"
 dependencies = [
  "arboard",
  "chrono",

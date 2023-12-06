@@ -1,6 +1,9 @@
 <div align="center"><h1>Talon</h1></div>
 <div align="center">
 <a href="https://wakatime.com/badge/github/TheRustyPickle/Talon"><img src="https://wakatime.com/badge/github/TheRustyPickle/Talon.svg" alt="wakatime"></a>
+<a href="https://crates.io/crates/talon-gui"><img src="https://img.shields.io/crates/v/talon-gui.svg?style=flat-square&logo=rust&color=orange" alt="Crates version"/></a>
+<a href="https://github.com/TheRustyPickle/Talon/releases/latest"><img src="https://img.shields.io/github/v/release/TheRustyPickle/Talon?style=flat-square&logo=github&color=orange" alt="Release Version"/></a>
+<a href="https://crates.io/crates/talon-gui"><img src="https://img.shields.io/crates/d/talon-gui?style=flat-square" alt="Downloads"/></a>
 </div>
 
 Talon is a tool to generate on-demand data insights from public Telegram chats. Powered by Rust, grammers, and egui, it offers a straightforward interface that leverages the Telegram account API.
@@ -50,11 +53,13 @@ Talon uses the [grammers library](https://github.com/lonami/grammers) for Telegr
 
 **2. Run the latest Release:**
 
-To be added
+- Download the latest executable from [Releases](https://github.com/TheRustyPickle/Talon/releases/latest).
+- Unzip the executable and double click to start the app.
 
 **3. Install using Cargo:**
 
-To be added
+- Install using `cargo install talon-gui`
+- Start with `talon`
 
 ## App Data Location
 

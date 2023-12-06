@@ -19,11 +19,11 @@ fn main() {
     // If RUST_LOG present, set debug else info log for this crate only
     if env::var("RUST_LOG").is_ok() {
         builder
-            .filter_module(env!("CARGO_PKG_NAME"), LevelFilter::Debug)
+            .filter_module(env!("CARGO_BIN_NAME"), LevelFilter::Debug)
             .init()
     } else {
         builder
-            .filter_module(env!("CARGO_PKG_NAME"), LevelFilter::Info)
+            .filter_module(env!("CARGO_BIN_NAME"), LevelFilter::Info)
             .init()
     };
 
