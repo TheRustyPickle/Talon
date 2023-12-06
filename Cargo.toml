@@ -11,7 +11,8 @@ homepage = "https://github.com/TheRustyPickle/Talon"
 repository = "https://github.com/TheRustyPickle/Talon"
 license = "MIT"
 keywords = ["telegram", "analytics", "gui", "data", "data-visualization"]
-categories = ["gui"]
+categories = ["GUI"]
+exclude = ["/fonts"]
 
 [[bin]]
 name = "talon"
