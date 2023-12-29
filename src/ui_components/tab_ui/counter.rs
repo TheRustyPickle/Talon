@@ -199,12 +199,15 @@ impl MainWindow {
                 self.tg_clients.len(),
                 |i| &values[i],
             );
-            ui.checkbox(&mut self.counter_data.use_all_sessions, "Use all sessions").on_hover_text("Whether to use all the available sessions for counting
+            ui.checkbox(&mut self.counter_data.use_all_sessions, "Use all sessions")
+                .on_hover_text(
+                    "Whether to use all the available sessions for counting
             
 Automatically divides the tasks among sessions, dramatically increasing speed.
 
 How to get more sessions?
-Login to one or more accounts multiple times with different session names!");
+Login to one or more accounts multiple times with different session names!",
+                );
         });
         ui.end_row();
 
