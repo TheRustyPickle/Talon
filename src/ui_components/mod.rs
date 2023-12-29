@@ -6,4 +6,3 @@ mod widgets;
 
 pub use initializer::*;
 pub use keys_ui::*;
-pub use widgets::*;
