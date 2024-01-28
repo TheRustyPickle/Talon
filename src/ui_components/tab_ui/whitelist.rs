@@ -225,8 +225,8 @@ then right click on User Table to whitelist",
                     })
                     .body(|body| {
                         let table_rows = self.whitelist_data.rows();
-                        body.rows(25.0, table_rows.len(), |row_index, mut row| {
-                            let row_data = &table_rows[row_index];
+                        body.rows(25.0, table_rows.len(), |mut row| {
+                            let row_data = &table_rows[row.index()];
                             row.col(|ui| self.create_whitelist_row(ColumnName::Name, row_data, ui));
                             row.col(|ui| {
                                 self.create_whitelist_row(ColumnName::Username, row_data, ui)

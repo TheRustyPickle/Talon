@@ -604,8 +604,8 @@ impl MainWindow {
                     })
                     .body(|body| {
                         let table_rows = self.user_table.rows();
-                        body.rows(25.0, table_rows.len(), |row_index, mut row| {
-                            let row_data = &table_rows[row_index];
+                        body.rows(25.0, table_rows.len(), |mut row| {
+                            let row_data = &table_rows[row.index()];
                             row.col(|ui| self.create_table_row(ColumnName::Name, row_data, ui));
                             row.col(|ui| self.create_table_row(ColumnName::Username, row_data, ui));
                             row.col(|ui| self.create_table_row(ColumnName::UserID, row_data, ui));
