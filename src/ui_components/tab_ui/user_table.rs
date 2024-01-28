@@ -683,8 +683,10 @@ impl MainWindow {
         }
 
         if label.drag_started() {
-            // If CTRL is not pressed down, unselect all cells
-            if !ui.ctx().input(|i| i.modifiers.ctrl) && !ui.ctx().is_context_menu_open() {
+            // If CTRL is not pressed down and the mouse right click is not pressed, unselect all cells
+            if !ui.ctx().input(|i| i.modifiers.ctrl)
+                && !ui.ctx().input(|i| i.pointer.secondary_clicked())
+            {
                 self.user_table.unselected_all();
             }
             self.user_table.drag_started_on = Some((row_data.id, column_name.clone()));
@@ -697,8 +699,10 @@ impl MainWindow {
         }
 
         if label.clicked() {
-            // If CTRL is not pressed down, unselect all cells
-            if !ui.ctx().input(|i| i.modifiers.ctrl) {
+            // If CTRL is not pressed down and the mouse right click is not pressed, unselect all cells
+            if !ui.ctx().input(|i| i.modifiers.ctrl)
+                && !ui.ctx().input(|i| i.pointer.secondary_clicked())
+            {
                 self.user_table.unselected_all();
             }
             self.user_table
