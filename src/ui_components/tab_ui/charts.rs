@@ -781,8 +781,7 @@ impl MainWindow {
 
         Plot::new("Plot")
             .legend(Legend::default().background_alpha(0.0))
-            .auto_bounds_x()
-            .auto_bounds_y()
+            .auto_bounds([true; 2].into())
             .clamp_grid(true)
             .show(ui, |plot_ui| {
                 for chart in all_charts {

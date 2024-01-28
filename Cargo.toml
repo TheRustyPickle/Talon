@@ -21,19 +21,19 @@ path = "src/main.rs"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-eframe = "0.24.1"
+eframe = "0.25.0"
 grammers-client = "0.5.0"
 grammers-session = "0.5.1"
 tokio = "1.35.1"
 log = "0.4.20"
 pretty_env_logger = "0.5.0"
 arboard = "3.3.0"
-egui_extras = "0.24.2"
+egui_extras = "0.25.0"
 serde = { version = "1.0.193", features = ["derive"] }
 serde_json = "1.0.108"
 dirs = "5.0.1"
 open = "5.0.1"
 reqwest = { version = "0.11.23", features = ["blocking"] }
-egui_plot = "0.24.1"
-egui-dropdown = "0.5.0"
+egui_plot = "0.25.0"
+egui-dropdown = "0.6.0"
 chrono = "0.4.31"

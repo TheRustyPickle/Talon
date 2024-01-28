@@ -82,7 +82,7 @@ impl Widget for RowLabel {
                     .rect(rect, visuals.rounding, color, visuals.bg_stroke);
             }
 
-            text.paint_with_visuals(ui.painter(), text_pos, &visuals);
+            ui.painter().galley(text_pos, text, visuals.text_color())
         }
 
         response
