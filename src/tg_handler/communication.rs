@@ -32,7 +32,7 @@ pub enum ProcessError {
     UnknownError(InvocationError),
 }
 
-/// Use by TGClient struct to handle operations
+/// Used by `TGClient` struct to handle operations
 pub enum ProcessStart {
     StartCount(String, Option<i32>, Option<i32>, bool),
     SignInCode(Arc<Mutex<LoginToken>>, String),
@@ -43,7 +43,7 @@ pub enum ProcessStart {
     CheckChatExistence(String, Option<i32>, Option<i32>),
 }
 
-/// Used when trying to create a new TGClient by processing some operations
+/// Used when trying to create a new `TGClient` by processing some operations
 pub enum NewProcess {
     SendLoginCode(String, String, bool),
     InitialSessionConnect(Vec<String>),

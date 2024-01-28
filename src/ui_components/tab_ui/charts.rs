@@ -31,10 +31,9 @@ pub struct ChartsData {
 impl ChartsData {
     /// Adds the user specified in the text edit in the chart
     fn add_to_chart(&mut self) {
-        self.added_to_chart.insert(self.dropdown_user.to_owned());
+        self.added_to_chart.insert(self.dropdown_user.clone());
         self.available_users.remove(&self.dropdown_user);
-        self.button_sizes
-            .insert(self.dropdown_user.to_owned(), None);
+        self.button_sizes.insert(self.dropdown_user.clone(), None);
         self.dropdown_user.clear();
     }
 
@@ -46,7 +45,7 @@ impl ChartsData {
 
     /// Adds a user available for adding in the chart
     pub fn add_user(&mut self, user: String, user_id: i64) {
-        self.available_users.insert(user.to_owned());
+        self.available_users.insert(user.clone());
         self.user_ids.insert(user, user_id);
     }
 
@@ -98,7 +97,7 @@ impl ChartsData {
             *last_hour = hourly_time;
         } else {
             self.last_hour
-                .insert(client_name.to_owned(), Some(hourly_time));
+                .insert(client_name.clone(), Some(hourly_time));
         }
 
         if let Some(Some(last_day)) = self.last_day.get_mut(&client_name) {
@@ -112,8 +111,7 @@ impl ChartsData {
             }
             *last_day = daily_time;
         } else {
-            self.last_day
-                .insert(client_name.to_owned(), Some(daily_time));
+            self.last_day.insert(client_name.clone(), Some(daily_time));
         }
 
         if let Some(Some(last_week)) = self.last_week.get_mut(&client_name) {
@@ -128,7 +126,7 @@ impl ChartsData {
             *last_week = weekly_time;
         } else {
             self.last_week
-                .insert(client_name.to_owned(), Some(weekly_time));
+                .insert(client_name.clone(), Some(weekly_time));
         }
 
         if let Some(Some(last_month)) = self.last_month.get_mut(&client_name) {
@@ -147,23 +145,23 @@ impl ChartsData {
             *last_month = monthly_time;
         } else {
             self.last_month
-                .insert(client_name.to_owned(), Some(monthly_time));
+                .insert(client_name.clone(), Some(monthly_time));
         }
 
         let counter = self.hourly_message.entry(hourly_time).or_default();
-        let target_user = counter.entry(add_to.to_owned()).or_insert(0);
+        let target_user = counter.entry(add_to.clone()).or_insert(0);
         *target_user += 1;
 
         let counter = self.daily_message.entry(daily_time).or_default();
-        let target_user = counter.entry(add_to.to_owned()).or_insert(0);
+        let target_user = counter.entry(add_to.clone()).or_insert(0);
         *target_user += 1;
 
         let counter = self.weekly_message.entry(weekly_time).or_default();
-        let target_user = counter.entry(add_to.to_owned()).or_insert(0);
+        let target_user = counter.entry(add_to.clone()).or_insert(0);
         *target_user += 1;
 
         let counter = self.monthly_message.entry(monthly_time).or_default();
-        let target_user = counter.entry(add_to.to_owned()).or_insert(0);
+        let target_user = counter.entry(add_to.clone()).or_insert(0);
         *target_user += 1;
 
         let counter = self.weekday_message.get_mut(&(sent_on as u8)).unwrap();
@@ -198,7 +196,7 @@ impl ChartsData {
             if next_day == Weekday::Mon {
                 ongoing_value = None;
             } else {
-                ongoing_value = Some(next_day)
+                ongoing_value = Some(next_day);
             }
         }
 
@@ -295,7 +293,8 @@ impl MainWindow {
                                 "DropDown",
                                 &mut self.charts_data.dropdown_user,
                                 |ui, text| ui.selectable_label(false, text),
-                            ),
+                            )
+                            .hint_text("Add a user to the chart"),
                         )
                     });
                 });
@@ -308,13 +307,7 @@ impl MainWindow {
                 let mut to_add: Vec<String> = Vec::new();
                 let mut already_added = 0.0;
                 let max_size = ui.available_width();
-                for (index, user) in self
-                    .charts_data
-                    .added_to_chart
-                    .to_owned()
-                    .iter()
-                    .enumerate()
-                {
+                for (index, user) in self.charts_data.added_to_chart.clone().iter().enumerate() {
                     // Check if the button size is saved previously or try to estimate a size
                     let button_size =
                         if let Some(size) = self.charts_data.button_sizes.get(user).unwrap() {
@@ -340,7 +333,7 @@ impl MainWindow {
                                     .on_hover_text("Click to remove from chart");
 
                                 if resp.clicked() {
-                                    self.charts_data.remove_from_chart(button)
+                                    self.charts_data.remove_from_chart(button);
                                 }
 
                                 *self.charts_data.button_sizes.get_mut(button).unwrap() =
@@ -363,7 +356,7 @@ impl MainWindow {
                                     .button(text_data)
                                     .on_hover_text("Click to remove from chart");
                                 if resp.clicked() {
-                                    self.charts_data.remove_from_chart(button)
+                                    self.charts_data.remove_from_chart(button);
                                 }
                                 *self.charts_data.button_sizes.get_mut(button).unwrap() =
                                     Some(resp.rect.width() + ui.spacing().item_spacing.x);
@@ -768,11 +761,11 @@ impl MainWindow {
                 for (name, bar) in bar_list {
                     let current_chart = BarChart::new(bar).width(point_value).name(name);
 
-                    if !all_charts.is_empty() {
-                        let current_chart =
-                            current_chart.stack_on(&all_charts.iter().collect::<Vec<&BarChart>>());
+                    if all_charts.is_empty() {
                         all_charts.push(current_chart);
                     } else {
+                        let current_chart =
+                            current_chart.stack_on(&all_charts.iter().collect::<Vec<&BarChart>>());
                         all_charts.push(current_chart);
                     }
                 }

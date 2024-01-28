@@ -57,10 +57,10 @@ impl SessionData {
     }
 
     pub fn reset_data(&mut self) {
-        self.session_name = "".to_string();
-        self.phone_number = "".to_string();
-        self.tg_code = "".to_string();
-        self.tg_password = "".to_string();
+        self.session_name = String::new();
+        self.phone_number = String::new();
+        self.tg_code = String::new();
+        self.tg_password = String::new();
         self.is_temporary = false;
         self.password_token = None;
         self.tg_code_token = None;
@@ -83,10 +83,10 @@ impl MainWindow {
                 {
                     ui.add_enabled(false, text_edit.min_size(ui.available_size()));
                 } else {
-                    let hover_text = if !self.session_data.is_temporary {
-                        "Save the session in a file with this name for later access"
-                    } else {
+                    let hover_text = if self.session_data.is_temporary {
                         "A name for the temporary session"
+                    } else {
+                        "Save the session in a file with this name for later access"
                     };
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                         ui.add_sized(ui.available_size(), text_edit)
@@ -130,7 +130,7 @@ impl MainWindow {
                         .on_hover_text("Send the code to login to the account")
                         .clicked()
                     {
-                        self.request_login_code(ui.ctx().clone())
+                        self.request_login_code(ui.ctx().clone());
                     }
 
                     let text_edit =
@@ -216,7 +216,7 @@ If yes, it will try to log out before the app is closed and no session file will
                 .clicked()
             {
                 if self.session_data.password_token.is_some() {
-                    self.sign_in_password()
+                    self.sign_in_password();
                 } else {
                     self.sign_in_code();
                 }

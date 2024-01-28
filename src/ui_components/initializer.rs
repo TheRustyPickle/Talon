@@ -65,11 +65,11 @@ impl App for MainWindow {
         // If asked to close the app, search for any temporary client and if any, logout then close the window
         if ctx.input(|i| i.viewport().close_requested()) {
             let mut joins = Vec::new();
-            for (_, client) in self.tg_clients.clone().into_iter() {
+            for (_, client) in self.tg_clients.clone() {
                 if client.is_temporary() {
                     let joiner =
                         thread::spawn(move || client.start_process(ProcessStart::SessionLogout));
-                    joins.push(joiner)
+                    joins.push(joiner);
                 }
             }
 
@@ -86,9 +86,9 @@ impl App for MainWindow {
 
                     // If API keys are found, start the main UI otherwise show the UI to input the api keys
                     if get_api_keys().is_some() {
-                        self.app_state = AppState::InitializedUI
+                        self.app_state = AppState::InitializedUI;
                     } else {
-                        self.app_state = AppState::InputAPIKeys
+                        self.app_state = AppState::InputAPIKeys;
                     }
                 }
                 AppState::InputAPIKeys => self.show_tg_keys_ui(ui),
@@ -101,7 +101,7 @@ impl App for MainWindow {
                             .on_hover_text(hover_text)
                             .clicked()
                         {
-                            self.switch_theme(ctx)
+                            self.switch_theme(ctx);
                         };
 
                         ui.separator();
@@ -131,7 +131,7 @@ impl App for MainWindow {
                             ctx.send_viewport_cmd(ViewportCommand::InnerSize(vec2(550.0, 350.0)));
                         }
                         if user_table_tab.clicked() {
-                            ctx.send_viewport_cmd(ViewportCommand::InnerSize(vec2(1000.0, 700.0)));
+                            ctx.send_viewport_cmd(ViewportCommand::InnerSize(vec2(1010.0, 700.0)));
                         }
                         if session_tab.clicked() {
                             ctx.send_viewport_cmd(ViewportCommand::InnerSize(vec2(500.0, 320.0)));
@@ -172,7 +172,7 @@ impl App for MainWindow {
                                         );
                                     };
                                 });
-                            })
+                            });
                         });
                     if !self.existing_sessions_checked {
                         self.existing_sessions_checked = true;
@@ -219,7 +219,7 @@ impl MainWindow {
 
     /// Get all the added session names
     pub fn get_session_names(&self) -> Vec<String> {
-        self.tg_clients.keys().map(|s| s.to_string()).collect()
+        self.tg_clients.keys().map(ToString::to_string).collect()
     }
 
     /// Set the fonts for egui to use or download them if does not exist

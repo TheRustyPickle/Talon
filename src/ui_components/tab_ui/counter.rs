@@ -55,11 +55,11 @@ impl CounterData {
     }
 
     fn get_start_from(&self) -> String {
-        self.start_from.to_owned()
+        self.start_from.clone()
     }
 
     fn get_end_at(&self) -> String {
-        self.end_at.to_owned()
+        self.end_at.clone()
     }
 
     fn counting_started(&mut self) {
@@ -82,7 +82,7 @@ impl CounterData {
     }
 
     pub fn set_bar_percentage(&mut self, percentage: f32) {
-        self.bar_percentage = percentage
+        self.bar_percentage = percentage;
     }
 
     pub fn set_total_user(&mut self, total_user: i32) {
@@ -215,19 +215,19 @@ Login to one or more accounts multiple times with different session names!",
             ui.add(Label::new("Starting Point:"));
         });
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            let clear_paste_button = if !self.counter_data.start_from.is_empty() {
-                ui.add(Button::new("Clear"))
-                    .on_hover_text("Clear text box content")
-            } else {
+            let clear_paste_button = if self.counter_data.start_from.is_empty() {
                 ui.add(Button::new("Paste"))
                     .on_hover_text("Paste copied content")
+            } else {
+                ui.add(Button::new("Clear"))
+                    .on_hover_text("Clear text box content")
             };
 
             if clear_paste_button.clicked() {
                 if self.counter_data.start_from.is_empty() {
                     if let Ok(mut clipboard) = Clipboard::new() {
                         if let Ok(copied_content) = clipboard.get_text() {
-                            self.counter_data.start_from = copied_content
+                            self.counter_data.start_from = copied_content;
                         }
                     }
                 } else {
@@ -261,19 +261,19 @@ To count all messages in a chat, paste the latest message link.",
         });
 
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            let clear_paste_button = if !self.counter_data.end_at.is_empty() {
-                ui.add(Button::new("Clear"))
-                    .on_hover_text("Clear text box content")
-            } else {
+            let clear_paste_button = if self.counter_data.end_at.is_empty() {
                 ui.add(Button::new("Paste"))
                     .on_hover_text("Paste copied content")
+            } else {
+                ui.add(Button::new("Clear"))
+                    .on_hover_text("Clear text box content")
             };
 
             if clear_paste_button.clicked() {
                 if self.counter_data.end_at.is_empty() {
                     if let Ok(mut clipboard) = Clipboard::new() {
                         if let Ok(copied_content) = clipboard.get_text() {
-                            self.counter_data.end_at = copied_content
+                            self.counter_data.end_at = copied_content;
                         }
                     }
                 } else {

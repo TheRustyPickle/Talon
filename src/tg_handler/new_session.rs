@@ -79,17 +79,17 @@ impl TGClient {
             }
             Err(err) => match err {
                 SignInError::InvalidCode => {
-                    self.send(ProcessResult::ProcessFailed(ProcessError::InvalidTGCode))
+                    self.send(ProcessResult::ProcessFailed(ProcessError::InvalidTGCode));
                 }
                 SignInError::PasswordRequired(token) => {
-                    self.send(ProcessResult::PasswordRequired(Box::new(token)))
+                    self.send(ProcessResult::PasswordRequired(Box::new(token)));
                 }
                 SignInError::SignUpRequired {
                     terms_of_service: _,
                 } => self.send(ProcessResult::ProcessFailed(ProcessError::NotSignedUp)),
                 SignInError::InvalidPassword => unreachable!(),
                 SignInError::Other(e) => {
-                    self.send(ProcessResult::ProcessFailed(ProcessError::UnknownError(e)))
+                    self.send(ProcessResult::ProcessFailed(ProcessError::UnknownError(e)));
                 }
             },
         }
@@ -123,10 +123,10 @@ impl TGClient {
                     terms_of_service: _,
                 } => unreachable!(),
                 SignInError::InvalidPassword => {
-                    self.send(ProcessResult::ProcessFailed(ProcessError::InvalidPassword))
+                    self.send(ProcessResult::ProcessFailed(ProcessError::InvalidPassword));
                 }
                 SignInError::Other(e) => {
-                    self.send(ProcessResult::ProcessFailed(ProcessError::UnknownError(e)))
+                    self.send(ProcessResult::ProcessFailed(ProcessError::UnknownError(e)));
                 }
             },
         }

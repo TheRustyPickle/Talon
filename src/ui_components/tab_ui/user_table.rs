@@ -130,7 +130,7 @@ impl UserTableData {
         if let Some(chat_data) = sender {
             user_id = chat_data.id();
 
-            if let Chat::User(user) = chat_data.to_owned() {
+            if let Chat::User(user) = chat_data.clone() {
                 // As per grammers lib, empty name can be given if it's a deleted account
                 full_name = if user.full_name().is_empty() {
                     "Deleted Account".to_string()
@@ -166,7 +166,7 @@ impl UserTableData {
                         &user_name,
                         user_id,
                         false,
-                        Some(chat_data.to_owned()),
+                        Some(chat_data.clone()),
                     )
                 });
             }
@@ -217,49 +217,49 @@ impl UserTableData {
             ColumnName::Username => match self.sort_order {
                 SortOrder::Ascending => row_data.sort_by(|a, b| a.username.cmp(&b.username)),
                 SortOrder::Descending => {
-                    row_data.sort_by(|a, b| a.username.cmp(&b.username).reverse())
+                    row_data.sort_by(|a, b| a.username.cmp(&b.username).reverse());
                 }
             },
             ColumnName::TotalMessage => match self.sort_order {
                 SortOrder::Ascending => {
-                    row_data.sort_by(|a, b| a.total_message.cmp(&b.total_message))
+                    row_data.sort_by(|a, b| a.total_message.cmp(&b.total_message));
                 }
                 SortOrder::Descending => {
-                    row_data.sort_by(|a, b| a.total_message.cmp(&b.total_message).reverse())
+                    row_data.sort_by(|a, b| a.total_message.cmp(&b.total_message).reverse());
                 }
             },
             ColumnName::TotalWord => match self.sort_order {
                 SortOrder::Ascending => row_data.sort_by(|a, b| a.total_word.cmp(&b.total_word)),
                 SortOrder::Descending => {
-                    row_data.sort_by(|a, b| a.total_word.cmp(&b.total_word).reverse())
+                    row_data.sort_by(|a, b| a.total_word.cmp(&b.total_word).reverse());
                 }
             },
             ColumnName::TotalChar => match self.sort_order {
                 SortOrder::Ascending => row_data.sort_by(|a, b| a.total_char.cmp(&b.total_char)),
                 SortOrder::Descending => {
-                    row_data.sort_by(|a, b| a.total_char.cmp(&b.total_char).reverse())
+                    row_data.sort_by(|a, b| a.total_char.cmp(&b.total_char).reverse());
                 }
             },
             ColumnName::AverageChar => match self.sort_order {
                 SortOrder::Ascending => {
-                    row_data.sort_by(|a, b| a.average_char.cmp(&b.average_char))
+                    row_data.sort_by(|a, b| a.average_char.cmp(&b.average_char));
                 }
                 SortOrder::Descending => {
-                    row_data.sort_by(|a, b| a.average_char.cmp(&b.average_char).reverse())
+                    row_data.sort_by(|a, b| a.average_char.cmp(&b.average_char).reverse());
                 }
             },
             ColumnName::AverageWord => match self.sort_order {
                 SortOrder::Ascending => {
-                    row_data.sort_by(|a, b| a.average_word.cmp(&b.average_word))
+                    row_data.sort_by(|a, b| a.average_word.cmp(&b.average_word));
                 }
                 SortOrder::Descending => {
-                    row_data.sort_by(|a, b| a.average_word.cmp(&b.average_word).reverse())
+                    row_data.sort_by(|a, b| a.average_word.cmp(&b.average_word).reverse());
                 }
             },
             ColumnName::Whitelisted => match self.sort_order {
                 SortOrder::Ascending => row_data.sort_by(|a, b| a.whitelisted.cmp(&b.whitelisted)),
                 SortOrder::Descending => {
-                    row_data.sort_by(|a, b| a.whitelisted.cmp(&b.whitelisted).reverse())
+                    row_data.sort_by(|a, b| a.whitelisted.cmp(&b.whitelisted).reverse());
                 }
             },
         }
@@ -379,7 +379,7 @@ impl UserTableData {
             // We are in a new row which we have not selected before
             self.last_active_row = Some(user_id);
             self.last_active_column = Some(column_name.clone());
-            for column in self.active_columns.iter() {
+            for column in &self.active_columns {
                 current_row.selected_columns.insert(column.to_owned());
             }
             let current_row_index = all_rows.iter().position(|row| row.id == user_id).unwrap();
@@ -424,13 +424,13 @@ impl UserTableData {
         // if for example drag started on row 5 and ended on row 10 but missed drag on row 7
         // Mark the rows as selected till the drag start row is hit (if recursively going that way)
         if (check_previous && index >= drag_start) || (!check_previous && index <= drag_start) {
-            unselected_row = false
+            unselected_row = false;
         }
 
         let target_row = self.rows.get_mut(&current_row.id).unwrap();
 
         if !unselected_row {
-            for column in self.active_columns.iter() {
+            for column in &self.active_columns {
                 target_row.selected_columns.insert(column.to_owned());
             }
             if check_previous {
@@ -484,7 +484,7 @@ impl UserTableData {
     /// Unselect all rows and columns
     fn unselected_all(&mut self) {
         for (_, row) in self.rows.iter_mut() {
-            row.selected_columns.clear()
+            row.selected_columns.clear();
         }
         self.active_columns.clear();
         self.last_active_row = None;
@@ -498,7 +498,7 @@ impl UserTableData {
 
         while current_column != ColumnName::Name {
             all_columns.push(current_column.clone());
-            current_column = current_column.get_next()
+            current_column = current_column.get_next();
         }
 
         for (_, row) in self.rows.iter_mut() {
@@ -513,7 +513,7 @@ impl UserTableData {
     fn change_sorted_by(&mut self, sort_by: ColumnName) {
         self.unselected_all();
         self.sorted_by = sort_by;
-        self.sort_order = SortOrder::default()
+        self.sort_order = SortOrder::default();
     }
 
     /// Change the order of row sorting. Called on header column click
@@ -521,7 +521,7 @@ impl UserTableData {
         if let SortOrder::Ascending = self.sort_order {
             self.sort_order = SortOrder::Descending;
         } else {
-            self.sort_order = SortOrder::Ascending
+            self.sort_order = SortOrder::Ascending;
         }
     }
 
@@ -610,24 +610,24 @@ impl MainWindow {
                             row.col(|ui| self.create_table_row(ColumnName::Username, row_data, ui));
                             row.col(|ui| self.create_table_row(ColumnName::UserID, row_data, ui));
                             row.col(|ui| {
-                                self.create_table_row(ColumnName::TotalMessage, row_data, ui)
+                                self.create_table_row(ColumnName::TotalMessage, row_data, ui);
                             });
                             row.col(|ui| {
-                                self.create_table_row(ColumnName::TotalWord, row_data, ui)
+                                self.create_table_row(ColumnName::TotalWord, row_data, ui);
                             });
                             row.col(|ui| {
-                                self.create_table_row(ColumnName::TotalChar, row_data, ui)
+                                self.create_table_row(ColumnName::TotalChar, row_data, ui);
                             });
                             row.col(|ui| {
-                                self.create_table_row(ColumnName::AverageWord, row_data, ui)
+                                self.create_table_row(ColumnName::AverageWord, row_data, ui);
                             });
                             row.col(|ui| {
-                                self.create_table_row(ColumnName::AverageChar, row_data, ui)
+                                self.create_table_row(ColumnName::AverageChar, row_data, ui);
                             });
                             row.col(|ui| {
-                                self.create_table_row(ColumnName::Whitelisted, row_data, ui)
+                                self.create_table_row(ColumnName::Whitelisted, row_data, ui);
                             });
-                        })
+                        });
                     });
             });
     }
@@ -638,11 +638,11 @@ impl MainWindow {
         let row_text = match column_name {
             ColumnName::Name => {
                 show_tooltip = true;
-                row_data.name.to_owned()
+                row_data.name.clone()
             }
             ColumnName::Username => {
                 show_tooltip = true;
-                row_data.username.to_owned()
+                row_data.username.clone()
             }
             ColumnName::UserID => row_data.id.to_string(),
             ColumnName::TotalMessage => row_data.total_message.to_string(),
@@ -670,11 +670,11 @@ impl MainWindow {
             .context_menu(|ui| {
                 if ui.button("Copy selected rows").clicked() {
                     self.copy_selected_cells(ui);
-                    ui.close_menu()
+                    ui.close_menu();
                 };
                 if ui.button("whitelist selected rows").clicked() {
                     self.whitelist_selected_rows();
-                    ui.close_menu()
+                    ui.close_menu();
                 };
             });
 
@@ -748,9 +748,9 @@ impl MainWindow {
     ) {
         if response.clicked() {
             if is_selected {
-                self.user_table.change_sort_order()
+                self.user_table.change_sort_order();
             } else {
-                self.user_table.change_sorted_by(sort_type)
+                self.user_table.change_sorted_by(sort_type);
             }
         }
     }
@@ -814,9 +814,9 @@ impl MainWindow {
 
         // Iter through all the rows and find the rows that have at least one column as selected
         // Keep track of the biggest length of a value of a column
-        for row in all_rows.into_iter() {
+        for row in all_rows {
             if !row.selected_columns.is_empty() {
-                for column in self.user_table.active_columns.iter() {
+                for column in &self.user_table.active_columns {
                     if row.selected_columns.contains(column) {
                         let field_length = row.get_column_length(column);
                         let entry = column_max_length.entry(column).or_insert(0);
@@ -836,7 +836,7 @@ impl MainWindow {
         // If for example highest len is 10 but the current row's
         // column value is 5, we will add the column value and add 5 more space after that
         // to ensure alignment
-        for row in selected_rows.into_iter() {
+        for row in selected_rows {
             let mut ongoing_column = ColumnName::Name;
             let mut row_text = String::new();
             loop {
@@ -880,7 +880,7 @@ impl MainWindow {
 
         for row in all_rows {
             if !row.selected_columns.is_empty() && row.name != "Anonymous/Unknown" {
-                selected_rows.push(row)
+                selected_rows.push(row);
             }
         }
         let total_to_whitelist = selected_rows.len();
@@ -894,10 +894,10 @@ impl MainWindow {
                 row.id,
                 row.belongs_to.clone().unwrap(),
             );
-            packed_chats.push(row.belongs_to.unwrap().pack().to_hex())
+            packed_chats.push(row.belongs_to.unwrap().pack().to_hex());
         }
 
         save_whitelisted_users(packed_chats, false);
-        self.process_state = ProcessState::UsersWhitelisted(total_to_whitelist)
+        self.process_state = ProcessState::UsersWhitelisted(total_to_whitelist);
     }
 }

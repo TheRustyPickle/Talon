@@ -31,12 +31,12 @@ impl MainWindow {
                 ProcessResult::InvalidChat(chat_name) => {
                     info!("Invalid chat name found: {}", chat_name);
                     self.process_state = ProcessState::NonExistingChat(chat_name);
-                    self.stop_process()
+                    self.stop_process();
                 }
                 ProcessResult::UnauthorizedClient(client_name) => {
                     info!("{} is not authorized.", client_name);
                     self.process_state = ProcessState::UnauthorizedClient(client_name);
-                    self.stop_process()
+                    self.stop_process();
                 }
                 ProcessResult::CountingEnd((end_at, last_number)) => {
                     // Example case end point 100, last processed 102
@@ -55,7 +55,7 @@ impl MainWindow {
                         self.stop_process();
                         self.process_state = ProcessState::Idle;
                     } else {
-                        self.counter_data.reduce_session()
+                        self.counter_data.reduce_session();
                     }
                 }
                 ProcessResult::CountingMessage(count_data) => {
@@ -71,7 +71,7 @@ impl MainWindow {
                     let (user_id, full_name, user_name) = self.user_table.add_user(sender);
 
                     if user_id != 0 && self.whitelist_data.is_user_whitelisted(&user_id) {
-                        self.user_table.set_as_whitelisted(&user_id)
+                        self.user_table.set_as_whitelisted(&user_id);
                     }
 
                     let chart_user = {
@@ -84,7 +84,7 @@ impl MainWindow {
                         }
                     };
 
-                    self.charts_data.add_user(chart_user.to_owned(), user_id);
+                    self.charts_data.add_user(chart_user.clone(), user_id);
                     self.user_table.count_user_message(user_id, message);
 
                     let total_user = self.user_table.get_total_user();
@@ -136,7 +136,7 @@ impl MainWindow {
                     match err {
                         ProcessError::AuthorizationError => {
                             error!("Error acquired while trying to connect to the client");
-                            self.process_state = ProcessState::AuthorizationError
+                            self.process_state = ProcessState::AuthorizationError;
                         }
                         ProcessError::FileCreationError => {
                             error!("Error acquired while trying to create/delete the session file");
@@ -144,27 +144,27 @@ impl MainWindow {
                         }
                         ProcessError::InvalidTGCode => {
                             error!("Invalid TG Code given for the session");
-                            self.process_state = ProcessState::InvalidTGCode
+                            self.process_state = ProcessState::InvalidTGCode;
                         }
                         ProcessError::NotSignedUp => {
                             error!("The phone number is not signed up");
-                            self.process_state = ProcessState::NotSignedUp
+                            self.process_state = ProcessState::NotSignedUp;
                         }
                         ProcessError::UnknownError(e) => {
                             error!("Unknown error encountered while trying to login. {e}");
-                            self.process_state = ProcessState::UnknownError
+                            self.process_state = ProcessState::UnknownError;
                         }
                         ProcessError::InvalidPassword => {
                             error!("Invalid TG Password given for the session");
-                            self.process_state = ProcessState::InvalidPassword
+                            self.process_state = ProcessState::InvalidPassword;
                         }
                         ProcessError::InvalidPhoneOrAPI => {
                             error!("Possibly invalid phone number given or API keys error");
-                            self.process_state = ProcessState::InvalidPhoneOrAPI
+                            self.process_state = ProcessState::InvalidPhoneOrAPI;
                         }
                         ProcessError::FailedLatestMessage => {
                             error!("Failed to get the latest message ID");
-                            self.process_state = ProcessState::LatestMessageLoadingFailed
+                            self.process_state = ProcessState::LatestMessageLoadingFailed;
                         }
                     }
                 }
@@ -212,7 +212,7 @@ impl MainWindow {
                         );
                     }
                     self.is_processing = false;
-                    self.process_state = ProcessState::LoadedWhitelistedUsers(total_chat)
+                    self.process_state = ProcessState::LoadedWhitelistedUsers(total_chat);
                 }
                 ProcessResult::WhiteListUser(chat) => {
                     self.stop_process();
@@ -233,7 +233,7 @@ impl MainWindow {
                     );
                     self.whitelist_data.clear_text_box();
                     self.user_table.set_as_whitelisted(&user_id);
-                    self.process_state = ProcessState::AddedToWhitelist
+                    self.process_state = ProcessState::AddedToWhitelist;
                 }
                 ProcessResult::ChatExists(chat_name, start_at, end_at) => {
                     // Because we count both the start and ending message ID
@@ -254,7 +254,7 @@ impl MainWindow {
                         self.counter_data.add_session(client.name());
 
                         let client = client.clone();
-                        let chat_name = chat_name.to_owned();
+                        let chat_name = chat_name.clone();
                         if index == total_session - 1 {
                             ongoing_end_at = end_at;
                         }
