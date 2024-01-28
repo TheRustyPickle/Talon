@@ -2,7 +2,7 @@ use eframe::egui::{Response, Sense, TextStyle, Ui, Widget, WidgetInfo, WidgetTex
 use eframe::emath::NumExt;
 use eframe::epaint::Color32;
 
-/// Copy of SelectableLabel source with minor modifications
+/// Copy of `SelectableLabel` source with minor modifications
 pub struct RowLabel {
     text: WidgetText,
     selected: bool,
@@ -82,7 +82,7 @@ impl Widget for RowLabel {
                     .rect(rect, visuals.rounding, color, visuals.bg_stroke);
             }
 
-            ui.painter().galley(text_pos, text, visuals.text_color())
+            ui.painter().galley(text_pos, text, visuals.text_color());
         }
 
         response

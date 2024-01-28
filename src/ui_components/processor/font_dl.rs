@@ -23,9 +23,7 @@ pub fn download_font(ctx: Context) {
 
     let client = reqwest::blocking::Client::new();
 
-    let response = if let Ok(resp) = client.get(cjk_font_url).send() {
-        resp
-    } else {
+    let Ok(response) = client.get(cjk_font_url).send() else {
         error!("Failed to get a response for CJK font");
         return;
     };
@@ -43,9 +41,7 @@ pub fn download_font(ctx: Context) {
         return;
     };
 
-    let response = if let Ok(resp) = client.get(gentium_font_url).send() {
-        resp
-    } else {
+    let Ok(response) = client.get(gentium_font_url).send() else {
         error!("Failed to get a response for Gentium font");
         return;
     };

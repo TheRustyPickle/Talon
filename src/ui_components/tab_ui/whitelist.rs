@@ -86,18 +86,18 @@ impl WhitelistData {
     fn save_whitelisted_users(&self) {
         let mut packed_chats = Vec::new();
 
-        for (_id, row) in self.rows.iter() {
-            packed_chats.push(row.belongs_to.pack().to_hex())
+        for row in self.rows.values() {
+            packed_chats.push(row.belongs_to.pack().to_hex());
         }
 
-        save_whitelisted_users(packed_chats, true)
+        save_whitelisted_users(packed_chats, true);
     }
 
     /// Removes selected row from whitelist and saves the result
     fn remove_selected(&mut self) -> HashSet<i64> {
         let active_rows = self.active_rows.clone();
 
-        for i in active_rows.iter() {
+        for i in &active_rows {
             info!("Removing user {} from whitelist", i);
             self.rows.remove(i);
         }
@@ -108,7 +108,7 @@ impl WhitelistData {
     /// Removes all row from whitelist and saves the result
     fn remove_all(&mut self) -> Vec<i64> {
         info!("Removing all users from whitelist");
-        let row_keys = self.rows.keys().map(|a| a.to_owned()).collect();
+        let row_keys = self.rows.keys().map(ToOwned::to_owned).collect();
         self.rows.clear();
         self.save_whitelisted_users();
 
@@ -116,7 +116,7 @@ impl WhitelistData {
     }
 
     pub fn clear_text_box(&mut self) {
-        self.target_username.clear()
+        self.target_username.clear();
     }
 }
 
@@ -229,12 +229,12 @@ then right click on User Table to whitelist",
                             let row_data = &table_rows[row.index()];
                             row.col(|ui| self.create_whitelist_row(ColumnName::Name, row_data, ui));
                             row.col(|ui| {
-                                self.create_whitelist_row(ColumnName::Username, row_data, ui)
+                                self.create_whitelist_row(ColumnName::Username, row_data, ui);
                             });
                             row.col(|ui| {
-                                self.create_whitelist_row(ColumnName::UserID, row_data, ui)
+                                self.create_whitelist_row(ColumnName::UserID, row_data, ui);
                             });
-                        })
+                        });
                     });
             });
     }
@@ -265,8 +265,8 @@ then right click on User Table to whitelist",
         ui: &mut Ui,
     ) {
         let row_text = match column {
-            ColumnName::Name => row_data.name.to_owned(),
-            ColumnName::Username => row_data.username.to_owned(),
+            ColumnName::Name => row_data.name.clone(),
+            ColumnName::Username => row_data.username.clone(),
             ColumnName::UserID => row_data.id.to_string(),
             _ => unreachable!(),
         };
@@ -326,11 +326,7 @@ then right click on User Table to whitelist",
         }
 
         let client = self.tg_clients.get(&selected_session).unwrap().clone();
-        let target_username = self
-            .whitelist_data
-            .target_username
-            .to_owned()
-            .replace('@', "");
+        let target_username = self.whitelist_data.target_username.clone().replace('@', "");
         self.is_processing = true;
 
         thread::spawn(move || {

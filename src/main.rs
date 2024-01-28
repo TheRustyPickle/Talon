@@ -20,11 +20,11 @@ fn main() {
     if env::var("RUST_LOG").is_ok() {
         builder
             .filter_module(env!("CARGO_BIN_NAME"), LevelFilter::Debug)
-            .init()
+            .init();
     } else {
         builder
             .filter_module(env!("CARGO_BIN_NAME"), LevelFilter::Info)
-            .init()
+            .init();
     };
 
     let working_path = data_local_dir();

@@ -65,7 +65,7 @@ impl Display for ProcessState {
         match self {
             ProcessState::Idle => write!(f, "Status: Idle"),
             ProcessState::InitialClientConnectionSuccessful(text) => {
-                write!(f, "Status: {}", text)
+                write!(f, "Status: {text}", )
             }
             ProcessState::Counting(count) => {
                 write!(f, "Status: Checking messages")?;
@@ -81,7 +81,7 @@ impl Display for ProcessState {
                 "Status: Start message number must be greater than the ending message number"
             ),
             ProcessState::DataCopied(num) => {
-                write!(f, "Status: Table data copied. Total cells: {}", num)
+                write!(f, "Status: Table data copied. Total cells: {num}",)
             }
             ProcessState::AuthorizationError => write!(
                 f,

@@ -140,7 +140,7 @@ impl TGClient {
             debug!("Got message number: {}", message_num);
             if start_at == -1 {
                 info!("Setting starting point as {message_num}");
-                start_at = message_num
+                start_at = message_num;
             }
 
             if message_num < end_at {
@@ -163,9 +163,9 @@ impl TGClient {
 
             // Sleep to prevent flood time being too noticeable/getting triggered
             if start_at - end_at > 3000 {
-                sleep(Duration::from_millis(5))
+                sleep(Duration::from_millis(5));
             } else {
-                sleep(Duration::from_millis(2))
+                sleep(Duration::from_millis(2));
             }
 
             {

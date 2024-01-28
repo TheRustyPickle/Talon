@@ -39,10 +39,10 @@ pub fn parse_tg_chat(text: String) -> (Option<String>, Option<i32>) {
                 let group_data = second.split('/').collect::<Vec<&str>>();
                 chat_name = Some(group_data[0].to_string());
                 if let Ok(num) = group_data[1].parse() {
-                    message_number = Some(num)
+                    message_number = Some(num);
                 }
             } else {
-                chat_name = Some(second.to_string())
+                chat_name = Some(second.to_string());
             }
         }
     } else if text.starts_with('@') {
@@ -51,7 +51,7 @@ pub fn parse_tg_chat(text: String) -> (Option<String>, Option<i32>) {
             chat_name = Some(second.to_string());
         }
     } else {
-        chat_name = Some(text)
+        chat_name = Some(text);
     }
     info!(
         "Parsed group name: {:?} message number: {:?}",
@@ -90,7 +90,7 @@ pub fn get_api_keys() -> Option<TGKeys> {
         let result = serde_json::from_str::<TGKeys>(&contents);
         if let Ok(result) = result {
             if !result.api_id.is_empty() || !result.api_hash.is_empty() {
-                to_return = Some(result)
+                to_return = Some(result);
             }
         }
     }

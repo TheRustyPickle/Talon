@@ -64,7 +64,7 @@ impl TGClient {
     }
 
     pub fn name(&self) -> String {
-        self.name.to_owned()
+        self.name.clone()
     }
 
     /// Sends a process result to the GUI side, the only way to communicate with the GUI from async
@@ -110,16 +110,12 @@ impl TGClient {
     pub async fn check_username(&self, chat_name: &str) -> Result<Chat, ProcessResult> {
         let tg_chat = self.client().resolve_username(chat_name).await;
 
-        let tg_chat = if let Ok(chat) = tg_chat {
-            chat
-        } else {
+        let Ok(tg_chat) = tg_chat else {
             error!("Failed to resolve username");
             return Err(ProcessResult::InvalidChat(chat_name.to_owned()));
         };
 
-        let tg_chat = if let Some(chat) = tg_chat {
-            chat
-        } else {
+        let Some(tg_chat) = tg_chat else {
             error!("Found None value for target chat. Stopping processing");
             return Err(ProcessResult::InvalidChat(chat_name.to_owned()));
         };
@@ -136,7 +132,7 @@ impl TGClient {
     }
 }
 
-/// Start a process that will result in the creation of a TGClient if successful
+/// Start a process that will result in the creation of a `TGClient` if successful
 pub fn start_process(process: NewProcess, sender: Sender<ProcessResult>, context: Context) {
     let runtime = get_runtime();
     let result = match process {
@@ -157,6 +153,6 @@ pub fn start_process(process: NewProcess, sender: Sender<ProcessResult>, context
     if let Err(err) = result {
         error!("Error acquired while handing a process: {err:?}");
         sender.send(ProcessResult::ProcessFailed(err)).unwrap();
-        context.request_repaint()
+        context.request_repaint();
     }
 }

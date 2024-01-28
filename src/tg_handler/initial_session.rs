@@ -30,14 +30,12 @@ pub async fn connect_to_session(
             session: Session::load_file_or_create(&name)
                 .map_err(|_| ProcessError::FileCreationError)?,
             api_id,
-            api_hash: api_hash.to_owned(),
+            api_hash: api_hash.clone(),
             params: Default::default(),
         })
         .await;
 
-        let client = if let Ok(client) = client {
-            client
-        } else {
+        let Ok(client) = client else {
             info!("Failed to connect to session {}", name_without_session);
             failed_session.push(name_without_session);
             continue;
@@ -47,9 +45,7 @@ pub async fn connect_to_session(
 
         let authorized = client.is_authorized().await;
 
-        let authorized = if let Ok(authorized) = authorized {
-            authorized
-        } else {
+        let Ok(authorized) = authorized else {
             info!(
                 "Failed to determine session authorization status {}",
                 name_without_session
@@ -70,7 +66,7 @@ pub async fn connect_to_session(
 
         let new_client = TGClient::new(
             client,
-            name_without_session.to_owned(),
+            name_without_session.clone(),
             sender.clone(),
             context.clone(),
             false,
