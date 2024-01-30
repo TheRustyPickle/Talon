@@ -1,3 +1,4 @@
+use chrono::NaiveDate;
 use eframe::egui::{
     Align, Key, Layout, Response, RichText, ScrollArea, SelectableLabel, Sense, Ui,
 };
@@ -20,6 +21,8 @@ struct UserRowData {
     total_char: u32,
     average_word: u32,
     average_char: u32,
+    first_seen: NaiveDate,
+    last_seen: NaiveDate,
     whitelisted: bool,
     selected_columns: HashSet<ColumnName>,
     belongs_to: Option<Chat>,
@@ -32,6 +35,7 @@ impl UserRowData {
         id: i64,
         whitelisted: bool,
         belongs_to: Option<Chat>,
+        date: NaiveDate,
     ) -> Self {
         let username = username.to_string();
 
@@ -44,6 +48,8 @@ impl UserRowData {
             total_char: 0,
             average_word: 0,
             average_char: 0,
+            first_seen: date,
+            last_seen: date,
             whitelisted,
             selected_columns: HashSet::new(),
             belongs_to,
@@ -64,6 +70,14 @@ impl UserRowData {
         self.average_char = self.total_char / self.total_message;
     }
 
+    fn set_first_seen(&mut self, date: NaiveDate) {
+        self.first_seen = date;
+    }
+
+    fn set_last_seen(&mut self, date: NaiveDate) {
+        self.last_seen = date;
+    }
+
     /// Get the current length of a column of this row
     fn get_column_length(&self, column: &ColumnName) -> usize {
         match column {
@@ -75,6 +89,8 @@ impl UserRowData {
             ColumnName::TotalChar => self.total_char.to_string().len(),
             ColumnName::AverageWord => self.average_word.to_string().len(),
             ColumnName::AverageChar => self.average_char.to_string().len(),
+            ColumnName::FirstMessageSeen => self.first_seen.to_string().len(),
+            ColumnName::LastMessageSeen => self.last_seen.to_string().len(),
             ColumnName::Whitelisted => self.whitelisted.to_string().len(),
         }
     }
@@ -84,13 +100,15 @@ impl UserRowData {
         match column {
             ColumnName::Name => self.name.to_string(),
             ColumnName::Username => self.username.to_string(),
-            ColumnName::UserID => self.id.to_string().to_string(),
-            ColumnName::TotalMessage => self.total_message.to_string().to_string(),
-            ColumnName::TotalWord => self.total_word.to_string().to_string(),
-            ColumnName::TotalChar => self.total_char.to_string().to_string(),
-            ColumnName::AverageWord => self.average_word.to_string().to_string(),
-            ColumnName::AverageChar => self.average_char.to_string().to_string(),
-            ColumnName::Whitelisted => self.whitelisted.to_string().to_string(),
+            ColumnName::UserID => self.id.to_string(),
+            ColumnName::TotalMessage => self.total_message.to_string(),
+            ColumnName::TotalWord => self.total_word.to_string(),
+            ColumnName::TotalChar => self.total_char.to_string(),
+            ColumnName::AverageWord => self.average_word.to_string(),
+            ColumnName::AverageChar => self.average_char.to_string(),
+            ColumnName::FirstMessageSeen => self.first_seen.to_string(),
+            ColumnName::LastMessageSeen => self.last_seen.to_string(),
+            ColumnName::Whitelisted => self.whitelisted.to_string(),
         }
     }
 }
@@ -122,7 +140,7 @@ impl UserTableData {
     }
 
     /// Add a user to the table
-    pub fn add_user(&mut self, sender: Option<Chat>) -> (i64, String, String) {
+    pub fn add_user(&mut self, sender: Option<Chat>, date: NaiveDate) -> (i64, String, String) {
         let mut user_id = 0;
         let full_name;
         let user_name;
@@ -145,7 +163,14 @@ impl UserTableData {
                 };
 
                 self.rows.entry(user_id).or_insert_with(|| {
-                    UserRowData::new(&full_name, &user_name, user_id, false, Some(chat_data))
+                    UserRowData::new(
+                        &full_name,
+                        &user_name,
+                        user_id,
+                        false,
+                        Some(chat_data),
+                        date,
+                    )
                 });
             } else {
                 full_name = if chat_data.name().is_empty() {
@@ -167,6 +192,7 @@ impl UserTableData {
                         user_id,
                         false,
                         Some(chat_data.clone()),
+                        date,
                     )
                 });
             }
@@ -175,19 +201,26 @@ impl UserTableData {
             full_name = "Anonymous/Unknown".to_string();
             user_name = "Empty".to_string();
 
-            self.rows
-                .entry(0)
-                .or_insert_with(|| UserRowData::new(&full_name, &user_name, user_id, false, None));
+            self.rows.entry(0).or_insert_with(|| {
+                UserRowData::new(&full_name, &user_name, user_id, false, None, date)
+            });
         }
 
         (user_id, full_name, user_name)
     }
 
     /// Update message related column values of a row
-    pub fn count_user_message(&mut self, user_id: i64, message: &Message) {
+    pub fn count_user_message(&mut self, user_id: i64, message: &Message, date: NaiveDate) {
         let user_row_data = self.rows.get_mut(&user_id).unwrap();
-
         let message_text = message.text();
+
+        if user_row_data.first_seen > date {
+            user_row_data.set_first_seen(date);
+        }
+
+        if user_row_data.last_seen < date {
+            user_row_data.set_last_seen(date)
+        }
 
         let total_char = message_text.len() as u32;
         let total_word = message_text.split_whitespace().count() as u32;
@@ -254,6 +287,18 @@ impl UserTableData {
                 }
                 SortOrder::Descending => {
                     row_data.sort_by(|a, b| a.average_word.cmp(&b.average_word).reverse());
+                }
+            },
+            ColumnName::FirstMessageSeen => match self.sort_order {
+                SortOrder::Ascending => row_data.sort_by(|a, b| a.first_seen.cmp(&b.first_seen)),
+                SortOrder::Descending => {
+                    row_data.sort_by(|a, b| a.first_seen.cmp(&b.first_seen).reverse());
+                }
+            },
+            ColumnName::LastMessageSeen => match self.sort_order {
+                SortOrder::Ascending => row_data.sort_by(|a, b| a.last_seen.cmp(&b.last_seen)),
+                SortOrder::Descending => {
+                    row_data.sort_by(|a, b| a.last_seen.cmp(&b.last_seen).reverse());
                 }
             },
             ColumnName::Whitelisted => match self.sort_order {
@@ -568,6 +613,8 @@ impl MainWindow {
                     .column(Column::initial(100.0))
                     .column(Column::initial(100.0))
                     .column(Column::initial(100.0))
+                    .column(Column::initial(100.0))
+                    .column(Column::initial(100.0))
                     .drag_to_scroll(false)
                     .auto_shrink([false; 2])
                     .min_scrolled_height(0.0);
@@ -599,6 +646,12 @@ impl MainWindow {
                             self.create_header(ColumnName::AverageChar, ui);
                         });
                         header.col(|ui| {
+                            self.create_header(ColumnName::FirstMessageSeen, ui);
+                        });
+                        header.col(|ui| {
+                            self.create_header(ColumnName::LastMessageSeen, ui);
+                        });
+                        header.col(|ui| {
                             self.create_header(ColumnName::Whitelisted, ui);
                         });
                     })
@@ -623,6 +676,12 @@ impl MainWindow {
                             });
                             row.col(|ui| {
                                 self.create_table_row(ColumnName::AverageChar, row_data, ui);
+                            });
+                            row.col(|ui| {
+                                self.create_table_row(ColumnName::FirstMessageSeen, row_data, ui);
+                            });
+                            row.col(|ui| {
+                                self.create_table_row(ColumnName::LastMessageSeen, row_data, ui);
                             });
                             row.col(|ui| {
                                 self.create_table_row(ColumnName::Whitelisted, row_data, ui);
@@ -650,6 +709,8 @@ impl MainWindow {
             ColumnName::TotalChar => row_data.total_char.to_string(),
             ColumnName::AverageWord => row_data.average_word.to_string(),
             ColumnName::AverageChar => row_data.average_char.to_string(),
+            ColumnName::FirstMessageSeen => row_data.first_seen.to_string(),
+            ColumnName::LastMessageSeen => row_data.last_seen.to_string(),
             ColumnName::Whitelisted => {
                 let text = if row_data.whitelisted { "Yes" } else { "No" };
                 text.to_string()
@@ -789,6 +850,14 @@ impl MainWindow {
                 "Average Char".to_string(),
                 "Average number of characters per message. Click to sort by average characters"
                     .to_string(),
+            ),
+            ColumnName::FirstMessageSeen => (
+                "First Message Seen".to_string(),
+                "The day the first message that was sent by this user was observed".to_string(),
+            ),
+            ColumnName::LastMessageSeen => (
+                "Last Message Seen".to_string(),
+                "The day the last message that was sent by this user was observed".to_string(),
             ),
             ColumnName::Whitelisted => (
                 "Whitelisted".to_string(),
