@@ -9,6 +9,7 @@ use tokio::runtime::{self, Runtime};
 use crate::ui_components::processor::ChartTiming;
 use crate::ui_components::TGKeys;
 
+/// Finds all the saved session files
 pub fn find_session_files() -> Vec<String> {
     let mut sessions = Vec::new();
     if let Ok(entires) = fs::read_dir(".") {
@@ -24,6 +25,7 @@ pub fn find_session_files() -> Vec<String> {
     sessions
 }
 
+/// Tries to parse a link to get the chat name and the message ID
 pub fn parse_tg_chat(text: String) -> (Option<String>, Option<i32>) {
     if text.is_empty() {
         return (None, None);
@@ -60,6 +62,7 @@ pub fn parse_tg_chat(text: String) -> (Option<String>, Option<i32>) {
     (chat_name, message_number)
 }
 
+/// Returns the proper emoji based on light or dark value
 pub fn get_theme_emoji(is_light_theme: bool) -> (String, String) {
     if is_light_theme {
         ("🌙".to_string(), "Switch to dark theme".to_string())
@@ -68,6 +71,7 @@ pub fn get_theme_emoji(is_light_theme: bool) -> (String, String) {
     }
 }
 
+/// Convenient tokio runtime getter
 pub fn get_runtime() -> Runtime {
     runtime::Builder::new_current_thread()
         .enable_all()
@@ -75,6 +79,7 @@ pub fn get_runtime() -> Runtime {
         .unwrap()
 }
 
+/// Tries to read the API key json file
 pub fn get_api_keys() -> Option<TGKeys> {
     let mut to_return = None;
     let mut api_key_path = PathBuf::from(".");
@@ -89,7 +94,7 @@ pub fn get_api_keys() -> Option<TGKeys> {
 
         let result = serde_json::from_str::<TGKeys>(&contents);
         if let Ok(result) = result {
-            if !result.api_id.is_empty() || !result.api_hash.is_empty() {
+            if !result.api_id.is_empty() && !result.api_hash.is_empty() {
                 to_return = Some(result);
             }
         }
@@ -98,6 +103,7 @@ pub fn get_api_keys() -> Option<TGKeys> {
     to_return
 }
 
+/// Saves the API keys in a json file
 pub fn save_api_keys(api_keys: &TGKeys) {
     let data = serde_json::to_string(api_keys);
 
@@ -109,6 +115,7 @@ pub fn save_api_keys(api_keys: &TGKeys) {
     };
 }
 
+/// Reads the whitelisted user `PackedChat` Hex IDs and returns them
 pub fn get_whitelisted_users() -> Vec<String> {
     let mut to_return = Vec::new();
 
@@ -127,6 +134,7 @@ pub fn get_whitelisted_users() -> Vec<String> {
     to_return
 }
 
+/// Saves `PackedChat` Hex strings to a json file
 pub fn save_whitelisted_users(packed_chats: Vec<String>, overwrite: bool) {
     let mut existing_data: HashSet<String> = HashSet::new();
 
@@ -153,6 +161,7 @@ pub fn save_whitelisted_users(packed_chats: Vec<String>, overwrite: bool) {
     file.write_all(data.as_bytes()).unwrap();
 }
 
+/// Tries to find and read the Font files
 pub fn get_font_data() -> Option<(Vec<u8>, Vec<u8>)> {
     let mut gentium_font = PathBuf::from(".");
     let mut cjk_font = PathBuf::from(".");
@@ -184,6 +193,7 @@ pub fn get_font_data() -> Option<(Vec<u8>, Vec<u8>)> {
     Some((cjk_font_data, gentium_font_data))
 }
 
+/// Convenient function to format NaiveDateTime to string. Used for the Chart UI
 pub fn time_to_string(time: &NaiveDateTime, timing: &ChartTiming) -> String {
     match timing {
         ChartTiming::Hourly => time.to_string(),
@@ -191,6 +201,7 @@ pub fn time_to_string(time: &NaiveDateTime, timing: &ChartTiming) -> String {
     }
 }
 
+/// Convenient function to convert u8 to a Week name string. used for the Chart UI
 pub fn weekday_num_to_string(weekday: &u8) -> String {
     match weekday {
         0 => String::from("Monday"),
