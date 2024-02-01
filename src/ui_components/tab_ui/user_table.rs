@@ -1,6 +1,6 @@
 use chrono::NaiveDate;
 use eframe::egui::{
-    Align, Key, Layout, Response, RichText, ScrollArea, SelectableLabel, Sense, Ui,
+    Align, Event, Key, Layout, Response, RichText, ScrollArea, SelectableLabel, Sense, Ui,
 };
 use egui_extras::{Column, TableBuilder};
 use grammers_client::types::{Chat, Message};
@@ -589,11 +589,12 @@ impl MainWindow {
     pub fn show_user_table_ui(&mut self, ui: &mut Ui) {
         let is_ctrl_pressed = ui.ctx().input(|i| i.modifiers.ctrl);
         let key_a_pressed = ui.ctx().input(|i| i.key_pressed(Key::A));
-        let key_c_pressed = ui.ctx().input(|i| i.key_pressed(Key::C));
+        let copy_initiated = ui.ctx().input(|i| i.events.contains(&Event::Copy));
 
-        if is_ctrl_pressed && key_c_pressed {
+        if copy_initiated {
             self.copy_selected_cells(ui);
-        } else if is_ctrl_pressed && key_a_pressed {
+        }
+        if is_ctrl_pressed && key_a_pressed {
             self.user_table.select_all();
         }
 
