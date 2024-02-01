@@ -136,6 +136,8 @@ pub enum ColumnName {
     TotalChar,
     AverageWord,
     AverageChar,
+    FirstMessageSeen,
+    LastMessageSeen,
     Whitelisted,
 }
 
@@ -149,7 +151,9 @@ impl ColumnName {
             ColumnName::TotalWord => ColumnName::TotalChar,
             ColumnName::TotalChar => ColumnName::AverageWord,
             ColumnName::AverageWord => ColumnName::AverageChar,
-            ColumnName::AverageChar => ColumnName::Whitelisted,
+            ColumnName::AverageChar => ColumnName::FirstMessageSeen,
+            ColumnName::FirstMessageSeen => ColumnName::LastMessageSeen,
+            ColumnName::LastMessageSeen => ColumnName::Whitelisted,
             ColumnName::Whitelisted => ColumnName::Name,
         }
     }

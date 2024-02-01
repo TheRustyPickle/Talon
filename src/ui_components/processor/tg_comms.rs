@@ -67,8 +67,14 @@ impl MainWindow {
                     let last_number = count_data.last_number();
                     let multi_session = count_data.multi_session();
 
+                    let message_sent_at = message.date().naive_utc();
+                    let local_time_date = Local.from_utc_datetime(&message_sent_at).date_naive();
+                    let local_time_datetime =
+                        Local.from_utc_datetime(&message_sent_at).naive_local();
+
                     let sender = message.sender();
-                    let (user_id, full_name, user_name) = self.user_table.add_user(sender);
+                    let (user_id, full_name, user_name) =
+                        self.user_table.add_user(sender, local_time_date);
 
                     if user_id != 0 && self.whitelist_data.is_user_whitelisted(&user_id) {
                         self.user_table.set_as_whitelisted(&user_id);
@@ -85,7 +91,8 @@ impl MainWindow {
                     };
 
                     self.charts_data.add_user(chart_user.clone(), user_id);
-                    self.user_table.count_user_message(user_id, message);
+                    self.user_table
+                        .count_user_message(user_id, message, local_time_date);
 
                     let total_user = self.user_table.get_total_user();
                     self.counter_data.set_total_user(total_user);
@@ -126,10 +133,11 @@ impl MainWindow {
                             .set_bar_percentage(processed_percentage / 100.0);
                     }
 
-                    let message_sent_at = message.date().naive_utc();
-                    let local_time = Local.from_utc_datetime(&message_sent_at).naive_local();
-                    self.charts_data
-                        .add_message(local_time, chart_user, count_data.name());
+                    self.charts_data.add_message(
+                        local_time_datetime,
+                        chart_user,
+                        count_data.name(),
+                    );
                 }
                 ProcessResult::ProcessFailed(err) => {
                     self.stop_process();

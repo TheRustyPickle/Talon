@@ -131,7 +131,7 @@ impl App for MainWindow {
                             ctx.send_viewport_cmd(ViewportCommand::InnerSize(vec2(550.0, 350.0)));
                         }
                         if user_table_tab.clicked() {
-                            ctx.send_viewport_cmd(ViewportCommand::InnerSize(vec2(1010.0, 700.0)));
+                            ctx.send_viewport_cmd(ViewportCommand::InnerSize(vec2(1250.0, 700.0)));
                         }
                         if session_tab.clicked() {
                             ctx.send_viewport_cmd(ViewportCommand::InnerSize(vec2(500.0, 320.0)));
