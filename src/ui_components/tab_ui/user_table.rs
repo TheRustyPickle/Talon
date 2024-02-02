@@ -219,7 +219,7 @@ impl UserTableData {
         }
 
         if user_row_data.last_seen < date {
-            user_row_data.set_last_seen(date)
+            user_row_data.set_last_seen(date);
         }
 
         let total_char = message_text.len() as u32;

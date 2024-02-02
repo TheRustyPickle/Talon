@@ -4,13 +4,17 @@ use egui::{
     Spinner, ViewportCommand, Visuals,
 };
 use egui_extras::{Size, StripBuilder};
+use egui_modal::Modal;
 use log::info;
 use std::collections::BTreeMap;
 use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::{Arc, Mutex};
 use std::thread;
 
 use crate::tg_handler::{start_process, NewProcess, ProcessResult, ProcessStart, TGClient};
-use crate::ui_components::processor::{download_font, AppState, ProcessState, TabState};
+use crate::ui_components::processor::{
+    check_version, download_font, AppState, ProcessState, TabState,
+};
 use crate::ui_components::tab_ui::{
     ChartsData, CounterData, SessionData, UserTableData, WhitelistData,
 };
@@ -34,6 +38,7 @@ pub struct MainWindow {
     existing_sessions_checked: bool,
     is_light_theme: bool,
     pub is_processing: bool,
+    new_version_body: Arc<Mutex<Option<String>>>,
 }
 
 impl Default for MainWindow {
@@ -56,6 +61,7 @@ impl Default for MainWindow {
             existing_sessions_checked: false,
             is_light_theme: true,
             is_processing: false,
+            new_version_body: Arc::new(Mutex::new(None)),
         }
     }
 }
@@ -189,6 +195,10 @@ impl App for MainWindow {
                                 );
                             });
                         }
+                        let version_body = self.new_version_body.clone();
+                        thread::spawn(|| {
+                            check_version(version_body);
+                        });
                     } else {
                         // At each UI loop, check on the receiver channel to check if there is anything
                         // Check 10 message in a sequence in a single frame load
@@ -198,6 +208,31 @@ impl App for MainWindow {
                                 break;
                             }
                         }
+                    }
+
+                    if self.new_version_body.lock().unwrap().is_some() {
+                        let modal = Modal::new(ctx, "version_modal");
+
+                        modal.show(|ui| {
+                            modal.title(ui, "New Version Available");
+                            modal.frame(ui, |ui| {
+                                let modal_text =
+                                    self.new_version_body.lock().unwrap().clone().unwrap();
+                                modal.body(ui, modal_text);
+                            });
+                            modal.buttons(ui, |ui| {
+                                if modal.button(ui, "Close").clicked() {
+                                    *self.new_version_body.lock().unwrap() = None;
+                                };
+                                if modal.button(ui, "Update").clicked() {
+                                    *self.new_version_body.lock().unwrap() = None;
+                                    let _ = open::that(
+                                        "https://github.com/TheRustyPickle/Talon/releases/latest",
+                                    );
+                                };
+                            });
+                        });
+                        modal.open();
                     }
                 }
             }

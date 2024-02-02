@@ -12,8 +12,11 @@ impl MainWindow {
         if let Ok(data) = self.tg_receiver.try_recv() {
             match data {
                 ProcessResult::InitialSessionSuccess((clients, success, failed)) => {
-                    let mut status_text =
-                        format!("Successfully connected to: {}.", success.join(", "));
+                    let mut status_text = if success.is_empty() {
+                        String::new()
+                    } else {
+                        format!("Successfully connected to: {}.", success.join(", "))
+                    };
 
                     if !failed.is_empty() {
                         status_text
