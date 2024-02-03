@@ -201,9 +201,9 @@ impl App for MainWindow {
                         });
                     } else {
                         // At each UI loop, check on the receiver channel to check if there is anything
-                        // Check 10 message in a sequence in a single frame load
-                        // In case of multi session while loop can completely block the gui loading
-                        for _ in 0..10 {
+                        // limit total number of messages to check on the receiver to prevent frame freeze
+                        // 20 seems like the magic number where minimal flood wait in the UI is triggered at least for my case
+                        for _ in 0..20 {
                             if !self.check_receiver() {
                                 break;
                             }

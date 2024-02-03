@@ -46,6 +46,7 @@ pub enum ProcessState {
     LoadedWhitelistedUsers(usize),
     AddedToWhitelist,
     LatestMessageLoadingFailed,
+    DataExported(String),
 }
 
 impl ProcessState {
@@ -114,6 +115,7 @@ impl Display for ProcessState {
             ProcessState::LoadedWhitelistedUsers(num) => write!(f, "Status: Loaded {num} whitelisted users"),
             ProcessState::AddedToWhitelist => write!(f, "Status: User added to whitelist"),
             ProcessState::LatestMessageLoadingFailed => write!(f, "Status: Failed to get the latest message"),
+            ProcessState::DataExported(location) => write!(f, "Status: Chart data exported to {location}")
         }
     }
 }
@@ -168,6 +170,17 @@ pub enum ChartType {
     ActiveUserWeekDay,
 }
 
+impl Display for ChartType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ChartType::Message => write!(f, "Message"),
+            ChartType::ActiveUser => write!(f, "Active User"),
+            ChartType::MessageWeekDay => write!(f, "Message Weekday"),
+            ChartType::ActiveUserWeekDay => write!(f, "Active User Weekday"),
+        }
+    }
+}
+
 #[derive(Default, PartialEq)]
 pub enum ChartTiming {
     #[default]
@@ -175,4 +188,15 @@ pub enum ChartTiming {
     Daily,
     Weekly,
     Monthly,
+}
+
+impl Display for ChartTiming {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ChartTiming::Daily => write!(f, "Daily"),
+            ChartTiming::Hourly => write!(f, "Hourly"),
+            ChartTiming::Weekly => write!(f, "Weekly"),
+            ChartTiming::Monthly => write!(f, "Monthly"),
+        }
+    }
 }

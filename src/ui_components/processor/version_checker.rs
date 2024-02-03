@@ -15,10 +15,10 @@ struct GithubRelease {
 
 pub fn check_version(version_body: Arc<Mutex<Option<String>>>) {
     let current_version = Version::parse(env!("CARGO_PKG_VERSION")).unwrap();
-    static APP_USER_AGENT: &str = "Talon";
+    let user_agent = "Talon";
 
     let client = reqwest::blocking::Client::builder()
-        .user_agent(APP_USER_AGENT)
+        .user_agent(user_agent)
         .timeout(Duration::from_secs(2))
         .build();
 
