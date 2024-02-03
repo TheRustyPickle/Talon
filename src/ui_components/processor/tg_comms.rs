@@ -89,7 +89,7 @@ impl MainWindow {
                         } else if full_name == "Deleted Account" {
                             user_id.to_string()
                         } else {
-                            full_name
+                            format!("{full_name} {user_id}")
                         }
                     };
 
