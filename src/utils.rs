@@ -214,3 +214,10 @@ pub fn weekday_num_to_string(weekday: &u8) -> String {
         _ => unreachable!(),
     }
 }
+
+pub fn create_export_file(export_data: String, file_name: String) {
+    let mut export_file_location = PathBuf::from(".");
+    export_file_location.push(file_name);
+    let mut file = File::create(export_file_location).unwrap();
+    file.write_all(export_data.as_bytes()).unwrap();
+}

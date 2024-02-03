@@ -3,10 +3,11 @@ use eframe::egui::{Align, Button, Grid, Layout, RichText, Ui};
 use egui_dropdown::DropDownBox;
 use egui_plot::{Bar, BarChart, Legend, Plot};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::env::current_dir;
 
-use crate::ui_components::processor::{ChartTiming, ChartType};
+use crate::ui_components::processor::{ChartTiming, ChartType, ProcessState};
 use crate::ui_components::MainWindow;
-use crate::utils::{time_to_string, weekday_num_to_string};
+use crate::utils::{create_export_file, time_to_string, weekday_num_to_string};
 
 #[derive(Default)]
 pub struct ChartsData {
@@ -49,7 +50,7 @@ impl ChartsData {
         self.user_ids.insert(user, user_id);
     }
 
-    /// Takes a message creation time to create necessary data to form a chart
+    /// Takes a message creation time and the unique user to create necessary data to form a chart
     pub fn add_message(&mut self, time: NaiveDateTime, add_to: String, client_name: String) {
         // keep a common value among messages for example messages sent within the same hour,
         // reset the second and minute value to 0 so these messages can be grouped
@@ -205,6 +206,88 @@ impl ChartsData {
         self.dropdown_user = "Show whitelisted data".to_string();
         self.add_to_chart();
     }
+
+    /// Used to export chart data points to a text file
+    fn export_chart_data(&self) {
+        let timing_data = match self.chart_type {
+            ChartType::Message | ChartType::ActiveUser => match self.chart_timing {
+                ChartTiming::Hourly => Some(&self.hourly_message),
+                ChartTiming::Daily => Some(&self.daily_message),
+                ChartTiming::Weekly => Some(&self.weekly_message),
+                ChartTiming::Monthly => Some(&self.monthly_message),
+            },
+            _ => None,
+        };
+
+        let weekday_data = if timing_data.is_none() {
+            Some(&self.weekday_message)
+        } else {
+            None
+        };
+
+        let export_file_name = if timing_data.is_some() {
+            format!("export_{}_{}.txt", self.chart_type, self.chart_timing)
+        } else {
+            format!("export_{}_txt", self.chart_type)
+        };
+
+        let mut export_data = String::new();
+
+        if timing_data.is_some() {
+            // Date of chart points + {username or Full Name or user ID : total message sent}
+            let data = timing_data.unwrap();
+
+            for (timing, message_data) in data {
+                export_data += &format!("Timing: {timing}\n");
+                let (user_data, total_message, total_user) = self.chart_data_to_text(message_data);
+                export_data += &format!("Total Message: {total_message}\n");
+                export_data += &format!("Total User: {total_user}\n");
+                export_data += &format!("User Data and Message Sent:\n{user_data}");
+                export_data += "\n\n";
+            }
+        } else {
+            // Day of the week in u8 + {username or Full Name or user ID : total message sent}
+            let data = weekday_data.unwrap();
+
+            for (timing, message_data) in data {
+                let weekday_name = weekday_num_to_string(timing);
+
+                export_data += &format!("Weekday: {weekday_name}\n");
+                let (user_data, total_message, total_user) = self.chart_data_to_text(message_data);
+                export_data += &format!("Total Message: {total_message}\n");
+                export_data += &format!("Total User: {total_user}\n");
+                export_data += &format!("User Data and Message Sent:\n{user_data}");
+                export_data += "\n\n";
+            }
+        }
+
+        create_export_file(export_data, export_file_name);
+    }
+
+    /// Converts chart data points into textual representation
+    fn chart_data_to_text(&self, message_data: &HashMap<String, u64>) -> (String, u64, u64) {
+        let total_length = message_data.len();
+        let mut user_added = 0;
+        let mut total_message = 0;
+        let mut total_user = 0;
+        let mut user_data = String::new();
+        let mut index = 0;
+
+        for (user_id, message_num) in message_data {
+            total_message += message_num;
+            total_user += 1;
+            user_added += 1;
+            index += 1;
+
+            user_data += &format!("{user_id}: {message_num} ");
+            // Prevent adding extra space if is the last value
+            if user_added == 6 && index != total_length - 1 {
+                user_added = 0;
+                user_data += "\n";
+            }
+        }
+        (user_data, total_message, total_user)
+    }
 }
 
 impl MainWindow {
@@ -213,25 +296,25 @@ impl MainWindow {
             ui.selectable_value(
                 &mut self.charts_data.chart_type,
                 ChartType::Message,
-                "Message",
+                ChartType::Message.to_string(),
             ).on_hover_text("Chart displaying the total count of messages in the selected time frame (e.g., hourly, daily, weekly).");
             ui.separator();
             ui.selectable_value(
                 &mut self.charts_data.chart_type,
                 ChartType::ActiveUser,
-                "Active User",
+                ChartType::ActiveUser.to_string(),
             ).on_hover_text("Chart showing the total count of active users in the selected time frame (e.g., hourly, daily, weekly).");
             ui.separator();
             ui.selectable_value(
                 &mut self.charts_data.chart_type,
                 ChartType::MessageWeekDay,
-                "Message Weekday",
+                ChartType::MessageWeekDay.to_string(),
             ).on_hover_text("Chart showing the total count of messages each day of the week.");
             ui.separator();
             ui.selectable_value(
                 &mut self.charts_data.chart_type,
                 ChartType::ActiveUserWeekDay,
-                "Active User Weekday",
+                ChartType::ActiveUserWeekDay.to_string(),
             ).on_hover_text("Chart displaying the total count of active users for each day of the week.");
         });
         if self.charts_data.chart_type != ChartType::MessageWeekDay
@@ -242,19 +325,19 @@ impl MainWindow {
                 ui.selectable_value(
                     &mut self.charts_data.chart_timing,
                     ChartTiming::Hourly,
-                    "Hourly",
+                    ChartTiming::Hourly.to_string(),
                 );
                 ui.separator();
                 ui.selectable_value(
                     &mut self.charts_data.chart_timing,
                     ChartTiming::Daily,
-                    "Daily",
+                    ChartTiming::Daily.to_string(),
                 );
                 ui.separator();
                 ui.selectable_value(
                     &mut self.charts_data.chart_timing,
                     ChartTiming::Weekly,
-                    "Weekly",
+                    ChartTiming::Weekly.to_string(),
                 );
                 ui.separator();
                 ui.selectable_value(
@@ -367,7 +450,25 @@ impl MainWindow {
             });
             ui.separator();
         }
-        ui.label("Use CTRL + scroll to zoom, drag or scroll to move and double click to fit/reset the chart");
+
+        ui.horizontal(|ui| {
+            let button_text = if [ChartType::ActiveUserWeekDay, ChartType::MessageWeekDay].contains(&self.charts_data.chart_type) {
+                format!("Export {} Chart Data", self.charts_data.chart_type)
+            } else {
+                format!(
+                    "Export {} {} Chart Data",
+                    self.charts_data.chart_type, self.charts_data.chart_timing
+                )
+            };
+
+            if ui.add_enabled(!self.is_processing, Button::new(button_text)).on_hover_text("Export Chart data in text file").clicked()
+            {
+                self.charts_data.export_chart_data();
+                self.process_state = ProcessState::DataExported(current_dir().unwrap().to_string_lossy().into());
+            };
+            ui.add_space(2.0);
+            ui.label("Use CTRL + scroll to zoom, drag or scroll to move and double click to fit/reset the chart");
+        });
 
         match self.charts_data.chart_type {
             ChartType::Message => self.display_message_chart(ui),
