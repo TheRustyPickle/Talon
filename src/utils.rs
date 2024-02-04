@@ -33,32 +33,58 @@ pub fn parse_tg_chat(text: String) -> (Option<String>, Option<i32>) {
     let mut chat_name = None;
     let mut message_number = None;
 
+    // Example t.me/chat_name/1234
     if text.contains("t.me") {
+        // splitted expected result t.me and chat_name/1234
         let splitted_text = text.split_once("t.me/");
         if let Some((_first, second)) = splitted_text {
             // It will be either chat_name/number or chat_name
+            // if chat_name/number split it again and get the number
+            // otherwise set whatever value is remaining as the parsed chat name
             if second.contains('/') {
-                let group_data = second.split('/').collect::<Vec<&str>>();
-                chat_name = Some(group_data[0].to_string());
-                if let Ok(num) = group_data[1].parse() {
-                    message_number = Some(num);
-                }
+                (chat_name, message_number) = split_tg_link(second);
             } else {
                 chat_name = Some(second.to_string());
             }
         }
     } else if text.starts_with('@') {
+        // Example @chat_name/1234
         let splitted_text = text.split_once('@');
+        // // splitted expected result @ and chat_name/1234
         if let Some((_first, second)) = splitted_text {
-            chat_name = Some(second.to_string());
+            if second.contains('/') {
+                (chat_name, message_number) = split_tg_link(second);
+            } else {
+                chat_name = Some(second.to_string());
+            }
         }
     } else {
-        chat_name = Some(text);
+        // Example chat_name. If invalid, it will still be caught here, later will get verified by the telegram side
+        if text.contains('/') {
+            (chat_name, message_number) = split_tg_link(&text);
+        } else {
+            chat_name = Some(text);
+        };
     }
     info!(
         "Parsed group name: {:?} message number: {:?}",
         chat_name, message_number
     );
+    (chat_name, message_number)
+}
+
+/// Splits a string on slash and tries to get the tg chat name and message number
+fn split_tg_link(text: &str) -> (Option<String>, Option<i32>) {
+    let mut chat_name = None;
+    let mut message_number = None;
+
+    if let Some((name, num)) = text.split_once('/') {
+        chat_name = Some(name.to_string());
+        if let Ok(num) = num.parse() {
+            message_number = Some(num);
+        }
+    };
+
     (chat_name, message_number)
 }
 
