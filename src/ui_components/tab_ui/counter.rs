@@ -219,7 +219,7 @@ Login to one or more accounts multiple times with different session names!",
             ui.separator();
 
             ui.label("Limit:");
-                
+
             ComboBox::from_id_source("Limit Box")
                 .width(60.0)
                 .show_index(
@@ -274,10 +274,11 @@ Otherwise the time required to count should be near same even with 20.",
 
 Multiple input format is supported:
 
+(message number optional)
 1. https://t.me/chat_name/1234
 2. t.me/chat_name/1234
-3. @chat_name
-4. chat_name
+3. @chat_name/1234
+4. chat_name/1234
 
 If message number is not specified, starts from the latest message.
 Starting message number will always be bigger than the ending message.
@@ -320,10 +321,11 @@ To count all messages in a chat, paste the latest message link.",
 
 Multiple input format is supported:
 
+(message number optional)
 1. https://t.me/chat_name/1234
 2. t.me/chat_name/1234
-3. @chat_name
-4. chat_name
+3. @chat_name/1234
+4. chat_name/1234
 
 If message number is not specified or is empty, counts all messages.
 Ending message number will always be smaller than the starting message.
