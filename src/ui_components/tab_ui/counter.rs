@@ -9,6 +9,8 @@ use crate::ui_components::processor::ProcessState;
 use crate::ui_components::MainWindow;
 use crate::utils::parse_tg_chat;
 
+const LIMIT_SELECTION: [&str; 6] = ["20", "30", "40", "50", "80", "100"];
+
 #[derive(Default, Clone)]
 pub struct CounterData {
     session_index: usize,
@@ -24,6 +26,7 @@ pub struct CounterData {
     counting: bool,
     session_count: usize,
     session_percentage: HashMap<String, f32>,
+    comm_limit: usize,
 }
 
 impl CounterData {
@@ -97,6 +100,10 @@ impl CounterData {
         if to_add > 0 {
             self.deleted_message += to_add;
         }
+    }
+
+    pub fn get_comm_limit(&self) -> usize {
+        LIMIT_SELECTION[self.comm_limit].parse().unwrap()
     }
 }
 
@@ -207,6 +214,29 @@ Automatically divides the tasks among sessions, dramatically increasing speed.
 
 How to get more sessions?
 Login to one or more accounts multiple times with different session names!",
+                );
+
+            ui.separator();
+
+            ui.label("Limit:");
+                
+            ComboBox::from_id_source("Limit Box")
+                .width(60.0)
+                .show_index(
+                    ui,
+                    &mut self.counter_data.comm_limit,
+                    LIMIT_SELECTION.len(),
+                    |i| LIMIT_SELECTION[i],
+                )
+                .on_hover_text(
+                    "When counting how many messages to count in each frame load? Default: 20
+
+Longer time can increase the counting speed but flood wait will also be more
+visible in the UI.
+
+Tips: Each session can count about 3000 messages before flood wait is triggered.
+For checking less than (total session x 3000) messages, increasing it can be beneficial.
+Otherwise the time required to count should be near same even with 20.",
                 );
         });
         ui.end_row();
