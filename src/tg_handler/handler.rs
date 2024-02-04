@@ -89,7 +89,7 @@ impl TGClient {
         self.context.clone()
     }
 
-    /// Verifies if the current client is authorizes for usage
+    /// Verifies if the current client is authorized for usage
     pub async fn check_authorization(&self) -> Result<bool, ProcessError> {
         let authorized: bool = self
             .client()
