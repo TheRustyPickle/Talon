@@ -270,30 +270,30 @@ then right click on User Table to whitelist",
             ColumnName::UserID => row_data.id.to_string(),
             _ => unreachable!(),
         };
-        if ui
-            .add_sized(
-                ui.available_size(),
-                SelectableLabel::new(row_data.is_selected, row_text),
-            )
-            .context_menu(|ui| {
-                if ui.button("Delete Selected").clicked() {
-                    let deleted = self.whitelist_data.remove_selected();
 
-                    for i in deleted {
-                        self.user_table.remove_whitelist(&i);
-                    }
-                    ui.close_menu();
+        let row = ui.add_sized(
+            ui.available_size(),
+            SelectableLabel::new(row_data.is_selected, row_text),
+        );
+        row.context_menu(|ui| {
+            if ui.button("Delete Selected").clicked() {
+                let deleted = self.whitelist_data.remove_selected();
+
+                for i in deleted {
+                    self.user_table.remove_whitelist(&i);
                 }
-            })
-            .clicked()
-        {
+                ui.close_menu();
+            }
+        });
+
+        if row.clicked() {
             if !ui.ctx().input(|i| i.modifiers.ctrl) {
                 self.whitelist_data.unselected_all();
             }
             let target_row = self.whitelist_data.rows.get_mut(&row_data.id).unwrap();
             target_row.is_selected = true;
             self.whitelist_data.active_rows.insert(row_data.id);
-        }
+        };
     }
 
     pub fn load_whitelisted_users(&mut self) {

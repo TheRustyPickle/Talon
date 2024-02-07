@@ -721,28 +721,27 @@ impl MainWindow {
         let is_selected = row_data.selected_columns.contains(&column_name);
         let is_whitelisted = row_data.whitelisted;
 
-        // On normal click both drag and click are returned for handling
-        // A single click can return 2-3 result, 1 click and the rest are drag
         let mut label = ui
             .add_sized(
                 ui.available_size(),
                 RowLabel::new(is_selected, is_whitelisted, &row_text),
             )
-            .interact(Sense::drag())
-            .context_menu(|ui| {
-                if ui.button("Copy selected rows").clicked() {
-                    self.copy_selected_cells(ui);
-                    ui.close_menu();
-                };
-                if ui.button("whitelist selected rows").clicked() {
-                    self.whitelist_selected_rows();
-                    ui.close_menu();
-                };
-            });
+            .interact(Sense::drag());
 
         if show_tooltip {
             label = label.on_hover_text(row_text);
         }
+
+        label.context_menu(|ui| {
+            if ui.button("Copy selected rows").clicked() {
+                self.copy_selected_cells(ui);
+                ui.close_menu();
+            };
+            if ui.button("whitelist selected rows").clicked() {
+                self.whitelist_selected_rows();
+                ui.close_menu();
+            };
+        });
 
         if label.drag_started() {
             // If CTRL is not pressed down and the mouse right click is not pressed, unselect all cells
