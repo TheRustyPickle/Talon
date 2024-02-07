@@ -6,7 +6,7 @@ use egui_extras::{Column, TableBuilder};
 use grammers_client::types::{Chat, Message};
 use std::collections::{HashMap, HashSet};
 
-use crate::ui_components::processor::{ColumnName, ProcessState, SortOrder};
+use crate::ui_components::processor::{ColumnName, PackedWhitelistedUser, ProcessState, SortOrder};
 use crate::ui_components::widgets::RowLabel;
 use crate::ui_components::MainWindow;
 use crate::utils::save_whitelisted_users;
@@ -26,6 +26,7 @@ struct UserRowData {
     whitelisted: bool,
     selected_columns: HashSet<ColumnName>,
     belongs_to: Option<Chat>,
+    seen_by: String,
 }
 
 impl UserRowData {
@@ -36,6 +37,7 @@ impl UserRowData {
         whitelisted: bool,
         belongs_to: Option<Chat>,
         date: NaiveDate,
+        seen_by: String,
     ) -> Self {
         let username = username.to_string();
 
@@ -53,6 +55,7 @@ impl UserRowData {
             whitelisted,
             selected_columns: HashSet::new(),
             belongs_to,
+            seen_by,
         }
     }
 
@@ -140,7 +143,12 @@ impl UserTableData {
     }
 
     /// Add a user to the table
-    pub fn add_user(&mut self, sender: Option<Chat>, date: NaiveDate) -> (i64, String, String) {
+    pub fn add_user(
+        &mut self,
+        sender: Option<Chat>,
+        date: NaiveDate,
+        seen_by: String,
+    ) -> (i64, String, String) {
         let mut user_id = 0;
         let full_name;
         let user_name;
@@ -170,6 +178,7 @@ impl UserTableData {
                         false,
                         Some(chat_data),
                         date,
+                        seen_by,
                     )
                 });
             } else {
@@ -193,6 +202,7 @@ impl UserTableData {
                         false,
                         Some(chat_data.clone()),
                         date,
+                        seen_by,
                     )
                 });
             }
@@ -202,7 +212,7 @@ impl UserTableData {
             user_name = "Empty".to_string();
 
             self.rows.entry(0).or_insert_with(|| {
-                UserRowData::new(&full_name, &user_name, user_id, false, None, date)
+                UserRowData::new(&full_name, &user_name, user_id, false, None, date, seen_by)
             });
         }
 
@@ -956,14 +966,17 @@ impl MainWindow {
         let mut packed_chats = Vec::new();
 
         for row in selected_rows {
+            let cloned_row = row.clone();
             self.user_table.set_as_whitelisted(&row.id);
             self.whitelist_data.add_to_whitelist(
                 row.name,
                 row.username,
                 row.id,
                 row.belongs_to.clone().unwrap(),
+                row.seen_by,
             );
-            packed_chats.push(row.belongs_to.unwrap().pack().to_hex());
+            let hex_value = cloned_row.belongs_to.unwrap().pack().to_hex();
+            packed_chats.push(PackedWhitelistedUser::new(hex_value, cloned_row.seen_by));
         }
 
         save_whitelisted_users(packed_chats, false);

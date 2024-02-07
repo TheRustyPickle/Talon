@@ -8,9 +8,9 @@ use std::collections::{HashMap, HashSet};
 use std::thread;
 
 use crate::tg_handler::ProcessStart;
-use crate::ui_components::processor::{ColumnName, ProcessState};
+use crate::ui_components::processor::{ColumnName, PackedWhitelistedUser, ProcessState};
 use crate::ui_components::MainWindow;
-use crate::utils::{get_whitelisted_users, save_whitelisted_users};
+use crate::utils::save_whitelisted_users;
 
 #[derive(Clone)]
 struct WhiteListRowData {
@@ -19,16 +19,18 @@ struct WhiteListRowData {
     id: i64,
     is_selected: bool,
     belongs_to: Chat,
+    seen_by: String,
 }
 
 impl WhiteListRowData {
-    fn new(name: String, username: String, id: i64, belongs_to: Chat) -> Self {
+    fn new(name: String, username: String, id: i64, belongs_to: Chat, seen_by: String) -> Self {
         WhiteListRowData {
             name,
             username,
             id,
             is_selected: false,
             belongs_to,
+            seen_by,
         }
     }
 }
@@ -65,15 +67,22 @@ impl WhitelistData {
     }
 
     /// Add a new row to the UI
-    pub fn add_to_whitelist(&mut self, name: String, username: String, id: i64, belongs_to: Chat) {
+    pub fn add_to_whitelist(
+        &mut self,
+        name: String,
+        username: String,
+        id: i64,
+        belongs_to: Chat,
+        seen_by: String,
+    ) {
         let name = if name.is_empty() {
             String::from("Deleted Account")
         } else {
             name
         };
 
-        info!("Adding {} to whitelist", name);
-        let to_add = WhiteListRowData::new(name, username, id, belongs_to);
+        info!("Adding {name} to whitelist, seen by {seen_by}");
+        let to_add = WhiteListRowData::new(name, username, id, belongs_to, seen_by);
         self.rows.insert(id, to_add);
     }
 
@@ -87,7 +96,11 @@ impl WhitelistData {
         let mut packed_chats = Vec::new();
 
         for row in self.rows.values() {
-            packed_chats.push(row.belongs_to.pack().to_hex());
+            let hex_value = row.belongs_to.pack().to_hex();
+            packed_chats.push(PackedWhitelistedUser::new(
+                hex_value,
+                row.seen_by.to_string(),
+            ));
         }
 
         save_whitelisted_users(packed_chats, true);
@@ -297,13 +310,6 @@ then right click on User Table to whitelist",
     }
 
     pub fn load_whitelisted_users(&mut self) {
-        let whitelisted = get_whitelisted_users();
-
-        if whitelisted.is_empty() {
-            self.is_processing = false;
-            return;
-        }
-
         let selected_session = self.get_selected_session();
 
         if selected_session.is_empty() {
@@ -312,8 +318,9 @@ then right click on User Table to whitelist",
         }
 
         let client = self.tg_clients.get(&selected_session).unwrap().clone();
+        let all_clients = self.tg_clients.clone();
         thread::spawn(move || {
-            client.start_process(ProcessStart::LoadWhitelistedUsers);
+            client.start_process(ProcessStart::LoadWhitelistedUsers(all_clients));
         });
     }
 

@@ -7,6 +7,7 @@ use std::path::PathBuf;
 use tokio::runtime::{self, Runtime};
 
 use crate::ui_components::processor::ChartTiming;
+use crate::ui_components::processor::PackedWhitelistedUser;
 use crate::ui_components::TGKeys;
 
 /// Finds all the saved session files
@@ -142,8 +143,8 @@ pub fn save_api_keys(api_keys: &TGKeys) {
 }
 
 /// Reads the whitelisted user `PackedChat` Hex IDs and returns them
-pub fn get_whitelisted_users() -> Vec<String> {
-    let mut to_return = Vec::new();
+pub fn get_whitelisted_users() -> Option<Vec<PackedWhitelistedUser>> {
+    let mut to_return: Option<Vec<PackedWhitelistedUser>> = None;
 
     let mut whitelist_path = PathBuf::from(".");
     whitelist_path.push("whitelist.json");
@@ -154,15 +155,18 @@ pub fn get_whitelisted_users() -> Vec<String> {
         let mut contents = String::new();
         file.read_to_string(&mut contents)
             .expect("Failed to read file");
-        to_return = serde_json::from_str(&contents).unwrap();
+        if let Ok(users) = serde_json::from_str(&contents) {
+            to_return = Some(users)
+        }
     }
 
     to_return
 }
 
 /// Saves `PackedChat` Hex strings to a json file
-pub fn save_whitelisted_users(packed_chats: Vec<String>, overwrite: bool) {
-    let mut existing_data: HashSet<String> = HashSet::new();
+pub fn save_whitelisted_users(packed_chats: Vec<PackedWhitelistedUser>, overwrite: bool) {
+    // HashSet to avoid duplicate whitelisted users
+    let mut existing_data: HashSet<PackedWhitelistedUser> = HashSet::new();
 
     let mut whitelist_path = PathBuf::from(".");
     whitelist_path.push("whitelist.json");
