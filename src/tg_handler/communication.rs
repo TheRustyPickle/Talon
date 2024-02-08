@@ -1,6 +1,5 @@
 use grammers_client::types::iter_buffer::InvocationError;
 use grammers_client::types::{LoginToken, PasswordToken};
-use std::collections::BTreeMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -41,7 +40,7 @@ pub enum ProcessStart {
     SignInCode(Arc<Mutex<LoginToken>>, String),
     SignInPasswords(Arc<Mutex<PasswordToken>>, String),
     SessionLogout,
-    LoadWhitelistedUsers(BTreeMap<String, TGClient>),
+    LoadWhitelistedUsers(Vec<String>),
     NewWhitelistUser(String),
     CheckChatExistence(String, Option<i32>, Option<i32>),
 }

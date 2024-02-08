@@ -207,11 +207,6 @@ impl MainWindow {
                     self.process_state = ProcessState::FloodWait;
                 }
                 ProcessResult::UnpackedChats(chats, failed_chats) => {
-                    let total_chat = chats.len();
-                    info!("Unpacked {total_chat} for whitelist. Failed to unpack {failed_chats}");
-
-                    let is_invalid_json = failed_chats == -1;
-
                     for chat in chats {
                         let username = if let Some(name) = chat.user_chat.username() {
                             name.to_string()
@@ -227,12 +222,13 @@ impl MainWindow {
                         );
                     }
                     self.is_processing = false;
-                    if is_invalid_json {
-                        self.process_state = ProcessState::FailedLoadWhitelistedUsers;
-                    } else if total_chat > 0 {
-                        self.process_state =
-                            ProcessState::LoadedWhitelistedUsers(total_chat, failed_chats);
-                    }
+
+                    self.whitelist_data.increase_failed_by(failed_chats);
+                    let total_chat = self.whitelist_data.row_len();
+                    let failed_chat_num = self.whitelist_data.failed_whitelist_num();
+
+                    self.process_state =
+                        ProcessState::LoadedWhitelistedUsers(total_chat, failed_chat_num);
                 }
                 ProcessResult::WhiteListUser(chat) => {
                     self.stop_process();

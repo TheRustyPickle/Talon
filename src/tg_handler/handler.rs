@@ -50,8 +50,8 @@ impl TGClient {
                 runtime.block_on(self.sign_in_password(token, password))
             }
             ProcessStart::SessionLogout => runtime.block_on(self.logout()),
-            ProcessStart::LoadWhitelistedUsers(tg_clients) => {
-                runtime.block_on(self.load_whitelisted_users(tg_clients))
+            ProcessStart::LoadWhitelistedUsers(hex_data) => {
+                runtime.block_on(self.load_whitelisted_users(hex_data))
             }
             ProcessStart::NewWhitelistUser(name) => runtime.block_on(self.new_whitelist(name)),
             ProcessStart::CheckChatExistence(name, start, end) => {
