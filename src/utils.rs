@@ -1,6 +1,6 @@
 use chrono::NaiveDateTime;
 use log::info;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fs::{self, File};
 use std::io::{Read, Write};
 use std::path::PathBuf;
@@ -156,7 +156,7 @@ pub fn get_whitelisted_users() -> Option<Vec<PackedWhitelistedUser>> {
         file.read_to_string(&mut contents)
             .expect("Failed to read file");
         if let Ok(users) = serde_json::from_str(&contents) {
-            to_return = Some(users)
+            to_return = Some(users);
         }
     }
 
@@ -250,4 +250,17 @@ pub fn create_export_file(export_data: String, file_name: String) {
     export_file_location.push(file_name);
     let mut file = File::create(export_file_location).unwrap();
     file.write_all(export_data.as_bytes()).unwrap();
+}
+
+pub fn separate_whitelist_by_seen(
+    whitelist_data: Vec<PackedWhitelistedUser>,
+) -> HashMap<String, Vec<String>> {
+    let mut separated_data = HashMap::new();
+
+    for data in whitelist_data {
+        let entry = separated_data.entry(data.seen_by).or_insert(Vec::new());
+        entry.push(data.hex_value);
+    }
+
+    separated_data
 }
