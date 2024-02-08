@@ -235,8 +235,8 @@ Longer time can increase the counting speed but flood wait will also be more
 visible in the UI.
 
 Tips: Each session can count about 3000 messages before flood wait is triggered.
-For checking less than (total session x 3000) messages, increasing it can be beneficial.
-Otherwise the time required to count should be near same even with 20.",
+For checking less than (total session x 3000) messages, increasing it can speed it up.
+Otherwise the time required to count is near same.",
                 );
         });
         ui.end_row();

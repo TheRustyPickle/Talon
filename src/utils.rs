@@ -1,12 +1,14 @@
 use chrono::NaiveDateTime;
 use log::info;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
+use std::error::Error;
 use std::fs::{self, File};
 use std::io::{Read, Write};
 use std::path::PathBuf;
 use tokio::runtime::{self, Runtime};
 
 use crate::ui_components::processor::ChartTiming;
+use crate::ui_components::processor::PackedWhitelistedUser;
 use crate::ui_components::TGKeys;
 
 /// Finds all the saved session files
@@ -142,9 +144,7 @@ pub fn save_api_keys(api_keys: &TGKeys) {
 }
 
 /// Reads the whitelisted user `PackedChat` Hex IDs and returns them
-pub fn get_whitelisted_users() -> Vec<String> {
-    let mut to_return = Vec::new();
-
+pub fn get_whitelisted_users() -> Result<Vec<PackedWhitelistedUser>, Box<dyn Error>> {
     let mut whitelist_path = PathBuf::from(".");
     whitelist_path.push("whitelist.json");
 
@@ -152,17 +152,18 @@ pub fn get_whitelisted_users() -> Vec<String> {
 
     if let Ok(mut file) = file {
         let mut contents = String::new();
-        file.read_to_string(&mut contents)
-            .expect("Failed to read file");
-        to_return = serde_json::from_str(&contents).unwrap();
+        file.read_to_string(&mut contents)?;
+        let users = serde_json::from_str(&contents)?;
+        Ok(users)
+    } else {
+        Ok(Vec::new())
     }
-
-    to_return
 }
 
 /// Saves `PackedChat` Hex strings to a json file
-pub fn save_whitelisted_users(packed_chats: Vec<String>, overwrite: bool) {
-    let mut existing_data: HashSet<String> = HashSet::new();
+pub fn save_whitelisted_users(packed_chats: Vec<PackedWhitelistedUser>, overwrite: bool) {
+    // HashSet to avoid duplicate whitelisted users
+    let mut existing_data: HashSet<PackedWhitelistedUser> = HashSet::new();
 
     let mut whitelist_path = PathBuf::from(".");
     whitelist_path.push("whitelist.json");
@@ -246,4 +247,17 @@ pub fn create_export_file(export_data: String, file_name: String) {
     export_file_location.push(file_name);
     let mut file = File::create(export_file_location).unwrap();
     file.write_all(export_data.as_bytes()).unwrap();
+}
+
+pub fn separate_whitelist_by_seen(
+    whitelist_data: Vec<PackedWhitelistedUser>,
+) -> HashMap<String, Vec<String>> {
+    let mut separated_data = HashMap::new();
+
+    for data in whitelist_data {
+        let entry = separated_data.entry(data.seen_by).or_insert(Vec::new());
+        entry.push(data.hex_value);
+    }
+
+    separated_data
 }

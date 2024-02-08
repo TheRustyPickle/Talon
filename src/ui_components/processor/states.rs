@@ -1,3 +1,5 @@
+use grammers_client::types::Chat;
+use serde::{Deserialize, Serialize};
 use std::fmt::{self, Display};
 
 #[derive(Default)]
@@ -43,7 +45,10 @@ pub enum ProcessState {
     PasswordRequired,
     FloodWait,
     UsersWhitelisted(usize),
-    LoadedWhitelistedUsers(usize),
+    LoadedWhitelistedUsers(usize, i32),
+    FailedLoadWhitelistedUsers,
+    WhitelistedUserRemoved(usize),
+    AllWhitelistRemoved,
     AddedToWhitelist,
     LatestMessageLoadingFailed,
     DataExported(String),
@@ -112,7 +117,10 @@ impl Display for ProcessState {
             ProcessState::PasswordRequired => write!(f, "Status: Account requires a password authentication"),
             ProcessState::FloodWait => write!(f, "Status: Flood wait triggered. Will resume again soon"),
             ProcessState::UsersWhitelisted(num) => write!(f, "Status: Whitelisted {num} users"),
-            ProcessState::LoadedWhitelistedUsers(num) => write!(f, "Status: Loaded {num} whitelisted users"),
+            ProcessState::LoadedWhitelistedUsers(success, failed) => write!(f, "Status: Loaded {success} whitelisted users. Failed to load {failed} users"),
+            ProcessState::FailedLoadWhitelistedUsers => write!(f, "Status: Failed to load whitelisted users due to invalid saved data. Old data has been removed"),
+            ProcessState::WhitelistedUserRemoved(num) => write!(f, "Status: {num} whitelisted users removed"),
+            ProcessState::AllWhitelistRemoved => write!(f, "Status: All whitelisted users removed"),
             ProcessState::AddedToWhitelist => write!(f, "Status: User added to whitelist"),
             ProcessState::LatestMessageLoadingFailed => write!(f, "Status: Failed to get the latest message"),
             ProcessState::DataExported(location) => write!(f, "Status: Chart data exported to {location}")
@@ -198,5 +206,28 @@ impl Display for ChartTiming {
             ChartTiming::Weekly => write!(f, "Weekly"),
             ChartTiming::Monthly => write!(f, "Monthly"),
         }
+    }
+}
+
+#[derive(Deserialize, Serialize, PartialEq, Eq, Hash)]
+pub struct PackedWhitelistedUser {
+    pub hex_value: String,
+    pub seen_by: String,
+}
+
+impl PackedWhitelistedUser {
+    pub fn new(hex_value: String, seen_by: String) -> Self {
+        PackedWhitelistedUser { hex_value, seen_by }
+    }
+}
+
+pub struct UnpackedWhitelistedUser {
+    pub user_chat: Chat,
+    pub seen_by: String,
+}
+
+impl UnpackedWhitelistedUser {
+    pub fn new(user_chat: Chat, seen_by: String) -> Self {
+        UnpackedWhitelistedUser { user_chat, seen_by }
     }
 }

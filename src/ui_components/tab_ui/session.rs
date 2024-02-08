@@ -123,6 +123,7 @@ impl MainWindow {
                     if self.session_data.phone_number.is_empty()
                         || self.session_data.password_token.is_some()
                         || self.session_data.session_name.is_empty()
+                        || self.is_processing
                     {
                         ui.add_enabled(false, button);
                     } else if ui

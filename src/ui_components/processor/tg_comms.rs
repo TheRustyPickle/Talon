@@ -77,7 +77,8 @@ impl MainWindow {
 
                     let sender = message.sender();
                     let (user_id, full_name, user_name) =
-                        self.user_table.add_user(sender, local_time_date);
+                        self.user_table
+                            .add_user(sender, local_time_date, count_data.name());
 
                     if user_id != 0 && self.whitelist_data.is_user_whitelisted(&user_id) {
                         self.user_table.set_as_whitelisted(&user_id);
@@ -205,42 +206,47 @@ impl MainWindow {
                     info!("Flood wait triggered");
                     self.process_state = ProcessState::FloodWait;
                 }
-                ProcessResult::UnpackedChats(chats) => {
-                    let total_chat = chats.len();
-                    info!("Unpacked {total_chat} for whitelist");
-
+                ProcessResult::UnpackedChats(chats, failed_chats) => {
                     for chat in chats {
-                        let username = if let Some(name) = chat.username() {
+                        let username = if let Some(name) = chat.user_chat.username() {
                             name.to_string()
                         } else {
                             String::from("Empty")
                         };
                         self.whitelist_data.add_to_whitelist(
-                            chat.name().to_string(),
+                            chat.user_chat.name().to_string(),
                             username,
-                            chat.id(),
-                            chat,
+                            chat.user_chat.id(),
+                            chat.user_chat,
+                            chat.seen_by,
                         );
                     }
                     self.is_processing = false;
-                    self.process_state = ProcessState::LoadedWhitelistedUsers(total_chat);
+
+                    self.whitelist_data.increase_failed_by(failed_chats);
+                    let total_chat = self.whitelist_data.row_len();
+                    let failed_chat_num = self.whitelist_data.failed_whitelist_num();
+
+                    self.process_state =
+                        ProcessState::LoadedWhitelistedUsers(total_chat, failed_chat_num);
                 }
                 ProcessResult::WhiteListUser(chat) => {
                     self.stop_process();
-                    let user_id = chat.id();
+                    let user_id = chat.user_chat.id();
 
                     info!("Adding {user_id} to whitelist");
 
-                    let username = if let Some(name) = chat.username() {
+                    let username = if let Some(name) = chat.user_chat.username() {
                         name.to_string()
                     } else {
                         String::from("Empty")
                     };
                     self.whitelist_data.add_to_whitelist(
-                        chat.name().to_string(),
+                        chat.user_chat.name().to_string(),
                         username,
                         user_id,
-                        chat,
+                        chat.user_chat,
+                        chat.seen_by,
                     );
                     self.whitelist_data.clear_text_box();
                     self.user_table.set_as_whitelisted(&user_id);

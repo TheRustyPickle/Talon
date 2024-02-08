@@ -1,8 +1,10 @@
-use grammers_client::types::{iter_buffer::InvocationError, Chat, LoginToken, PasswordToken};
+use grammers_client::types::iter_buffer::InvocationError;
+use grammers_client::types::{LoginToken, PasswordToken};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use crate::tg_handler::{TGClient, TGCountData};
+use crate::ui_components::processor::UnpackedWhitelistedUser;
 
 pub enum ProcessResult {
     InitialSessionSuccess((Vec<TGClient>, Vec<String>, Vec<String>)),
@@ -14,9 +16,9 @@ pub enum ProcessResult {
     LoginCodeSent(LoginToken, TGClient),
     PasswordRequired(Box<PasswordToken>),
     LoggedIn(String),
-    UnpackedChats(Vec<Chat>),
+    UnpackedChats(Vec<UnpackedWhitelistedUser>, i32),
     FloodWait,
-    WhiteListUser(Chat),
+    WhiteListUser(UnpackedWhitelistedUser),
     ChatExists(String, i32, i32),
 }
 
@@ -38,7 +40,7 @@ pub enum ProcessStart {
     SignInCode(Arc<Mutex<LoginToken>>, String),
     SignInPasswords(Arc<Mutex<PasswordToken>>, String),
     SessionLogout,
-    LoadWhitelistedUsers,
+    LoadWhitelistedUsers(Vec<String>),
     NewWhitelistUser(String),
     CheckChatExistence(String, Option<i32>, Option<i32>),
 }

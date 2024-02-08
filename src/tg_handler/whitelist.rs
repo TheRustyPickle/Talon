@@ -1,33 +1,35 @@
 use grammers_client::types::PackedChat;
-use log::error;
+use log::{error, info};
 
 use crate::tg_handler::{ProcessError, ProcessResult, TGClient};
-use crate::utils::get_whitelisted_users;
+use crate::ui_components::processor::UnpackedWhitelistedUser;
 
 impl TGClient {
     /// Unpacks existing `PackedChat` hex string and sends it to the GUI
-    pub async fn load_whitelisted_users(&self) -> Result<(), ProcessError> {
-        let packed_user_list = get_whitelisted_users();
-
+    pub async fn load_whitelisted_users(&self, hex_data: Vec<String>) -> Result<(), ProcessError> {
+        info!("Starting unpacking chat by {}", self.name());
         let mut chat_list = Vec::new();
+        let mut failed_chat_num = 0;
 
-        for user in packed_user_list {
-            let packed_chat_result = PackedChat::from_hex(&user);
+        for hex in hex_data {
+            let packed_chat_result = PackedChat::from_hex(&hex);
 
             if let Ok(packed_chat) = packed_chat_result {
                 let chat = self.client().unpack_chat(packed_chat).await;
-
-                if let Ok(chat) = chat {
-                    chat_list.push(chat);
-                } else {
-                    error!("Failed to unpack a chat");
+                match chat {
+                    Ok(chat) => chat_list.push(UnpackedWhitelistedUser::new(chat, self.name())),
+                    Err(e) => {
+                        error!("Failed to unpack a chat. Error: {e}");
+                        failed_chat_num += 1;
+                    }
                 }
             } else {
                 error!("Invalid chat hex found");
+                failed_chat_num += 1;
             }
         }
-        self.send(ProcessResult::UnpackedChats(chat_list));
 
+        self.send(ProcessResult::UnpackedChats(chat_list, failed_chat_num));
         Ok(())
     }
 
@@ -46,7 +48,10 @@ impl TGClient {
                 return Ok(());
             }
         };
-        self.send(ProcessResult::WhiteListUser(tg_chat));
+        self.send(ProcessResult::WhiteListUser(UnpackedWhitelistedUser::new(
+            tg_chat,
+            self.name(),
+        )));
         Ok(())
     }
 }

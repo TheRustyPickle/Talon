@@ -3,14 +3,14 @@ use eframe::egui::{
 };
 use egui_extras::{Column, TableBuilder};
 use grammers_client::types::Chat;
-use log::info;
+use log::{error, info};
 use std::collections::{HashMap, HashSet};
 use std::thread;
 
 use crate::tg_handler::ProcessStart;
-use crate::ui_components::processor::{ColumnName, ProcessState};
+use crate::ui_components::processor::{ColumnName, PackedWhitelistedUser, ProcessState};
 use crate::ui_components::MainWindow;
-use crate::utils::{get_whitelisted_users, save_whitelisted_users};
+use crate::utils::{get_whitelisted_users, save_whitelisted_users, separate_whitelist_by_seen};
 
 #[derive(Clone)]
 struct WhiteListRowData {
@@ -19,16 +19,18 @@ struct WhiteListRowData {
     id: i64,
     is_selected: bool,
     belongs_to: Chat,
+    seen_by: String,
 }
 
 impl WhiteListRowData {
-    fn new(name: String, username: String, id: i64, belongs_to: Chat) -> Self {
+    fn new(name: String, username: String, id: i64, belongs_to: Chat, seen_by: String) -> Self {
         WhiteListRowData {
             name,
             username,
             id,
             is_selected: false,
             belongs_to,
+            seen_by,
         }
     }
 }
@@ -38,6 +40,10 @@ pub struct WhitelistData {
     target_username: String,
     rows: HashMap<i64, WhiteListRowData>,
     active_rows: HashSet<i64>,
+    /// Only used when initially loading the saved whitelist data
+    /// and for creating the `ProcessState`.
+    /// Will never be changed after all whitelists are processed
+    failed_whitelist: i32,
 }
 
 impl WhitelistData {
@@ -65,15 +71,22 @@ impl WhitelistData {
     }
 
     /// Add a new row to the UI
-    pub fn add_to_whitelist(&mut self, name: String, username: String, id: i64, belongs_to: Chat) {
+    pub fn add_to_whitelist(
+        &mut self,
+        name: String,
+        username: String,
+        id: i64,
+        belongs_to: Chat,
+        seen_by: String,
+    ) {
         let name = if name.is_empty() {
             String::from("Deleted Account")
         } else {
             name
         };
 
-        info!("Adding {} to whitelist", name);
-        let to_add = WhiteListRowData::new(name, username, id, belongs_to);
+        info!("Adding {name} to whitelist, seen by {seen_by}");
+        let to_add = WhiteListRowData::new(name, username, id, belongs_to, seen_by);
         self.rows.insert(id, to_add);
     }
 
@@ -87,7 +100,11 @@ impl WhitelistData {
         let mut packed_chats = Vec::new();
 
         for row in self.rows.values() {
-            packed_chats.push(row.belongs_to.pack().to_hex());
+            let hex_value = row.belongs_to.pack().to_hex();
+            packed_chats.push(PackedWhitelistedUser::new(
+                hex_value,
+                row.seen_by.to_string(),
+            ));
         }
 
         save_whitelisted_users(packed_chats, true);
@@ -117,6 +134,18 @@ impl WhitelistData {
 
     pub fn clear_text_box(&mut self) {
         self.target_username.clear();
+    }
+
+    pub fn increase_failed_by(&mut self, count: i32) {
+        self.failed_whitelist += count;
+    }
+
+    pub fn row_len(&self) -> usize {
+        self.rows.len()
+    }
+
+    pub fn failed_whitelist_num(&self) -> i32 {
+        self.failed_whitelist
     }
 }
 
@@ -179,10 +208,11 @@ then right click on User Table to whitelist",
                 .clicked()
             {
                 let deleted = self.whitelist_data.remove_selected();
-
+                let total_to_remove = deleted.len();
                 for i in deleted {
                     self.user_table.remove_whitelist(&i);
                 }
+                self.process_state = ProcessState::WhitelistedUserRemoved(total_to_remove);
             };
             if ui
                 .button("Delete All")
@@ -194,6 +224,7 @@ then right click on User Table to whitelist",
                 for i in deleted {
                     self.user_table.remove_whitelist(&i);
                 }
+                self.process_state = ProcessState::AllWhitelistRemoved;
             };
         });
 
@@ -297,24 +328,52 @@ then right click on User Table to whitelist",
     }
 
     pub fn load_whitelisted_users(&mut self) {
-        let whitelisted = get_whitelisted_users();
+        // This function will never be called if there are no sessions detected.
+        // Unnecessary to handle in case `self.tg_clients` is empty
 
-        if whitelisted.is_empty() {
+        let all_whitelisted_users = get_whitelisted_users();
+
+        if all_whitelisted_users.is_err() {
+            // This case means it failed to deserialize the json or is using the old whitelist json format
+            // All previous data will be removed
+            error!("Failed to deserialize a whitelist users json file. Deleting saved json data");
+            save_whitelisted_users(Vec::new(), true);
+            self.process_state = ProcessState::FailedLoadWhitelistedUsers;
             self.is_processing = false;
             return;
         }
 
-        let selected_session = self.get_selected_session();
+        // separate whitelist data by seen_by as the key and hex as the value
+        let separated_data = separate_whitelist_by_seen(all_whitelisted_users.unwrap());
 
-        if selected_session.is_empty() {
-            self.process_state = ProcessState::EmptySelectedSession;
+        if separated_data.is_empty() {
+            self.is_processing = false;
             return;
         }
 
-        let client = self.tg_clients.get(&selected_session).unwrap().clone();
-        thread::spawn(move || {
-            client.start_process(ProcessStart::LoadWhitelistedUsers);
-        });
+        // Open a thread for each unique session found in the whitelist json and pass the relevant hex data to that thread
+        // `hex_data` cannot be empty as the key will only exist if there is at least one hex found
+        for (seen_by, hex_data) in separated_data {
+            let client = self.tg_clients.get(&seen_by);
+
+            let Some(tg_client) = client.cloned() else {
+                let total_whitelist = hex_data.len();
+                error!(
+                    "{seen_by} client does not exist! Ignoring {total_whitelist} whitelisted users"
+                );
+                self.whitelist_data
+                    .increase_failed_by(total_whitelist as i32);
+
+                let success_whitelist = self.whitelist_data.row_len();
+                let failed_whitelist = self.whitelist_data.failed_whitelist_num();
+                self.process_state =
+                    ProcessState::LoadedWhitelistedUsers(success_whitelist, failed_whitelist);
+                continue;
+            };
+            thread::spawn(move || {
+                tg_client.start_process(ProcessStart::LoadWhitelistedUsers(hex_data));
+            });
+        }
     }
 
     pub fn whitelist_new_user(&mut self) {
