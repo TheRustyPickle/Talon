@@ -1,6 +1,7 @@
 use chrono::NaiveDateTime;
 use log::info;
 use std::collections::{HashMap, HashSet};
+use std::error::Error;
 use std::fs::{self, File};
 use std::io::{Read, Write};
 use std::path::PathBuf;
@@ -143,9 +144,7 @@ pub fn save_api_keys(api_keys: &TGKeys) {
 }
 
 /// Reads the whitelisted user `PackedChat` Hex IDs and returns them
-pub fn get_whitelisted_users() -> Option<Vec<PackedWhitelistedUser>> {
-    let mut to_return: Option<Vec<PackedWhitelistedUser>> = None;
-
+pub fn get_whitelisted_users() -> Result<Vec<PackedWhitelistedUser>, Box<dyn Error>> {
     let mut whitelist_path = PathBuf::from(".");
     whitelist_path.push("whitelist.json");
 
@@ -153,14 +152,12 @@ pub fn get_whitelisted_users() -> Option<Vec<PackedWhitelistedUser>> {
 
     if let Ok(mut file) = file {
         let mut contents = String::new();
-        file.read_to_string(&mut contents)
-            .expect("Failed to read file");
-        if let Ok(users) = serde_json::from_str(&contents) {
-            to_return = Some(users);
-        }
+        file.read_to_string(&mut contents)?;
+        let users = serde_json::from_str(&contents)?;
+        Ok(users)
+    } else {
+        Ok(Vec::new())
     }
-
-    to_return
 }
 
 /// Saves `PackedChat` Hex strings to a json file

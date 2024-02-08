@@ -333,17 +333,23 @@ then right click on User Table to whitelist",
 
         let all_whitelisted_users = get_whitelisted_users();
 
-        if all_whitelisted_users.is_none() {
+        if all_whitelisted_users.is_err() {
             // This case means it failed to deserialize the json or is using the old whitelist json format
             // All previous data will be removed
             error!("Failed to deserialize a whitelist users json file. Deleting saved json data");
             save_whitelisted_users(Vec::new(), true);
             self.process_state = ProcessState::FailedLoadWhitelistedUsers;
+            self.is_processing = false;
             return;
         }
 
         // separate whitelist data by seen_by as the key and hex as the value
         let separated_data = separate_whitelist_by_seen(all_whitelisted_users.unwrap());
+
+        if separated_data.is_empty() {
+            self.is_processing = false;
+            return;
+        }
 
         // Open a thread for each unique session found in the whitelist json and pass the relevant hex data to that thread
         // `hex_data` cannot be empty as the key will only exist if there is at least one hex found
