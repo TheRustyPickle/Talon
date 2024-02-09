@@ -333,7 +333,12 @@ impl UserTableData {
     }
 
     /// Continuously called to select rows and columns when dragging has started
-    fn select_dragged_row_cell(&mut self, user_id: i64, column_name: &ColumnName) {
+    fn select_dragged_row_cell(
+        &mut self,
+        user_id: i64,
+        column_name: &ColumnName,
+        is_ctrl_pressed: bool,
+    ) {
         // If both same then the mouse is still on the same column on the same row so nothing to process
         if self.last_active_row == Some(user_id)
             && self.last_active_column == Some(column_name.clone())
@@ -348,17 +353,52 @@ impl UserTableData {
         let drag_start = self.drag_started_on.clone().unwrap();
         self.select_single_row_cell(drag_start.0, &drag_start.1);
 
-        let min_col = self.active_columns.clone().into_iter().min();
-        let max_col = self.active_columns.clone().into_iter().max();
+        let drag_start_num = drag_start.1 as i32;
+        let ongoing_column_num = column_name.clone() as i32;
 
-        // If column 1 and column 5 is selected, ensure the column in the middle are not missing from selection
-        // It can miss in case of fast mouse movement
-        if let (Some(min), Some(max)) = (min_col, max_col) {
-            let mut current_col = min;
-            while current_col != max {
-                let next_col = current_col.get_next();
-                self.active_columns.insert(next_col.clone());
-                current_col = next_col;
+        let mut new_column_set = HashSet::new();
+
+        let get_previous = ongoing_column_num > drag_start_num;
+        let mut ongoing_val = Some(ColumnName::from_num(drag_start_num));
+
+        // row1: column(drag started here) column column
+        // row2: column column column
+        // row3: column column column
+        // row4: column column column (currently here)
+        //
+        // The goal of this is to ensure from the drag starting point to all the columns till the currently here
+        // are considered selected and the rest are removed from active selection even if it was considered active
+        //
+        // During fast mouse movement active rows can contain columns that are not in the range we are targeting
+        // We go from one point to the other point and ensure except those columns nothing else is selected
+        //
+        // No active row removal if ctrl is being pressed!
+        if is_ctrl_pressed {
+            self.active_columns.insert(column_name.clone());
+        } else {
+            if ongoing_column_num == drag_start_num {
+                new_column_set.insert(ColumnName::from_num(drag_start_num));
+                self.active_columns = new_column_set;
+            } else {
+                while ongoing_val.is_some() {
+                    let col = ongoing_val.clone().unwrap();
+
+                    let next_column = if get_previous {
+                        col.get_next()
+                    } else {
+                        col.get_previous()
+                    };
+
+                    new_column_set.insert(col);
+
+                    if next_column == ColumnName::from_num(ongoing_column_num) {
+                        new_column_set.insert(next_column);
+                        ongoing_val = None;
+                    } else {
+                        ongoing_val = Some(next_column);
+                    }
+                }
+                self.active_columns = new_column_set;
             }
         }
 
@@ -372,6 +412,7 @@ impl UserTableData {
         // moved backwards from an active column to another active column.
         let row_contains_column = current_row.selected_columns.contains(column_name);
 
+        let mut no_checking = false;
         // If we have some data of the last row and column that the mouse was on, then try to unselect
         if row_contains_column
             && self.last_active_row.is_some()
@@ -401,32 +442,9 @@ impl UserTableData {
             if user_id == last_row.id {
                 if last_active_column != *column_name {
                     self.last_active_column = Some(column_name.clone());
-
-                    // Position where the mouse is
-                    let current_row_index =
-                        all_rows.iter().position(|row| row.id == user_id).unwrap();
-
-                    // This solution is not perfect.
-                    // In case of fast mouse movement it fails to call this function as if mouse was not over that cell
-
-                    // If current position is row 5 column 2 then check row from 4 to 1 or 4 till a row with no active column is found
-                    // Remove the last selected column from the selection from all the rows are that found
-                    self.remove_row_column_selection(
-                        true,
-                        &all_rows,
-                        current_row_index,
-                        &last_active_column,
-                    );
-                    // If current position is row 5 column 2 then check row from 6 to final row or 6 till a row with no active column is found
-                    // Remove the last selected column from the selection from all the rows are that found
-                    self.remove_row_column_selection(
-                        false,
-                        &all_rows,
-                        current_row_index,
-                        &last_active_column,
-                    );
                 }
             } else {
+                no_checking = true;
                 // Mouse went 1 row above or below. So just clear all selection from that previous row
                 last_row.selected_columns.clear();
             }
@@ -434,17 +452,20 @@ impl UserTableData {
             // We are in a new row which we have not selected before
             self.last_active_row = Some(user_id);
             self.last_active_column = Some(column_name.clone());
-            for column in &self.active_columns {
-                current_row.selected_columns.insert(column.to_owned());
-            }
-            let current_row_index = all_rows.iter().position(|row| row.id == user_id).unwrap();
+            current_row.selected_columns = self.active_columns.clone();
+        }
 
-            // Get the row number where the drag started on
-            let drag_start_index = all_rows
-                .iter()
-                .position(|row| row.id == drag_start.0)
-                .unwrap();
+        let current_row_index = all_rows.iter().position(|row| row.id == user_id).unwrap();
 
+        // Get the row number where the drag started on
+        let drag_start_index = all_rows
+            .iter()
+            .position(|row| row.id == drag_start.0)
+            .unwrap();
+
+        if no_checking {
+            self.remove_row_selection(&all_rows, current_row_index, drag_start_index);
+        } else {
             // If drag started on row 1, currently on row 5, check from row 4 to 1 and select all columns
             // else go through all rows till a row without any selected column is found. Applied both by incrementing or decrementing index.
             // In case of fast mouse movement following drag started point mitigates the risk of some rows not getting selected
@@ -485,9 +506,10 @@ impl UserTableData {
         let target_row = self.rows.get_mut(&current_row.id).unwrap();
 
         if !unselected_row {
-            for column in &self.active_columns {
-                target_row.selected_columns.insert(column.to_owned());
-            }
+            target_row.selected_columns = self.active_columns.clone();
+            // for column in &self.active_columns {
+            //     target_row.selected_columns.insert(column.to_owned());
+            // }
             if check_previous {
                 if index != 0 {
                     self.check_row_selection(check_previous, rows, index, drag_start);
@@ -498,40 +520,27 @@ impl UserTableData {
         }
     }
 
-    /// Recursively check the given rows by either increasing or decreasing the initial index
-    /// till the end point or an unselected row is found. Remove the given column from selection
-    /// from all rows that are selected.
-    fn remove_row_column_selection(
+    /// Checks all the rows and unselects rows that are not within the given range
+    fn remove_row_selection(
         &mut self,
-        check_previous: bool,
-        rows: &Vec<UserRowData>,
-        index: usize,
-        target_column: &ColumnName,
+        rows: &[UserRowData],
+        current_index: usize,
+        drag_start: usize,
     ) {
-        if index == 0 && check_previous {
-            return;
-        }
+        for ongoing_index in 0..rows.len() {
+            let current_row = rows.get(ongoing_index).unwrap();
+            let target_row = self.rows.get_mut(&current_row.id).unwrap();
 
-        if index + 1 == rows.len() && !check_previous {
-            return;
-        }
-
-        let index = if check_previous { index - 1 } else { index + 1 };
-
-        let current_row = rows.get(index).unwrap();
-        let unselected_row = current_row.selected_columns.is_empty();
-
-        let target_row = self.rows.get_mut(&current_row.id).unwrap();
-
-        if !unselected_row {
-            target_row.selected_columns.remove(target_column);
-
-            if check_previous {
-                if index != 0 {
-                    self.remove_row_column_selection(check_previous, rows, index, target_column);
+            if current_index > drag_start {
+                if ongoing_index >= drag_start && ongoing_index <= current_index {
+                    target_row.selected_columns = self.active_columns.clone();
+                } else {
+                    target_row.selected_columns = HashSet::new();
                 }
-            } else if index + 1 != rows.len() {
-                self.remove_row_column_selection(check_previous, rows, index, target_column);
+            } else if ongoing_index <= drag_start && ongoing_index >= current_index {
+                target_row.selected_columns = self.active_columns.clone();
+            } else {
+                target_row.selected_columns = HashSet::new();
             }
         }
     }
@@ -769,6 +778,10 @@ impl MainWindow {
             self.user_table.beyond_drag_point = false;
         }
 
+        // Drag part handling has ended, need to handle click event from here.
+        // For some reason if both are added at once, only the one added later responds
+        label = label.interact(Sense::click());
+
         if label.clicked() {
             // If CTRL is not pressed down and the mouse right click is not pressed, unselect all cells
             if !ui.ctx().input(|i| i.modifiers.ctrl)
@@ -788,8 +801,12 @@ impl MainWindow {
                     || drag_start.1 != column_name
                     || self.user_table.beyond_drag_point
                 {
-                    self.user_table
-                        .select_dragged_row_cell(row_data.id, &column_name);
+                    let is_ctrl_pressed = ui.ctx().input(|i| i.modifiers.ctrl);
+                    self.user_table.select_dragged_row_cell(
+                        row_data.id,
+                        &column_name,
+                        is_ctrl_pressed,
+                    );
                 }
             }
         }
