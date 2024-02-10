@@ -167,6 +167,39 @@ impl ColumnName {
             ColumnName::Whitelisted => ColumnName::Name,
         }
     }
+
+    pub fn get_previous(&self) -> Self {
+        match self {
+            ColumnName::Name => ColumnName::Whitelisted,
+            ColumnName::Username => ColumnName::Name,
+            ColumnName::UserID => ColumnName::Username,
+            ColumnName::TotalMessage => ColumnName::UserID,
+            ColumnName::TotalWord => ColumnName::TotalMessage,
+            ColumnName::TotalChar => ColumnName::TotalWord,
+            ColumnName::AverageWord => ColumnName::TotalChar,
+            ColumnName::AverageChar => ColumnName::AverageWord,
+            ColumnName::FirstMessageSeen => ColumnName::AverageChar,
+            ColumnName::LastMessageSeen => ColumnName::FirstMessageSeen,
+            ColumnName::Whitelisted => ColumnName::LastMessageSeen,
+        }
+    }
+
+    pub fn from_num(num: i32) -> Self {
+        match num {
+            0 => ColumnName::Name,
+            1 => ColumnName::Username,
+            2 => ColumnName::UserID,
+            3 => ColumnName::TotalMessage,
+            4 => ColumnName::TotalWord,
+            5 => ColumnName::TotalChar,
+            6 => ColumnName::AverageWord,
+            7 => ColumnName::AverageChar,
+            8 => ColumnName::FirstMessageSeen,
+            9 => ColumnName::LastMessageSeen,
+            10 => ColumnName::Whitelisted,
+            _ => unreachable!("Invalid enum variant for number {}", num),
+        }
+    }
 }
 
 #[derive(Default, PartialEq)]

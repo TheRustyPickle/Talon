@@ -87,7 +87,7 @@ impl TGClient {
         let mut start_at = if let Some(num) = start_num { num } else { -1 };
 
         info!(
-            "Staring message num {}, ending message num {}",
+            "Starting message num {}, ending message num {}",
             start_at, end_at
         );
 

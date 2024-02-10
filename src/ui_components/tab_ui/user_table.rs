@@ -123,23 +123,18 @@ pub struct UserTableData {
     sort_order: SortOrder,
     drag_started_on: Option<(i64, ColumnName)>,
     active_columns: HashSet<ColumnName>,
+    active_rows: HashSet<i64>,
     last_active_row: Option<i64>,
     last_active_column: Option<ColumnName>,
     // To track whether the mouse pointer went beyond the drag point at least once
     beyond_drag_point: bool,
+    indexed_user_ids: HashMap<i64, usize>,
 }
 
 impl UserTableData {
     /// Clear all the rows
     pub fn clear_row_data(&mut self) {
-        self.rows.clear();
-        self.sorted_by = ColumnName::default();
-        self.sort_order = SortOrder::default();
-        self.drag_started_on = None;
-        self.active_columns.clear();
-        self.last_active_row = None;
-        self.last_active_column = None;
-        self.beyond_drag_point = false;
+        *self = UserTableData::default();
     }
 
     /// Add a user to the table
@@ -245,7 +240,308 @@ impl UserTableData {
     }
 
     /// Returns all existing row in the current sorted format in a vector
-    fn rows(&self) -> Vec<UserRowData> {
+    fn rows(&mut self) -> Vec<UserRowData> {
+        // It needs to be sorted each load otherwise
+        // if pre-saved, it will contain outdated data
+        self.sort_rows()
+    }
+
+    /// Marks a single column of a row as selected
+    fn select_single_row_cell(&mut self, user_id: i64, column_name: &ColumnName) {
+        self.active_columns.insert(column_name.clone());
+        self.active_rows.insert(user_id);
+
+        self.rows
+            .get_mut(&user_id)
+            .unwrap()
+            .selected_columns
+            .insert(column_name.clone());
+    }
+
+    /// Continuously called to select rows and columns when dragging has started
+    fn select_dragged_row_cell(
+        &mut self,
+        user_id: i64,
+        column_name: &ColumnName,
+        is_ctrl_pressed: bool,
+    ) {
+        // If both same then the mouse is still on the same column on the same row so nothing to process
+        if self.last_active_row == Some(user_id)
+            && self.last_active_column == Some(column_name.clone())
+        {
+            return;
+        }
+
+        self.active_columns.insert(column_name.clone());
+        self.beyond_drag_point = true;
+
+        // Ensure the starting drag cell is selected
+        let drag_start = self.drag_started_on.clone().unwrap();
+        self.select_single_row_cell(drag_start.0, &drag_start.1);
+
+        // number of the column of drag starting point and the current cell that we are trying to select
+        let drag_start_num = drag_start.1 as i32;
+        let ongoing_column_num = column_name.clone() as i32;
+
+        let mut new_column_set = HashSet::new();
+
+        let get_previous = ongoing_column_num > drag_start_num;
+        let mut ongoing_val = Some(ColumnName::from_num(drag_start_num));
+
+        // row1: column(drag started here) column column
+        // row2: column column column
+        // row3: column column column
+        // row4: column column column (currently here)
+        //
+        // The goal of this is to ensure from the drag starting point to all the columns till the currently here
+        // are considered selected and the rest are removed from active selection even if it was considered active
+        //
+        // During fast mouse movement active rows can contain columns that are not in the range we are targeting
+        // We go from one point to the other point and ensure except those columns nothing else is selected
+        //
+        // No active row removal if ctrl is being pressed!
+        if is_ctrl_pressed {
+            self.active_columns.insert(column_name.clone());
+        } else if ongoing_column_num == drag_start_num {
+            new_column_set.insert(ColumnName::from_num(drag_start_num));
+            self.active_columns = new_column_set;
+        } else {
+            while ongoing_val.is_some() {
+                let col = ongoing_val.clone().unwrap();
+
+                let next_column = if get_previous {
+                    col.get_next()
+                } else {
+                    col.get_previous()
+                };
+
+                new_column_set.insert(col);
+
+                if next_column == ColumnName::from_num(ongoing_column_num) {
+                    new_column_set.insert(next_column);
+                    ongoing_val = None;
+                } else {
+                    ongoing_val = Some(next_column);
+                }
+            }
+            self.active_columns = new_column_set;
+        }
+
+        // The rows in the current sorted format
+        let all_rows = self.rows();
+
+        // The row the mouse pointer is on
+        let current_row = self.rows.get_mut(&user_id).unwrap();
+
+        // If this row already selects the column that we are trying to select, it means the mouse
+        // moved backwards from an active column to another active column.
+        //
+        // Row: column1 column2 (mouse is here) column3 column4
+        //
+        // In this case, if column 3 or 4 is also found in the active selection then
+        // the mouse moved backwards
+        let row_contains_column = current_row.selected_columns.contains(column_name);
+
+        let mut no_checking = false;
+        // If we have some data of the last row and column that the mouse was on, then try to unselect
+        if row_contains_column
+            && self.last_active_row.is_some()
+            && self.last_active_column.is_some()
+        {
+            let last_active_column = self.last_active_column.clone().unwrap();
+
+            // Remove the last column selection from the current row where the mouse is if
+            // the previous row and the current one matches
+            //
+            // column column column
+            // column column column
+            // column column (mouse is currently here) column(mouse was here)
+            //
+            // We unselect the bottom right corner column
+            if last_active_column != *column_name && self.last_active_row.unwrap() == user_id {
+                current_row.selected_columns.remove(&last_active_column);
+                self.active_columns.remove(&last_active_column);
+            }
+
+            // Get the last row where the mouse was
+            let last_row = self.rows.get_mut(&self.last_active_row.unwrap()).unwrap();
+
+            self.last_active_row = Some(user_id);
+
+            // If on the same row as the last row, then unselect the column from all other select row
+            if user_id == last_row.id {
+                if last_active_column != *column_name {
+                    self.last_active_column = Some(column_name.clone());
+                }
+            } else {
+                no_checking = true;
+                // Mouse went 1 row above or below. So just clear all selection from that previous row
+                last_row.selected_columns.clear();
+            }
+        } else {
+            // We are in a new row which we have not selected before
+            self.last_active_row = Some(user_id);
+            self.last_active_column = Some(column_name.clone());
+            current_row.selected_columns = self.active_columns.clone();
+        }
+
+        let current_row_index = self.indexed_user_ids.get(&user_id).unwrap().to_owned();
+
+        // Get the row number where the drag started on
+        let drag_start_index = self.indexed_user_ids.get(&drag_start.0).unwrap().to_owned();
+
+        if no_checking {
+            self.remove_row_selection(&all_rows, current_row_index, drag_start_index);
+        } else {
+            // If drag started on row 1, currently on row 5, check from row 4 to 1 and select all columns
+            // else go through all rows till a row without any selected column is found. Applied both by incrementing or decrementing index.
+            // In case of fast mouse movement following drag started point mitigates the risk of some rows not getting selected
+            self.check_row_selection(true, &all_rows, current_row_index, drag_start_index);
+            self.check_row_selection(false, &all_rows, current_row_index, drag_start_index);
+        }
+    }
+
+    /// Recursively check the rows by either increasing or decreasing the initial index
+    /// till the end point or an unselected row is found. Add active columns to the rows that have at least one column selected.
+    fn check_row_selection(
+        &mut self,
+        check_previous: bool,
+        rows: &Vec<UserRowData>,
+        index: usize,
+        drag_start: usize,
+    ) {
+        if index == 0 && check_previous {
+            return;
+        }
+
+        if index + 1 == rows.len() && !check_previous {
+            return;
+        }
+
+        let index = if check_previous { index - 1 } else { index + 1 };
+
+        let current_row = rows.get(index).unwrap();
+        let mut unselected_row = current_row.selected_columns.is_empty();
+
+        // if for example drag started on row 5 and ended on row 10 but missed drag on row 7
+        // Mark the rows as selected till the drag start row is hit (if recursively going that way)
+        if (check_previous && index >= drag_start) || (!check_previous && index <= drag_start) {
+            unselected_row = false;
+        }
+
+        let target_row = self.rows.get_mut(&current_row.id).unwrap();
+
+        if !unselected_row {
+            target_row.selected_columns = self.active_columns.clone();
+            self.active_rows.insert(target_row.id);
+
+            if check_previous {
+                if index != 0 {
+                    self.check_row_selection(check_previous, rows, index, drag_start);
+                }
+            } else if index + 1 != rows.len() {
+                self.check_row_selection(check_previous, rows, index, drag_start);
+            }
+        }
+    }
+
+    /// Checks the active rows and unselects rows that are not within the given range
+    fn remove_row_selection(
+        &mut self,
+        rows: &[UserRowData],
+        current_index: usize,
+        drag_start: usize,
+    ) {
+        let active_ids = self.active_rows.clone();
+        for id in active_ids {
+            let ongoing_index = self.indexed_user_ids.get(&id).unwrap().to_owned();
+            let current_row = rows.get(ongoing_index).unwrap();
+            let target_row = self.rows.get_mut(&current_row.id).unwrap();
+
+            if current_index > drag_start {
+                if ongoing_index >= drag_start && ongoing_index <= current_index {
+                    target_row.selected_columns = self.active_columns.clone();
+                } else {
+                    target_row.selected_columns = HashSet::new();
+                    self.active_rows.remove(&target_row.id);
+                }
+            } else if ongoing_index <= drag_start && ongoing_index >= current_index {
+                target_row.selected_columns = self.active_columns.clone();
+            } else {
+                target_row.selected_columns = HashSet::new();
+                self.active_rows.remove(&target_row.id);
+            }
+        }
+    }
+
+    /// Unselect all rows and columns
+    fn unselected_all(&mut self) {
+        for (_, row) in self.rows.iter_mut() {
+            row.selected_columns.clear();
+        }
+        self.active_columns.clear();
+        self.last_active_row = None;
+        self.last_active_column = None;
+        self.active_rows.clear();
+    }
+
+    /// Select all rows and columns
+    fn select_all(&mut self) {
+        let mut all_columns = vec![ColumnName::Name];
+        let mut current_column = ColumnName::Name.get_next();
+        let mut all_rows = Vec::new();
+
+        while current_column != ColumnName::Name {
+            all_columns.push(current_column.clone());
+            current_column = current_column.get_next();
+        }
+
+        for (_, row) in self.rows.iter_mut() {
+            row.selected_columns.extend(all_columns.clone());
+            all_rows.push(row.id);
+        }
+
+        self.active_columns.extend(all_columns);
+        self.active_rows.extend(all_rows);
+        self.last_active_row = None;
+        self.last_active_column = None;
+    }
+
+    /// Change the value it is currently sorted by. Called on header column click
+    fn change_sorted_by(&mut self, sort_by: ColumnName) {
+        self.unselected_all();
+        self.sorted_by = sort_by;
+        self.sort_order = SortOrder::default();
+        self.indexed_user_ids.clear();
+    }
+
+    /// Change the order of row sorting. Called on header column click
+    fn change_sort_order(&mut self) {
+        self.unselected_all();
+        if let SortOrder::Ascending = self.sort_order {
+            self.sort_order = SortOrder::Descending;
+        } else {
+            self.sort_order = SortOrder::Ascending;
+        }
+        self.indexed_user_ids.clear();
+    }
+
+    /// Mark a row as whitelisted if exists
+    pub fn set_as_whitelisted(&mut self, user_id: i64) {
+        if let Some(row) = self.rows.get_mut(&user_id) {
+            row.whitelisted = true;
+        }
+    }
+
+    /// Remove whitelist status from a row if exists
+    pub fn remove_whitelist(&mut self, user_id: i64) {
+        if let Some(row) = self.rows.get_mut(&user_id) {
+            row.whitelisted = false;
+        }
+    }
+
+    /// Sorts row data based on the current sort order
+    fn sort_rows(&mut self) -> Vec<UserRowData> {
         let mut row_data: Vec<UserRowData> = self.rows.values().cloned().collect();
 
         match self.sorted_by {
@@ -319,279 +615,18 @@ impl UserTableData {
             },
         }
 
-        row_data
-    }
-
-    /// Marks a single column of a row as selected
-    fn select_single_row_cell(&mut self, user_id: i64, column_name: &ColumnName) {
-        self.active_columns.insert(column_name.clone());
-        self.rows
-            .get_mut(&user_id)
-            .unwrap()
-            .selected_columns
-            .insert(column_name.clone());
-    }
-
-    /// Continuously called to select rows and columns when dragging has started
-    fn select_dragged_row_cell(&mut self, user_id: i64, column_name: &ColumnName) {
-        // If both same then the mouse is still on the same column on the same row so nothing to process
-        if self.last_active_row == Some(user_id)
-            && self.last_active_column == Some(column_name.clone())
-        {
-            return;
-        }
-
-        self.active_columns.insert(column_name.clone());
-        self.beyond_drag_point = true;
-
-        // Ensure the starting drag cell is selected
-        let drag_start = self.drag_started_on.clone().unwrap();
-        self.select_single_row_cell(drag_start.0, &drag_start.1);
-
-        let min_col = self.active_columns.clone().into_iter().min();
-        let max_col = self.active_columns.clone().into_iter().max();
-
-        // If column 1 and column 5 is selected, ensure the column in the middle are not missing from selection
-        // It can miss in case of fast mouse movement
-        if let (Some(min), Some(max)) = (min_col, max_col) {
-            let mut current_col = min;
-            while current_col != max {
-                let next_col = current_col.get_next();
-                self.active_columns.insert(next_col.clone());
-                current_col = next_col;
-            }
-        }
-
-        // The rows in the current sorted format
-        let all_rows = self.rows();
-
-        // The row the mouse pointer is on
-        let current_row = self.rows.get_mut(&user_id).unwrap();
-
-        // If this row already selects the column that we are trying to select, it means the mouse
-        // moved backwards from an active column to another active column.
-        let row_contains_column = current_row.selected_columns.contains(column_name);
-
-        // If we have some data of the last row and column that the mouse was on, then try to unselect
-        if row_contains_column
-            && self.last_active_row.is_some()
-            && self.last_active_column.is_some()
-        {
-            let last_active_column = self.last_active_column.clone().unwrap();
-
-            // Remove the last column selection from the current row where the mouse is if
-            // the previous row and the current one matches
-            //
-            // column column column
-            // column column column
-            // column column (mouse is currently here) column(mouse was here)
-            //
-            // We unselect the bottom right corner column
-            if last_active_column != *column_name && self.last_active_row.unwrap() == user_id {
-                current_row.selected_columns.remove(&last_active_column);
-                self.active_columns.remove(&last_active_column);
-            }
-
-            // Get the last row where the mouse was
-            let last_row = self.rows.get_mut(&self.last_active_row.unwrap()).unwrap();
-
-            self.last_active_row = Some(user_id);
-
-            // If on the same row as the last row, then unselect the column from all other select row
-            if user_id == last_row.id {
-                if last_active_column != *column_name {
-                    self.last_active_column = Some(column_name.clone());
-
-                    // Position where the mouse is
-                    let current_row_index =
-                        all_rows.iter().position(|row| row.id == user_id).unwrap();
-
-                    // This solution is not perfect.
-                    // In case of fast mouse movement it fails to call this function as if mouse was not over that cell
-
-                    // If current position is row 5 column 2 then check row from 4 to 1 or 4 till a row with no active column is found
-                    // Remove the last selected column from the selection from all the rows are that found
-                    self.remove_row_column_selection(
-                        true,
-                        &all_rows,
-                        current_row_index,
-                        &last_active_column,
-                    );
-                    // If current position is row 5 column 2 then check row from 6 to final row or 6 till a row with no active column is found
-                    // Remove the last selected column from the selection from all the rows are that found
-                    self.remove_row_column_selection(
-                        false,
-                        &all_rows,
-                        current_row_index,
-                        &last_active_column,
-                    );
-                }
-            } else {
-                // Mouse went 1 row above or below. So just clear all selection from that previous row
-                last_row.selected_columns.clear();
-            }
-        } else {
-            // We are in a new row which we have not selected before
-            self.last_active_row = Some(user_id);
-            self.last_active_column = Some(column_name.clone());
-            for column in &self.active_columns {
-                current_row.selected_columns.insert(column.to_owned());
-            }
-            let current_row_index = all_rows.iter().position(|row| row.id == user_id).unwrap();
-
-            // Get the row number where the drag started on
-            let drag_start_index = all_rows
+        // Will only be empty when sorting style is changed
+        if self.indexed_user_ids.is_empty() || self.indexed_user_ids.len() != row_data.len() {
+            let indexed_data = row_data
                 .iter()
-                .position(|row| row.id == drag_start.0)
-                .unwrap();
+                .enumerate()
+                .map(|(index, row)| (row.id, index))
+                .collect();
 
-            // If drag started on row 1, currently on row 5, check from row 4 to 1 and select all columns
-            // else go through all rows till a row without any selected column is found. Applied both by incrementing or decrementing index.
-            // In case of fast mouse movement following drag started point mitigates the risk of some rows not getting selected
-            self.check_row_selection(true, &all_rows, current_row_index, drag_start_index);
-            self.check_row_selection(false, &all_rows, current_row_index, drag_start_index);
-        }
-    }
-
-    /// Recursively check the rows by either increasing or decreasing the initial index
-    /// till the end point or an unselected row is found. Add all columns that are selected by at least one row as selected
-    /// for the rows that have at least one column selected.
-    fn check_row_selection(
-        &mut self,
-        check_previous: bool,
-        rows: &Vec<UserRowData>,
-        index: usize,
-        drag_start: usize,
-    ) {
-        if index == 0 && check_previous {
-            return;
+            self.indexed_user_ids = indexed_data;
         }
 
-        if index + 1 == rows.len() && !check_previous {
-            return;
-        }
-
-        let index = if check_previous { index - 1 } else { index + 1 };
-
-        let current_row = rows.get(index).unwrap();
-        let mut unselected_row = current_row.selected_columns.is_empty();
-
-        // if for example drag started on row 5 and ended on row 10 but missed drag on row 7
-        // Mark the rows as selected till the drag start row is hit (if recursively going that way)
-        if (check_previous && index >= drag_start) || (!check_previous && index <= drag_start) {
-            unselected_row = false;
-        }
-
-        let target_row = self.rows.get_mut(&current_row.id).unwrap();
-
-        if !unselected_row {
-            for column in &self.active_columns {
-                target_row.selected_columns.insert(column.to_owned());
-            }
-            if check_previous {
-                if index != 0 {
-                    self.check_row_selection(check_previous, rows, index, drag_start);
-                }
-            } else if index + 1 != rows.len() {
-                self.check_row_selection(check_previous, rows, index, drag_start);
-            }
-        }
-    }
-
-    /// Recursively check the given rows by either increasing or decreasing the initial index
-    /// till the end point or an unselected row is found. Remove the given column from selection
-    /// from all rows that are selected.
-    fn remove_row_column_selection(
-        &mut self,
-        check_previous: bool,
-        rows: &Vec<UserRowData>,
-        index: usize,
-        target_column: &ColumnName,
-    ) {
-        if index == 0 && check_previous {
-            return;
-        }
-
-        if index + 1 == rows.len() && !check_previous {
-            return;
-        }
-
-        let index = if check_previous { index - 1 } else { index + 1 };
-
-        let current_row = rows.get(index).unwrap();
-        let unselected_row = current_row.selected_columns.is_empty();
-
-        let target_row = self.rows.get_mut(&current_row.id).unwrap();
-
-        if !unselected_row {
-            target_row.selected_columns.remove(target_column);
-
-            if check_previous {
-                if index != 0 {
-                    self.remove_row_column_selection(check_previous, rows, index, target_column);
-                }
-            } else if index + 1 != rows.len() {
-                self.remove_row_column_selection(check_previous, rows, index, target_column);
-            }
-        }
-    }
-
-    /// Unselect all rows and columns
-    fn unselected_all(&mut self) {
-        for (_, row) in self.rows.iter_mut() {
-            row.selected_columns.clear();
-        }
-        self.active_columns.clear();
-        self.last_active_row = None;
-        self.last_active_column = None;
-    }
-
-    /// Select all rows and columns
-    fn select_all(&mut self) {
-        let mut all_columns = vec![ColumnName::Name];
-        let mut current_column = ColumnName::Name.get_next();
-
-        while current_column != ColumnName::Name {
-            all_columns.push(current_column.clone());
-            current_column = current_column.get_next();
-        }
-
-        for (_, row) in self.rows.iter_mut() {
-            row.selected_columns.extend(all_columns.clone());
-        }
-        self.active_columns.extend(all_columns);
-        self.last_active_row = None;
-        self.last_active_column = None;
-    }
-
-    /// Change the value it is currently sorted by. Called on header column click
-    fn change_sorted_by(&mut self, sort_by: ColumnName) {
-        self.unselected_all();
-        self.sorted_by = sort_by;
-        self.sort_order = SortOrder::default();
-    }
-
-    /// Change the order of row sorting. Called on header column click
-    fn change_sort_order(&mut self) {
-        if let SortOrder::Ascending = self.sort_order {
-            self.sort_order = SortOrder::Descending;
-        } else {
-            self.sort_order = SortOrder::Ascending;
-        }
-    }
-
-    /// Mark a row as whitelisted if exists
-    pub fn set_as_whitelisted(&mut self, user_id: &i64) {
-        if let Some(row) = self.rows.get_mut(user_id) {
-            row.whitelisted = true;
-        }
-    }
-
-    /// Remove whitelist status from a row if exists
-    pub fn remove_whitelist(&mut self, user_id: &i64) {
-        if let Some(row) = self.rows.get_mut(user_id) {
-            row.whitelisted = false;
-        }
+        row_data
     }
 }
 
@@ -769,6 +804,10 @@ impl MainWindow {
             self.user_table.beyond_drag_point = false;
         }
 
+        // Drag part handling has ended, need to handle click event from here.
+        // For some reason if both are added at once, only the one added later responds
+        label = label.interact(Sense::click());
+
         if label.clicked() {
             // If CTRL is not pressed down and the mouse right click is not pressed, unselect all cells
             if !ui.ctx().input(|i| i.modifiers.ctrl)
@@ -788,8 +827,12 @@ impl MainWindow {
                     || drag_start.1 != column_name
                     || self.user_table.beyond_drag_point
                 {
-                    self.user_table
-                        .select_dragged_row_cell(row_data.id, &column_name);
+                    let is_ctrl_pressed = ui.ctx().input(|i| i.modifiers.ctrl);
+                    self.user_table.select_dragged_row_cell(
+                        row_data.id,
+                        &column_name,
+                        is_ctrl_pressed,
+                    );
                 }
             }
         }
@@ -967,7 +1010,7 @@ impl MainWindow {
 
         for row in selected_rows {
             let cloned_row = row.clone();
-            self.user_table.set_as_whitelisted(&row.id);
+            self.user_table.set_as_whitelisted(row.id);
             self.whitelist_data.add_to_whitelist(
                 row.name,
                 row.username,

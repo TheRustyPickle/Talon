@@ -210,7 +210,7 @@ then right click on User Table to whitelist",
                 let deleted = self.whitelist_data.remove_selected();
                 let total_to_remove = deleted.len();
                 for i in deleted {
-                    self.user_table.remove_whitelist(&i);
+                    self.user_table.remove_whitelist(i);
                 }
                 self.process_state = ProcessState::WhitelistedUserRemoved(total_to_remove);
             };
@@ -222,7 +222,7 @@ then right click on User Table to whitelist",
                 let deleted = self.whitelist_data.remove_all();
 
                 for i in deleted {
-                    self.user_table.remove_whitelist(&i);
+                    self.user_table.remove_whitelist(i);
                 }
                 self.process_state = ProcessState::AllWhitelistRemoved;
             };
@@ -311,7 +311,7 @@ then right click on User Table to whitelist",
                 let deleted = self.whitelist_data.remove_selected();
 
                 for i in deleted {
-                    self.user_table.remove_whitelist(&i);
+                    self.user_table.remove_whitelist(i);
                 }
                 ui.close_menu();
             }
