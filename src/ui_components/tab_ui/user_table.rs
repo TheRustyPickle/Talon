@@ -279,6 +279,7 @@ impl UserTableData {
         let drag_start = self.drag_started_on.clone().unwrap();
         self.select_single_row_cell(drag_start.0, &drag_start.1);
 
+        // number of the column of drag starting point and the current cell that we are trying to select
         let drag_start_num = drag_start.1 as i32;
         let ongoing_column_num = column_name.clone() as i32;
 
@@ -336,6 +337,11 @@ impl UserTableData {
 
         // If this row already selects the column that we are trying to select, it means the mouse
         // moved backwards from an active column to another active column.
+        //
+        // Row: column1 column2 (mouse is here) column3 column4
+        // 
+        // In this case, if column 3 or 4 is also found in the active selection then
+        // the mouse moved backwards
         let row_contains_column = current_row.selected_columns.contains(column_name);
 
         let mut no_checking = false;
@@ -398,8 +404,7 @@ impl UserTableData {
     }
 
     /// Recursively check the rows by either increasing or decreasing the initial index
-    /// till the end point or an unselected row is found. Add all columns that are selected by at least one row as selected
-    /// for the rows that have at least one column selected.
+    /// till the end point or an unselected row is found. Add active columns to the rows that have at least one column selected.
     fn check_row_selection(
         &mut self,
         check_previous: bool,
@@ -442,7 +447,7 @@ impl UserTableData {
         }
     }
 
-    /// Checks all the rows and unselects rows that are not within the given range
+    /// Checks the active rows and unselects rows that are not within the given range
     fn remove_row_selection(
         &mut self,
         rows: &[UserRowData],
@@ -536,6 +541,7 @@ impl UserTableData {
         }
     }
 
+    /// Sorts row data based on the current sort order
     fn sort_rows(&mut self) -> Vec<UserRowData> {
         let mut row_data: Vec<UserRowData> = self.rows.values().cloned().collect();
 
@@ -610,7 +616,8 @@ impl UserTableData {
             },
         }
 
-        if self.indexed_user_ids.is_empty() {
+        // Will only be empty when sorting style is changed
+        if self.indexed_user_ids.is_empty() || self.indexed_user_ids.len() < row_data.len() {
             let indexed_data = row_data.iter()
             .enumerate()
             .map(|(index, row)| (row.id, index))
