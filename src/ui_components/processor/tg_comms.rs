@@ -81,7 +81,7 @@ impl MainWindow {
                             .add_user(sender, local_time_date, count_data.name());
 
                     if user_id != 0 && self.whitelist_data.is_user_whitelisted(&user_id) {
-                        self.user_table.set_as_whitelisted(&user_id);
+                        self.user_table.set_as_whitelisted(user_id);
                     }
 
                     let chart_user = {
@@ -249,7 +249,7 @@ impl MainWindow {
                         chat.seen_by,
                     );
                     self.whitelist_data.clear_text_box();
-                    self.user_table.set_as_whitelisted(&user_id);
+                    self.user_table.set_as_whitelisted(user_id);
                     self.process_state = ProcessState::AddedToWhitelist;
                 }
                 ProcessResult::ChatExists(chat_name, start_at, end_at) => {

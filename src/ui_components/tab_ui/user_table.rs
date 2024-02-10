@@ -302,31 +302,29 @@ impl UserTableData {
         // No active row removal if ctrl is being pressed!
         if is_ctrl_pressed {
             self.active_columns.insert(column_name.clone());
+        } else if ongoing_column_num == drag_start_num {
+            new_column_set.insert(ColumnName::from_num(drag_start_num));
+            self.active_columns = new_column_set;
         } else {
-            if ongoing_column_num == drag_start_num {
-                new_column_set.insert(ColumnName::from_num(drag_start_num));
-                self.active_columns = new_column_set;
-            } else {
-                while ongoing_val.is_some() {
-                    let col = ongoing_val.clone().unwrap();
+            while ongoing_val.is_some() {
+                let col = ongoing_val.clone().unwrap();
 
-                    let next_column = if get_previous {
-                        col.get_next()
-                    } else {
-                        col.get_previous()
-                    };
+                let next_column = if get_previous {
+                    col.get_next()
+                } else {
+                    col.get_previous()
+                };
 
-                    new_column_set.insert(col);
+                new_column_set.insert(col);
 
-                    if next_column == ColumnName::from_num(ongoing_column_num) {
-                        new_column_set.insert(next_column);
-                        ongoing_val = None;
-                    } else {
-                        ongoing_val = Some(next_column);
-                    }
+                if next_column == ColumnName::from_num(ongoing_column_num) {
+                    new_column_set.insert(next_column);
+                    ongoing_val = None;
+                } else {
+                    ongoing_val = Some(next_column);
                 }
-                self.active_columns = new_column_set;
             }
+            self.active_columns = new_column_set;
         }
 
         // The rows in the current sorted format
@@ -339,7 +337,7 @@ impl UserTableData {
         // moved backwards from an active column to another active column.
         //
         // Row: column1 column2 (mouse is here) column3 column4
-        // 
+        //
         // In this case, if column 3 or 4 is also found in the active selection then
         // the mouse moved backwards
         let row_contains_column = current_row.selected_columns.contains(column_name);
@@ -519,6 +517,7 @@ impl UserTableData {
 
     /// Change the order of row sorting. Called on header column click
     fn change_sort_order(&mut self) {
+        self.unselected_all();
         if let SortOrder::Ascending = self.sort_order {
             self.sort_order = SortOrder::Descending;
         } else {
@@ -528,15 +527,15 @@ impl UserTableData {
     }
 
     /// Mark a row as whitelisted if exists
-    pub fn set_as_whitelisted(&mut self, user_id: &i64) {
-        if let Some(row) = self.rows.get_mut(user_id) {
+    pub fn set_as_whitelisted(&mut self, user_id: i64) {
+        if let Some(row) = self.rows.get_mut(&user_id) {
             row.whitelisted = true;
         }
     }
 
     /// Remove whitelist status from a row if exists
-    pub fn remove_whitelist(&mut self, user_id: &i64) {
-        if let Some(row) = self.rows.get_mut(user_id) {
+    pub fn remove_whitelist(&mut self, user_id: i64) {
+        if let Some(row) = self.rows.get_mut(&user_id) {
             row.whitelisted = false;
         }
     }
@@ -617,18 +616,18 @@ impl UserTableData {
         }
 
         // Will only be empty when sorting style is changed
-        if self.indexed_user_ids.is_empty() || self.indexed_user_ids.len() < row_data.len() {
-            let indexed_data = row_data.iter()
-            .enumerate()
-            .map(|(index, row)| (row.id, index))
-            .collect();
+        if self.indexed_user_ids.is_empty() || self.indexed_user_ids.len() != row_data.len() {
+            let indexed_data = row_data
+                .iter()
+                .enumerate()
+                .map(|(index, row)| (row.id, index))
+                .collect();
 
             self.indexed_user_ids = indexed_data;
         }
-        
+
         row_data
     }
-    
 }
 
 impl MainWindow {
@@ -1011,7 +1010,7 @@ impl MainWindow {
 
         for row in selected_rows {
             let cloned_row = row.clone();
-            self.user_table.set_as_whitelisted(&row.id);
+            self.user_table.set_as_whitelisted(row.id);
             self.whitelist_data.add_to_whitelist(
                 row.name,
                 row.username,
