@@ -123,23 +123,18 @@ pub struct UserTableData {
     sort_order: SortOrder,
     drag_started_on: Option<(i64, ColumnName)>,
     active_columns: HashSet<ColumnName>,
+    active_rows: HashSet<i64>,
     last_active_row: Option<i64>,
     last_active_column: Option<ColumnName>,
     // To track whether the mouse pointer went beyond the drag point at least once
     beyond_drag_point: bool,
+    indexed_user_ids: HashMap<i64, usize>,
 }
 
 impl UserTableData {
     /// Clear all the rows
     pub fn clear_row_data(&mut self) {
-        self.rows.clear();
-        self.sorted_by = ColumnName::default();
-        self.sort_order = SortOrder::default();
-        self.drag_started_on = None;
-        self.active_columns.clear();
-        self.last_active_row = None;
-        self.last_active_column = None;
-        self.beyond_drag_point = false;
+        *self = UserTableData::default();
     }
 
     /// Add a user to the table
@@ -245,86 +240,17 @@ impl UserTableData {
     }
 
     /// Returns all existing row in the current sorted format in a vector
-    fn rows(&self) -> Vec<UserRowData> {
-        let mut row_data: Vec<UserRowData> = self.rows.values().cloned().collect();
-
-        match self.sorted_by {
-            ColumnName::UserID => match self.sort_order {
-                SortOrder::Ascending => row_data.sort_by(|a, b| a.id.cmp(&b.id)),
-                SortOrder::Descending => row_data.sort_by(|a, b| a.id.cmp(&b.id).reverse()),
-            },
-            ColumnName::Name => match self.sort_order {
-                SortOrder::Ascending => row_data.sort_by(|a, b| a.name.cmp(&b.name)),
-                SortOrder::Descending => row_data.sort_by(|a, b| a.name.cmp(&b.name).reverse()),
-            },
-            ColumnName::Username => match self.sort_order {
-                SortOrder::Ascending => row_data.sort_by(|a, b| a.username.cmp(&b.username)),
-                SortOrder::Descending => {
-                    row_data.sort_by(|a, b| a.username.cmp(&b.username).reverse());
-                }
-            },
-            ColumnName::TotalMessage => match self.sort_order {
-                SortOrder::Ascending => {
-                    row_data.sort_by(|a, b| a.total_message.cmp(&b.total_message));
-                }
-                SortOrder::Descending => {
-                    row_data.sort_by(|a, b| a.total_message.cmp(&b.total_message).reverse());
-                }
-            },
-            ColumnName::TotalWord => match self.sort_order {
-                SortOrder::Ascending => row_data.sort_by(|a, b| a.total_word.cmp(&b.total_word)),
-                SortOrder::Descending => {
-                    row_data.sort_by(|a, b| a.total_word.cmp(&b.total_word).reverse());
-                }
-            },
-            ColumnName::TotalChar => match self.sort_order {
-                SortOrder::Ascending => row_data.sort_by(|a, b| a.total_char.cmp(&b.total_char)),
-                SortOrder::Descending => {
-                    row_data.sort_by(|a, b| a.total_char.cmp(&b.total_char).reverse());
-                }
-            },
-            ColumnName::AverageChar => match self.sort_order {
-                SortOrder::Ascending => {
-                    row_data.sort_by(|a, b| a.average_char.cmp(&b.average_char));
-                }
-                SortOrder::Descending => {
-                    row_data.sort_by(|a, b| a.average_char.cmp(&b.average_char).reverse());
-                }
-            },
-            ColumnName::AverageWord => match self.sort_order {
-                SortOrder::Ascending => {
-                    row_data.sort_by(|a, b| a.average_word.cmp(&b.average_word));
-                }
-                SortOrder::Descending => {
-                    row_data.sort_by(|a, b| a.average_word.cmp(&b.average_word).reverse());
-                }
-            },
-            ColumnName::FirstMessageSeen => match self.sort_order {
-                SortOrder::Ascending => row_data.sort_by(|a, b| a.first_seen.cmp(&b.first_seen)),
-                SortOrder::Descending => {
-                    row_data.sort_by(|a, b| a.first_seen.cmp(&b.first_seen).reverse());
-                }
-            },
-            ColumnName::LastMessageSeen => match self.sort_order {
-                SortOrder::Ascending => row_data.sort_by(|a, b| a.last_seen.cmp(&b.last_seen)),
-                SortOrder::Descending => {
-                    row_data.sort_by(|a, b| a.last_seen.cmp(&b.last_seen).reverse());
-                }
-            },
-            ColumnName::Whitelisted => match self.sort_order {
-                SortOrder::Ascending => row_data.sort_by(|a, b| a.whitelisted.cmp(&b.whitelisted)),
-                SortOrder::Descending => {
-                    row_data.sort_by(|a, b| a.whitelisted.cmp(&b.whitelisted).reverse());
-                }
-            },
-        }
-
-        row_data
+    fn rows(&mut self) -> Vec<UserRowData> {
+        // It needs to be sorted each load otherwise
+        // if pre-saved, it will contain outdated data
+        self.sort_rows()
     }
 
     /// Marks a single column of a row as selected
     fn select_single_row_cell(&mut self, user_id: i64, column_name: &ColumnName) {
         self.active_columns.insert(column_name.clone());
+        self.active_rows.insert(user_id);
+
         self.rows
             .get_mut(&user_id)
             .unwrap()
@@ -455,13 +381,10 @@ impl UserTableData {
             current_row.selected_columns = self.active_columns.clone();
         }
 
-        let current_row_index = all_rows.iter().position(|row| row.id == user_id).unwrap();
+        let current_row_index = self.indexed_user_ids.get(&user_id).unwrap().to_owned();
 
         // Get the row number where the drag started on
-        let drag_start_index = all_rows
-            .iter()
-            .position(|row| row.id == drag_start.0)
-            .unwrap();
+        let drag_start_index = self.indexed_user_ids.get(&drag_start.0).unwrap().to_owned();
 
         if no_checking {
             self.remove_row_selection(&all_rows, current_row_index, drag_start_index);
@@ -507,9 +430,8 @@ impl UserTableData {
 
         if !unselected_row {
             target_row.selected_columns = self.active_columns.clone();
-            // for column in &self.active_columns {
-            //     target_row.selected_columns.insert(column.to_owned());
-            // }
+            self.active_rows.insert(target_row.id);
+
             if check_previous {
                 if index != 0 {
                     self.check_row_selection(check_previous, rows, index, drag_start);
@@ -527,7 +449,9 @@ impl UserTableData {
         current_index: usize,
         drag_start: usize,
     ) {
-        for ongoing_index in 0..rows.len() {
+        let active_ids = self.active_rows.clone();
+        for id in active_ids {
+            let ongoing_index = self.indexed_user_ids.get(&id).unwrap().to_owned();
             let current_row = rows.get(ongoing_index).unwrap();
             let target_row = self.rows.get_mut(&current_row.id).unwrap();
 
@@ -536,11 +460,13 @@ impl UserTableData {
                     target_row.selected_columns = self.active_columns.clone();
                 } else {
                     target_row.selected_columns = HashSet::new();
+                    self.active_rows.remove(&target_row.id);
                 }
             } else if ongoing_index <= drag_start && ongoing_index >= current_index {
                 target_row.selected_columns = self.active_columns.clone();
             } else {
                 target_row.selected_columns = HashSet::new();
+                self.active_rows.remove(&target_row.id);
             }
         }
     }
@@ -553,12 +479,14 @@ impl UserTableData {
         self.active_columns.clear();
         self.last_active_row = None;
         self.last_active_column = None;
+        self.active_rows.clear();
     }
 
     /// Select all rows and columns
     fn select_all(&mut self) {
         let mut all_columns = vec![ColumnName::Name];
         let mut current_column = ColumnName::Name.get_next();
+        let mut all_rows = Vec::new();
 
         while current_column != ColumnName::Name {
             all_columns.push(current_column.clone());
@@ -567,8 +495,11 @@ impl UserTableData {
 
         for (_, row) in self.rows.iter_mut() {
             row.selected_columns.extend(all_columns.clone());
+            all_rows.push(row.id);
         }
+
         self.active_columns.extend(all_columns);
+        self.active_rows.extend(all_rows);
         self.last_active_row = None;
         self.last_active_column = None;
     }
@@ -578,6 +509,7 @@ impl UserTableData {
         self.unselected_all();
         self.sorted_by = sort_by;
         self.sort_order = SortOrder::default();
+        self.indexed_user_ids.clear();
     }
 
     /// Change the order of row sorting. Called on header column click
@@ -587,6 +519,7 @@ impl UserTableData {
         } else {
             self.sort_order = SortOrder::Ascending;
         }
+        self.indexed_user_ids.clear();
     }
 
     /// Mark a row as whitelisted if exists
@@ -602,6 +535,93 @@ impl UserTableData {
             row.whitelisted = false;
         }
     }
+
+    fn sort_rows(&mut self) -> Vec<UserRowData> {
+        let mut row_data: Vec<UserRowData> = self.rows.values().cloned().collect();
+
+        match self.sorted_by {
+            ColumnName::UserID => match self.sort_order {
+                SortOrder::Ascending => row_data.sort_by(|a, b| a.id.cmp(&b.id)),
+                SortOrder::Descending => row_data.sort_by(|a, b| a.id.cmp(&b.id).reverse()),
+            },
+            ColumnName::Name => match self.sort_order {
+                SortOrder::Ascending => row_data.sort_by(|a, b| a.name.cmp(&b.name)),
+                SortOrder::Descending => row_data.sort_by(|a, b| a.name.cmp(&b.name).reverse()),
+            },
+            ColumnName::Username => match self.sort_order {
+                SortOrder::Ascending => row_data.sort_by(|a, b| a.username.cmp(&b.username)),
+                SortOrder::Descending => {
+                    row_data.sort_by(|a, b| a.username.cmp(&b.username).reverse());
+                }
+            },
+            ColumnName::TotalMessage => match self.sort_order {
+                SortOrder::Ascending => {
+                    row_data.sort_by(|a, b| a.total_message.cmp(&b.total_message));
+                }
+                SortOrder::Descending => {
+                    row_data.sort_by(|a, b| a.total_message.cmp(&b.total_message).reverse());
+                }
+            },
+            ColumnName::TotalWord => match self.sort_order {
+                SortOrder::Ascending => row_data.sort_by(|a, b| a.total_word.cmp(&b.total_word)),
+                SortOrder::Descending => {
+                    row_data.sort_by(|a, b| a.total_word.cmp(&b.total_word).reverse());
+                }
+            },
+            ColumnName::TotalChar => match self.sort_order {
+                SortOrder::Ascending => row_data.sort_by(|a, b| a.total_char.cmp(&b.total_char)),
+                SortOrder::Descending => {
+                    row_data.sort_by(|a, b| a.total_char.cmp(&b.total_char).reverse());
+                }
+            },
+            ColumnName::AverageChar => match self.sort_order {
+                SortOrder::Ascending => {
+                    row_data.sort_by(|a, b| a.average_char.cmp(&b.average_char));
+                }
+                SortOrder::Descending => {
+                    row_data.sort_by(|a, b| a.average_char.cmp(&b.average_char).reverse());
+                }
+            },
+            ColumnName::AverageWord => match self.sort_order {
+                SortOrder::Ascending => {
+                    row_data.sort_by(|a, b| a.average_word.cmp(&b.average_word));
+                }
+                SortOrder::Descending => {
+                    row_data.sort_by(|a, b| a.average_word.cmp(&b.average_word).reverse());
+                }
+            },
+            ColumnName::FirstMessageSeen => match self.sort_order {
+                SortOrder::Ascending => row_data.sort_by(|a, b| a.first_seen.cmp(&b.first_seen)),
+                SortOrder::Descending => {
+                    row_data.sort_by(|a, b| a.first_seen.cmp(&b.first_seen).reverse());
+                }
+            },
+            ColumnName::LastMessageSeen => match self.sort_order {
+                SortOrder::Ascending => row_data.sort_by(|a, b| a.last_seen.cmp(&b.last_seen)),
+                SortOrder::Descending => {
+                    row_data.sort_by(|a, b| a.last_seen.cmp(&b.last_seen).reverse());
+                }
+            },
+            ColumnName::Whitelisted => match self.sort_order {
+                SortOrder::Ascending => row_data.sort_by(|a, b| a.whitelisted.cmp(&b.whitelisted)),
+                SortOrder::Descending => {
+                    row_data.sort_by(|a, b| a.whitelisted.cmp(&b.whitelisted).reverse());
+                }
+            },
+        }
+
+        if self.indexed_user_ids.is_empty() {
+            let indexed_data = row_data.iter()
+            .enumerate()
+            .map(|(index, row)| (row.id, index))
+            .collect();
+
+            self.indexed_user_ids = indexed_data;
+        }
+        
+        row_data
+    }
+    
 }
 
 impl MainWindow {
