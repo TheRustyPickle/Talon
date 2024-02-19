@@ -514,7 +514,9 @@ impl MainWindow {
             .added_to_chart
             .contains(&"Show whitelisted data".to_string());
 
-        if self.charts_data.chart_timing == ChartTiming::Hourly && self.charts_data.hourly_bars.is_some() {
+        if self.charts_data.chart_timing == ChartTiming::Hourly
+            && self.charts_data.hourly_bars.is_some()
+        {
             self.display_chart(
                 ui,
                 point_value,
@@ -525,7 +527,9 @@ impl MainWindow {
             return;
         }
 
-        if self.charts_data.chart_timing == ChartTiming::Daily && self.charts_data.daily_bars.is_some() {
+        if self.charts_data.chart_timing == ChartTiming::Daily
+            && self.charts_data.daily_bars.is_some()
+        {
             self.display_chart(
                 ui,
                 point_value,
@@ -610,11 +614,15 @@ impl MainWindow {
             ongoing_arg += point_value;
         }
 
-        if self.charts_data.hourly_bars.is_none() && self.charts_data.chart_timing == ChartTiming::Hourly {
+        if self.charts_data.hourly_bars.is_none()
+            && self.charts_data.chart_timing == ChartTiming::Hourly
+        {
             self.charts_data.hourly_bars = Some(bar_list.clone());
         }
 
-        if self.charts_data.daily_bars.is_none() && self.charts_data.chart_timing == ChartTiming::Daily {
+        if self.charts_data.daily_bars.is_none()
+            && self.charts_data.chart_timing == ChartTiming::Daily
+        {
             self.charts_data.daily_bars = Some(bar_list.clone());
         }
 
