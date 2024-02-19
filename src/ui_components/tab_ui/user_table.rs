@@ -391,14 +391,24 @@ impl UserTableData {
         let drag_start_index = self.indexed_user_ids.get(&drag_start.0).unwrap().to_owned();
 
         if no_checking {
-            self.remove_row_selection(&all_rows, current_row_index, drag_start_index, is_ctrl_pressed);
+            self.remove_row_selection(
+                &all_rows,
+                current_row_index,
+                drag_start_index,
+                is_ctrl_pressed,
+            );
         } else {
             // If drag started on row 1, currently on row 5, check from row 4 to 1 and select all columns
             // else go through all rows till a row without any selected column is found. Applied both by incrementing or decrementing index.
             // In case of fast mouse movement following drag started point mitigates the risk of some rows not getting selected
             self.check_row_selection(true, &all_rows, current_row_index, drag_start_index);
             self.check_row_selection(false, &all_rows, current_row_index, drag_start_index);
-            self.remove_row_selection(&all_rows, current_row_index, drag_start_index, is_ctrl_pressed);
+            self.remove_row_selection(
+                &all_rows,
+                current_row_index,
+                drag_start_index,
+                is_ctrl_pressed,
+            );
         }
     }
 
@@ -452,7 +462,7 @@ impl UserTableData {
         rows: &[UserRowData],
         current_index: usize,
         drag_start: usize,
-        is_ctrl_pressed: bool
+        is_ctrl_pressed: bool,
     ) {
         let active_ids = self.active_rows.clone();
         for id in active_ids {
