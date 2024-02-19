@@ -27,6 +27,8 @@ pub struct ChartsData {
     last_week: HashMap<String, Option<NaiveDateTime>>,
     last_month: HashMap<String, Option<NaiveDateTime>>,
     user_ids: HashMap<String, i64>,
+    hourly_bars: Option<BTreeMap<String, Vec<Bar>>>,
+    daily_bars: Option<BTreeMap<String, Vec<Bar>>>,
 }
 
 impl ChartsData {
@@ -36,12 +38,16 @@ impl ChartsData {
         self.available_users.remove(&self.dropdown_user);
         self.button_sizes.insert(self.dropdown_user.clone(), None);
         self.dropdown_user.clear();
+        self.hourly_bars = None;
+        self.daily_bars = None;
     }
 
     /// Removes the user that was clicked on from the chart
     fn remove_from_chart(&mut self, user: &str) {
         self.added_to_chart.remove(user);
         self.available_users.insert(user.to_string());
+        self.hourly_bars = None;
+        self.daily_bars = None;
     }
 
     /// Adds a user available for adding in the chart
@@ -168,6 +174,9 @@ impl ChartsData {
         let counter = self.weekday_message.get_mut(&(sent_on as u8)).unwrap();
         let target_user = counter.entry(add_to).or_insert(0);
         *target_user += 1;
+
+        self.hourly_bars = None;
+        self.daily_bars = None;
     }
 
     /// Reset chart data
@@ -186,6 +195,8 @@ impl ChartsData {
         self.daily_message.clear();
         self.user_ids.clear();
         self.weekday_message.clear();
+        self.hourly_bars = None;
+        self.daily_bars = None;
 
         let mut ongoing_value = Some(Weekday::Mon);
 
@@ -503,6 +514,28 @@ impl MainWindow {
             .added_to_chart
             .contains(&"Show whitelisted data".to_string());
 
+        if self.charts_data.chart_timing == ChartTiming::Hourly && self.charts_data.hourly_bars.is_some() {
+            self.display_chart(
+                ui,
+                point_value,
+                show_total_message,
+                show_whitelisted_message,
+                self.charts_data.hourly_bars.clone().unwrap(),
+            );
+            return;
+        }
+
+        if self.charts_data.chart_timing == ChartTiming::Daily && self.charts_data.daily_bars.is_some() {
+            self.display_chart(
+                ui,
+                point_value,
+                show_total_message,
+                show_whitelisted_message,
+                self.charts_data.daily_bars.clone().unwrap(),
+            );
+            return;
+        }
+
         // Key = The common time where one or more message may have been sent
         // user = All users that sent messages to this common time + the amount of message
         for (key, user) in to_iter {
@@ -575,6 +608,14 @@ impl MainWindow {
             }
 
             ongoing_arg += point_value;
+        }
+
+        if self.charts_data.hourly_bars.is_none() && self.charts_data.chart_timing == ChartTiming::Hourly {
+            self.charts_data.hourly_bars = Some(bar_list.clone());
+        }
+
+        if self.charts_data.daily_bars.is_none() && self.charts_data.chart_timing == ChartTiming::Daily {
+            self.charts_data.daily_bars = Some(bar_list.clone());
         }
 
         self.display_chart(
