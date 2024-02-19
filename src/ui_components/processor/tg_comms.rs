@@ -45,7 +45,7 @@ impl MainWindow {
                     // Example case end point 100, last processed 102
                     // Current num 99 so end point reached
                     // 101 and 100 is missing so count them as deleted
-                    if last_number - 1 != end_at {
+                    if last_number != end_at {
                         let total_deleted = last_number - end_at;
                         self.counter_data.add_deleted_message(total_deleted);
                     }
