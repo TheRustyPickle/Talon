@@ -231,12 +231,10 @@ Login to one or more accounts multiple times with different session names!",
                 .on_hover_text(
                     "When counting how many messages to count in each frame load? Default: 20
 
-Longer time can increase the counting speed but flood wait will also be more
+Higher can increase the counting speed but flood wait will also be more
 visible in the UI.
 
-Tips: Each session can count about 3000 messages before flood wait is triggered.
-For checking less than (total session x 3000) messages, increasing it can speed it up.
-Otherwise the time required to count is near same.",
+Info: Each session can count about 3000 messages before flood wait is triggered.",
                 );
         });
         ui.end_row();
