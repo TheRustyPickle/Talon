@@ -119,6 +119,7 @@ impl UserRowData {
 #[derive(Default)]
 pub struct UserTableData {
     rows: HashMap<i64, UserRowData>,
+    formatted_rows: Vec<UserRowData>,
     sorted_by: ColumnName,
     sort_order: SortOrder,
     drag_started_on: Option<(i64, ColumnName)>,
@@ -210,7 +211,7 @@ impl UserTableData {
                 UserRowData::new(&full_name, &user_name, user_id, false, None, date, seen_by)
             });
         }
-
+        self.formatted_rows.clear();
         (user_id, full_name, user_name)
     }
 
@@ -233,6 +234,7 @@ impl UserTableData {
         user_row_data.increment_total_message();
         user_row_data.increment_total_word(total_word);
         user_row_data.increment_total_char(total_char);
+        self.formatted_rows.clear();
     }
 
     pub fn get_total_user(&self) -> i32 {
@@ -242,8 +244,12 @@ impl UserTableData {
     /// Returns all existing row in the current sorted format in a vector
     fn rows(&mut self) -> Vec<UserRowData> {
         // It needs to be sorted each load otherwise
-        // if pre-saved, it will contain outdated data
-        self.sort_rows()
+        // `self.rows` gets updated with newer data
+        // Unless recreated after an update, the UI will show outdated data
+        if self.formatted_rows.is_empty() || self.formatted_rows.len() != self.rows.len() {
+            self.formatted_rows = self.sort_rows();
+        }
+        self.formatted_rows.clone()
     }
 
     /// Marks a single column of a row as selected
@@ -256,6 +262,7 @@ impl UserTableData {
             .unwrap()
             .selected_columns
             .insert(column_name.clone());
+        self.formatted_rows.clear();
     }
 
     /// Continuously called to select rows and columns when dragging has started
@@ -275,9 +282,7 @@ impl UserTableData {
         self.active_columns.insert(column_name.clone());
         self.beyond_drag_point = true;
 
-        // Ensure the starting drag cell is selected
         let drag_start = self.drag_started_on.clone().unwrap();
-        self.select_single_row_cell(drag_start.0, &drag_start.1);
 
         // number of the column of drag starting point and the current cell that we are trying to select
         let drag_start_num = drag_start.1 as i32;
@@ -410,6 +415,7 @@ impl UserTableData {
                 is_ctrl_pressed,
             );
         }
+        self.formatted_rows.clear();
     }
 
     /// Recursively check the rows by either increasing or decreasing the initial index
@@ -495,6 +501,7 @@ impl UserTableData {
         self.last_active_row = None;
         self.last_active_column = None;
         self.active_rows.clear();
+        self.formatted_rows.clear();
     }
 
     /// Select all rows and columns
@@ -517,6 +524,7 @@ impl UserTableData {
         self.active_rows.extend(all_rows);
         self.last_active_row = None;
         self.last_active_column = None;
+        self.formatted_rows.clear();
     }
 
     /// Change the value it is currently sorted by. Called on header column click
@@ -525,6 +533,7 @@ impl UserTableData {
         self.sorted_by = sort_by;
         self.sort_order = SortOrder::default();
         self.indexed_user_ids.clear();
+        self.formatted_rows.clear();
     }
 
     /// Change the order of row sorting. Called on header column click
@@ -536,6 +545,7 @@ impl UserTableData {
             self.sort_order = SortOrder::Ascending;
         }
         self.indexed_user_ids.clear();
+        self.formatted_rows.clear();
     }
 
     /// Mark a row as whitelisted if exists
@@ -543,6 +553,7 @@ impl UserTableData {
         if let Some(row) = self.rows.get_mut(&user_id) {
             row.whitelisted = true;
         }
+        self.formatted_rows.clear();
     }
 
     /// Remove whitelist status from a row if exists
@@ -550,6 +561,7 @@ impl UserTableData {
         if let Some(row) = self.rows.get_mut(&user_id) {
             row.whitelisted = false;
         }
+        self.formatted_rows.clear();
     }
 
     /// Sorts row data based on the current sort order
