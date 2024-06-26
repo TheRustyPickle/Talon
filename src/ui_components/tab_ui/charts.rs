@@ -508,11 +508,11 @@ impl MainWindow {
         let show_total_message = self
             .charts_data
             .added_to_chart
-            .contains(&"Show total data".to_string());
+            .contains("Show total data");
         let show_whitelisted_message = self
             .charts_data
             .added_to_chart
-            .contains(&"Show whitelisted data".to_string());
+            .contains("Show whitelisted data");
 
         if self.charts_data.chart_timing == ChartTiming::Hourly
             && self.charts_data.hourly_bars.is_some()
@@ -654,11 +654,11 @@ impl MainWindow {
         let show_total_message = self
             .charts_data
             .added_to_chart
-            .contains(&"Show total data".to_string());
+            .contains("Show total data");
         let show_whitelisted_message = self
             .charts_data
             .added_to_chart
-            .contains(&"Show whitelisted data".to_string());
+            .contains("Show whitelisted data");
 
         // Key = The common time where one or more message may have been sent
         // user = All users that sent messages to this common time + the amount of message
@@ -728,11 +728,11 @@ impl MainWindow {
         let show_total_message = self
             .charts_data
             .added_to_chart
-            .contains(&"Show total data".to_string());
+            .contains("Show total data");
         let show_whitelisted_message = self
             .charts_data
             .added_to_chart
-            .contains(&"Show whitelisted data".to_string());
+            .contains("Show whitelisted data");
 
         // Key = The common time where one or more message may have been sent
         // user = All users that sent messages to this common time + the amount of message
@@ -801,11 +801,11 @@ impl MainWindow {
         let show_total_message = self
             .charts_data
             .added_to_chart
-            .contains(&"Show total data".to_string());
+            .contains("Show total data");
         let show_whitelisted_message = self
             .charts_data
             .added_to_chart
-            .contains(&"Show whitelisted data".to_string());
+            .contains("Show whitelisted data");
 
         // Key = The common time where one or more message may have been sent
         // user = All users that sent messages to this common time + the amount of message
