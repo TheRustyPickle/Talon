@@ -1,4 +1,4 @@
-use chrono::NaiveDateTime;
+use chrono::{NaiveDate, NaiveDateTime};
 use log::info;
 use std::collections::{HashMap, HashSet};
 use std::error::Error;
@@ -9,13 +9,14 @@ use tokio::runtime::{self, Runtime};
 
 use crate::ui_components::processor::ChartTiming;
 use crate::ui_components::processor::PackedWhitelistedUser;
+use crate::ui_components::tab_ui::UserRowData;
 use crate::ui_components::TGKeys;
 
 /// Finds all the saved session files
 pub fn find_session_files() -> Vec<String> {
     let mut sessions = Vec::new();
-    if let Ok(entires) = fs::read_dir(".") {
-        for entry in entires {
+    if let Ok(entries) = fs::read_dir(".") {
+        for entry in entries {
             if let Ok(file_name) = entry.unwrap().file_name().into_string() {
                 if file_name.ends_with("session") {
                     info!("Found existing session file {}", file_name);
@@ -260,4 +261,17 @@ pub fn separate_whitelist_by_seen(
     }
 
     separated_data
+}
+
+/// Checks for a value in the HashMap of a HashMap
+pub fn entry_insert_user(
+    user_data: &mut HashMap<NaiveDate, HashMap<i64, UserRowData>>,
+    row_data: &mut HashMap<i64, UserRowData>,
+    user_row_data: UserRowData,
+    id: i64,
+    date: NaiveDate,
+) {
+    let entry = user_data.entry(date).or_default();
+    entry.entry(id).or_insert(user_row_data.clone());
+    row_data.entry(id).or_insert(user_row_data);
 }

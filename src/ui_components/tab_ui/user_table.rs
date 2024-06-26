@@ -2,17 +2,17 @@ use chrono::NaiveDate;
 use eframe::egui::{
     Align, Event, Key, Layout, Response, RichText, ScrollArea, SelectableLabel, Sense, Ui,
 };
-use egui_extras::{Column, TableBuilder};
+use egui_extras::{Column, DatePickerButton, TableBuilder};
 use grammers_client::types::{Chat, Message};
 use std::collections::{HashMap, HashSet};
 
 use crate::ui_components::processor::{ColumnName, PackedWhitelistedUser, ProcessState, SortOrder};
 use crate::ui_components::widgets::RowLabel;
 use crate::ui_components::MainWindow;
-use crate::utils::save_whitelisted_users;
+use crate::utils::{entry_insert_user, save_whitelisted_users};
 
 #[derive(Clone)]
-struct UserRowData {
+pub struct UserRowData {
     name: String,
     username: String,
     id: i64,
@@ -59,24 +59,34 @@ impl UserRowData {
         }
     }
 
+    /// Increment total message count by 1
     fn increment_total_message(&mut self) {
         self.total_message += 1;
     }
 
+    /// Increment total message count by `amount`
+    fn increase_message_by(&mut self, amount: u32) {
+        self.total_message += amount;
+    }
+
+    /// Increment total word count by `word_num`
     fn increment_total_word(&mut self, word_num: u32) {
         self.total_word += word_num;
         self.average_word = self.total_word / self.total_message;
     }
 
+    /// Increment total char count by `char_num`
     fn increment_total_char(&mut self, char_num: u32) {
         self.total_char += char_num;
         self.average_char = self.total_char / self.total_message;
     }
 
+    /// Update the date this user was first seen in the chat
     fn set_first_seen(&mut self, date: NaiveDate) {
         self.first_seen = date;
     }
 
+    /// Update the date this user was last seen in the chat
     fn set_last_seen(&mut self, date: NaiveDate) {
         self.last_seen = date;
     }
@@ -118,6 +128,7 @@ impl UserRowData {
 
 #[derive(Default)]
 pub struct UserTableData {
+    user_data: HashMap<NaiveDate, HashMap<i64, UserRowData>>,
     rows: HashMap<i64, UserRowData>,
     formatted_rows: Vec<UserRowData>,
     sorted_by: ColumnName,
@@ -127,9 +138,19 @@ pub struct UserTableData {
     active_rows: HashSet<i64>,
     last_active_row: Option<i64>,
     last_active_column: Option<ColumnName>,
-    // To track whether the mouse pointer went beyond the drag point at least once
+    /// To track whether the mouse pointer went beyond the drag point at least once
     beyond_drag_point: bool,
     indexed_user_ids: HashMap<i64, usize>,
+    from_date: NaiveDate,
+    to_date: NaiveDate,
+    /// The last selected date in the from date picker
+    last_from_date: Option<NaiveDate>,
+    /// The last selected date in the to date picker
+    last_to_date: Option<NaiveDate>,
+    /// The oldest date in total gathered data
+    start_date: Option<NaiveDate>,
+    /// The newest date in total gathered data
+    end_date: Option<NaiveDate>,
 }
 
 impl UserTableData {
@@ -153,7 +174,7 @@ impl UserTableData {
             user_id = chat_data.id();
 
             if let Chat::User(user) = chat_data.clone() {
-                // As per grammers lib, empty name can be given if it's a deleted account
+                // As per grammers lib doc, empty name can be given if it's a deleted account
                 full_name = if user.full_name().is_empty() {
                     "Deleted Account".to_string()
                 } else {
@@ -166,17 +187,19 @@ impl UserTableData {
                     "Empty".to_string()
                 };
 
-                self.rows.entry(user_id).or_insert_with(|| {
-                    UserRowData::new(
-                        &full_name,
-                        &user_name,
-                        user_id,
-                        false,
-                        Some(chat_data),
-                        date,
-                        seen_by,
-                    )
-                });
+                // Initially the table UI will contain every single data gathered. Alongside this the
+                // data will also be saved date by date for later filtering in `self.user_data`
+                let user_row = UserRowData::new(
+                    &full_name,
+                    &user_name,
+                    user_id,
+                    false,
+                    Some(chat_data),
+                    date,
+                    seen_by,
+                );
+
+                entry_insert_user(&mut self.user_data, &mut self.rows, user_row, user_id, date);
             } else {
                 full_name = if chat_data.name().is_empty() {
                     "Deleted Account".to_string()
@@ -190,26 +213,27 @@ impl UserTableData {
                     "Empty".to_string()
                 };
 
-                self.rows.entry(user_id).or_insert_with(|| {
-                    UserRowData::new(
-                        &full_name,
-                        &user_name,
-                        user_id,
-                        false,
-                        Some(chat_data.clone()),
-                        date,
-                        seen_by,
-                    )
-                });
+                let user_row = UserRowData::new(
+                    &full_name,
+                    &user_name,
+                    user_id,
+                    false,
+                    Some(chat_data),
+                    date,
+                    seen_by,
+                );
+
+                entry_insert_user(&mut self.user_data, &mut self.rows, user_row, user_id, date);
             }
         } else {
             // If there is no Chat value then it could be an anonymous user
             full_name = "Anonymous/Unknown".to_string();
             user_name = "Empty".to_string();
 
-            self.rows.entry(0).or_insert_with(|| {
-                UserRowData::new(&full_name, &user_name, user_id, false, None, date, seen_by)
-            });
+            let user_row =
+                UserRowData::new(&full_name, &user_name, user_id, false, None, date, seen_by);
+
+            entry_insert_user(&mut self.user_data, &mut self.rows, user_row, user_id, date);
         }
         self.formatted_rows.clear();
         (user_id, full_name, user_name)
@@ -217,23 +241,62 @@ impl UserTableData {
 
     /// Update message related column values of a row
     pub fn count_user_message(&mut self, user_id: i64, message: &Message, date: NaiveDate) {
-        let user_row_data = self.rows.get_mut(&user_id).unwrap();
+        // If a user sends multiple messages in a day, that specific day data needs to be updated
+        let target_data = self.user_data.get_mut(&date).unwrap();
+        let user_row_data_1 = target_data.get_mut(&user_id).unwrap();
+
+        // This is for the initial load where the UI will contain every single data.
+        // Update accordingly so it has the correct data
+        let user_row_data_2 = self.rows.get_mut(&user_id).unwrap();
         let message_text = message.text();
 
-        if user_row_data.first_seen > date {
-            user_row_data.set_first_seen(date);
+        if user_row_data_2.first_seen > date {
+            user_row_data_2.set_first_seen(date);
         }
 
-        if user_row_data.last_seen < date {
-            user_row_data.set_last_seen(date);
+        if user_row_data_2.last_seen < date {
+            user_row_data_2.set_last_seen(date);
+        }
+
+        // Start date = the oldest date where at least one message was found
+        // The date picker is disabled when processing/no data
+        // Ensure the Start date is selected in the UI + make it the last selected date
+        // while data is still being processed
+        if self.start_date.is_none() {
+            self.start_date = Some(date);
+        } else {
+            let current_date = self.start_date.unwrap();
+            if current_date > date {
+                self.from_date = date;
+                self.start_date = Some(date);
+                self.last_from_date = Some(date);
+            }
+        }
+
+        // End date = the newest date where at least one message was found
+        // The date picker is disabled when processing/no data
+        // Ensure the End date is selected in the UI + make it the last selected date
+        // while data is still being processed
+        if self.end_date.is_none() {
+            self.end_date = Some(date);
+        } else {
+            let current_date = self.end_date.unwrap();
+            if current_date < date {
+                self.to_date = date;
+                self.end_date = Some(date);
+                self.last_to_date = Some(date);
+            }
         }
 
         let total_char = message_text.len() as u32;
         let total_word = message_text.split_whitespace().count() as u32;
 
-        user_row_data.increment_total_message();
-        user_row_data.increment_total_word(total_word);
-        user_row_data.increment_total_char(total_char);
+        user_row_data_1.increment_total_message();
+        user_row_data_1.increment_total_word(total_word);
+        user_row_data_1.increment_total_char(total_char);
+        user_row_data_2.increment_total_message();
+        user_row_data_2.increment_total_word(total_word);
+        user_row_data_2.increment_total_char(total_char);
         self.formatted_rows.clear();
     }
 
@@ -250,6 +313,43 @@ impl UserTableData {
             self.formatted_rows = self.sort_rows();
         }
         self.formatted_rows.clone()
+    }
+
+    fn create_rows(&mut self) {
+        let mut row_data = HashMap::new();
+
+        for (date, data) in &self.user_data {
+            let within_range = date >= &self.from_date && date <= &self.to_date;
+
+            if !within_range {
+                continue;
+            }
+
+            for (id, row) in data {
+                if row_data.contains_key(id) {
+                    let user_row_data: &mut UserRowData = row_data.get_mut(id).unwrap();
+
+                    if user_row_data.first_seen > *date {
+                        user_row_data.set_first_seen(*date);
+                    }
+
+                    if user_row_data.last_seen < *date {
+                        user_row_data.set_last_seen(*date);
+                    }
+
+                    let total_char = row.total_char;
+                    let total_word = row.total_word;
+                    let total_message = row.total_message;
+
+                    user_row_data.increase_message_by(total_message);
+                    user_row_data.increment_total_word(total_word);
+                    user_row_data.increment_total_char(total_char);
+                } else {
+                    row_data.insert(*id, row.clone());
+                }
+            }
+        }
+        self.rows = row_data;
     }
 
     /// Marks a single column of a row as selected
@@ -387,7 +487,9 @@ impl UserTableData {
             // We are in a new row which we have not selected before
             self.last_active_row = Some(user_id);
             self.last_active_column = Some(column_name.clone());
-            current_row.selected_columns = self.active_columns.clone();
+            current_row
+                .selected_columns
+                .clone_from(&self.active_columns);
         }
 
         let current_row_index = self.indexed_user_ids.get(&user_id).unwrap().to_owned();
@@ -449,7 +551,7 @@ impl UserTableData {
         let target_row = self.rows.get_mut(&current_row.id).unwrap();
 
         if !unselected_row {
-            target_row.selected_columns = self.active_columns.clone();
+            target_row.selected_columns.clone_from(&self.active_columns);
             self.active_rows.insert(target_row.id);
 
             if check_previous {
@@ -478,13 +580,13 @@ impl UserTableData {
 
             if current_index > drag_start {
                 if ongoing_index >= drag_start && ongoing_index <= current_index {
-                    target_row.selected_columns = self.active_columns.clone();
+                    target_row.selected_columns.clone_from(&self.active_columns);
                 } else if !is_ctrl_pressed {
                     target_row.selected_columns = HashSet::new();
                     self.active_rows.remove(&target_row.id);
                 }
             } else if ongoing_index <= drag_start && ongoing_index >= current_index {
-                target_row.selected_columns = self.active_columns.clone();
+                target_row.selected_columns.clone_from(&self.active_columns);
             } else if !is_ctrl_pressed {
                 target_row.selected_columns = HashSet::new();
                 self.active_rows.remove(&target_row.id);
@@ -652,6 +754,33 @@ impl UserTableData {
 
         row_data
     }
+
+    /// Check whether either of the dates in the UI was changed
+    fn check_date_change(&mut self) {
+        if let Some(d) = self.last_from_date {
+            if d != self.from_date {
+                self.create_rows();
+                self.last_from_date = Some(self.from_date);
+                // Already reset once, no need for the other check
+                return;
+            }
+        }
+        if let Some(d) = self.last_to_date {
+            if d != self.to_date {
+                self.create_rows();
+                self.last_to_date = Some(self.to_date);
+            }
+        }
+    }
+
+    /// Reset date picker date selection
+    fn reset_date_selection(&mut self) {
+        self.from_date = self.start_date.unwrap();
+        self.to_date = self.end_date.unwrap();
+        self.last_from_date = Some(self.from_date);
+        self.last_to_date = Some(self.to_date);
+        self.create_rows();
+    }
 }
 
 impl MainWindow {
@@ -666,6 +795,27 @@ impl MainWindow {
         if is_ctrl_pressed && key_a_pressed {
             self.user_table.select_all();
         }
+
+        // Date section remains disabled while data processing is ongoing or the table is empty
+        let date_enabled = !self.is_processing && !self.user_table.user_data.is_empty();
+
+        ui.add_enabled_ui(date_enabled, |ui| {
+            ui.horizontal(|ui| {
+                ui.label("From:");
+                ui.add(DatePickerButton::new(&mut self.user_table.from_date).id_source("1"));
+                ui.label("To:");
+                ui.add(DatePickerButton::new(&mut self.user_table.to_date).id_source("2"));
+                if ui.button("Reset Date Selection").clicked() {
+                    self.user_table.reset_date_selection()
+                }
+            });
+        });
+
+        if date_enabled {
+            self.user_table.check_date_change();
+        }
+
+        ui.add_space(5.0);
 
         ScrollArea::horizontal()
             .drag_to_scroll(false)

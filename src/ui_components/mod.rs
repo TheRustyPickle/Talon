@@ -1,7 +1,7 @@
 mod initializer;
 mod keys_ui;
 pub mod processor;
-mod tab_ui;
+pub mod tab_ui;
 mod widgets;
 
 pub use initializer::*;
