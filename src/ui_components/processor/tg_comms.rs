@@ -76,9 +76,12 @@ impl MainWindow {
                         Local.from_utc_datetime(&message_sent_at).naive_local();
 
                     let sender = message.sender();
-                    let (user_id, full_name, user_name) =
-                        self.user_table
-                            .add_user(sender, local_time_date, count_data.name());
+                    let (user_id, full_name, user_name) = self.user_table.add_user(
+                        sender,
+                        local_time_date,
+                        local_time_datetime,
+                        count_data.name(),
+                    );
 
                     if user_id != 0 && self.whitelist_data.is_user_whitelisted(&user_id) {
                         self.user_table.set_as_whitelisted(user_id);
@@ -95,8 +98,12 @@ impl MainWindow {
                     };
 
                     self.charts_data.add_user(chart_user.clone(), user_id);
-                    self.user_table
-                        .count_user_message(user_id, message, local_time_date);
+                    self.user_table.count_user_message(
+                        user_id,
+                        message,
+                        local_time_date,
+                        local_time_datetime,
+                    );
 
                     let total_user = self.user_table.get_total_user();
                     self.counter_data.set_total_user(total_user);

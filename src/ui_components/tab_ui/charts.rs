@@ -505,10 +505,7 @@ impl MainWindow {
         // Keep the max range of x axis to 100
         let point_value = 100.0 / chart_length as f64;
 
-        let show_total_message = self
-            .charts_data
-            .added_to_chart
-            .contains("Show total data");
+        let show_total_message = self.charts_data.added_to_chart.contains("Show total data");
         let show_whitelisted_message = self
             .charts_data
             .added_to_chart
@@ -651,10 +648,7 @@ impl MainWindow {
         // Keep the max range of x axis to 100
         let point_value = 100.0 / chart_length as f64;
 
-        let show_total_message = self
-            .charts_data
-            .added_to_chart
-            .contains("Show total data");
+        let show_total_message = self.charts_data.added_to_chart.contains("Show total data");
         let show_whitelisted_message = self
             .charts_data
             .added_to_chart
@@ -725,10 +719,7 @@ impl MainWindow {
         // Keep the max range of x axis to 100
         let point_value = 100.0 / chart_length as f64;
 
-        let show_total_message = self
-            .charts_data
-            .added_to_chart
-            .contains("Show total data");
+        let show_total_message = self.charts_data.added_to_chart.contains("Show total data");
         let show_whitelisted_message = self
             .charts_data
             .added_to_chart
@@ -798,10 +789,7 @@ impl MainWindow {
         // Keep the max range of x axis to 100
         let point_value = 100.0 / chart_length as f64;
 
-        let show_total_message = self
-            .charts_data
-            .added_to_chart
-            .contains("Show total data");
+        let show_total_message = self.charts_data.added_to_chart.contains("Show total data");
         let show_whitelisted_message = self
             .charts_data
             .added_to_chart

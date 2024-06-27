@@ -1,4 +1,4 @@
-use chrono::NaiveDate;
+use chrono::{NaiveDate, NaiveDateTime};
 use eframe::egui::{
     Align, Event, Key, Layout, Response, RichText, ScrollArea, SelectableLabel, Sense, Ui,
 };
@@ -21,8 +21,8 @@ pub struct UserRowData {
     total_char: u32,
     average_word: u32,
     average_char: u32,
-    first_seen: NaiveDate,
-    last_seen: NaiveDate,
+    first_seen: NaiveDateTime,
+    last_seen: NaiveDateTime,
     whitelisted: bool,
     selected_columns: HashSet<ColumnName>,
     belongs_to: Option<Chat>,
@@ -36,7 +36,7 @@ impl UserRowData {
         id: i64,
         whitelisted: bool,
         belongs_to: Option<Chat>,
-        date: NaiveDate,
+        date: NaiveDateTime,
         seen_by: String,
     ) -> Self {
         let username = username.to_string();
@@ -82,12 +82,12 @@ impl UserRowData {
     }
 
     /// Update the date this user was first seen in the chat
-    fn set_first_seen(&mut self, date: NaiveDate) {
+    fn set_first_seen(&mut self, date: NaiveDateTime) {
         self.first_seen = date;
     }
 
     /// Update the date this user was last seen in the chat
-    fn set_last_seen(&mut self, date: NaiveDate) {
+    fn set_last_seen(&mut self, date: NaiveDateTime) {
         self.last_seen = date;
     }
 
@@ -164,16 +164,19 @@ impl UserTableData {
         &mut self,
         sender: Option<Chat>,
         date: NaiveDate,
+        datetime: NaiveDateTime,
         seen_by: String,
     ) -> (i64, String, String) {
         let mut user_id = 0;
         let full_name;
-        let user_name;
+        let username;
+        let mut chat = None;
 
         if let Some(chat_data) = sender {
             user_id = chat_data.id();
+            chat = Some(chat_data.clone());
 
-            if let Chat::User(user) = chat_data.clone() {
+            if let Chat::User(user) = chat_data {
                 // As per grammers lib doc, empty name can be given if it's a deleted account
                 full_name = if user.full_name().is_empty() {
                     "Deleted Account".to_string()
@@ -181,25 +184,11 @@ impl UserTableData {
                     user.full_name()
                 };
 
-                user_name = if let Some(name) = user.username() {
+                username = if let Some(name) = user.username() {
                     name.to_string()
                 } else {
                     "Empty".to_string()
                 };
-
-                // Initially the table UI will contain every single data gathered. Alongside this the
-                // data will also be saved date by date for later filtering in `self.user_data`
-                let user_row = UserRowData::new(
-                    &full_name,
-                    &user_name,
-                    user_id,
-                    false,
-                    Some(chat_data),
-                    date,
-                    seen_by,
-                );
-
-                entry_insert_user(&mut self.user_data, &mut self.rows, user_row, user_id, date);
             } else {
                 full_name = if chat_data.name().is_empty() {
                     "Deleted Account".to_string()
@@ -207,40 +196,36 @@ impl UserTableData {
                     chat_data.name().to_string()
                 };
 
-                user_name = if let Some(name) = chat_data.username() {
+                username = if let Some(name) = chat_data.username() {
                     name.to_string()
                 } else {
                     "Empty".to_string()
                 };
-
-                let user_row = UserRowData::new(
-                    &full_name,
-                    &user_name,
-                    user_id,
-                    false,
-                    Some(chat_data),
-                    date,
-                    seen_by,
-                );
-
-                entry_insert_user(&mut self.user_data, &mut self.rows, user_row, user_id, date);
             }
         } else {
             // If there is no Chat value then it could be an anonymous user
             full_name = "Anonymous/Unknown".to_string();
-            user_name = "Empty".to_string();
-
-            let user_row =
-                UserRowData::new(&full_name, &user_name, user_id, false, None, date, seen_by);
-
-            entry_insert_user(&mut self.user_data, &mut self.rows, user_row, user_id, date);
+            username = "Empty".to_string();
         }
+
+        let user_row = UserRowData::new(
+            &full_name, &username, user_id, false, chat, datetime, seen_by,
+        );
+
+        entry_insert_user(&mut self.user_data, &mut self.rows, user_row, user_id, date);
         self.formatted_rows.clear();
-        (user_id, full_name, user_name)
+
+        (user_id, full_name, username)
     }
 
     /// Update message related column values of a row
-    pub fn count_user_message(&mut self, user_id: i64, message: &Message, date: NaiveDate) {
+    pub fn count_user_message(
+        &mut self,
+        user_id: i64,
+        message: &Message,
+        date: NaiveDate,
+        datetime: NaiveDateTime,
+    ) {
         // If a user sends multiple messages in a day, that specific day data needs to be updated
         let target_data = self.user_data.get_mut(&date).unwrap();
         let user_row_data_1 = target_data.get_mut(&user_id).unwrap();
@@ -248,44 +233,44 @@ impl UserTableData {
         // This is for the initial load where the UI will contain every single data.
         // Update accordingly so it has the correct data
         let user_row_data_2 = self.rows.get_mut(&user_id).unwrap();
+
         let message_text = message.text();
 
-        if user_row_data_2.first_seen > date {
-            user_row_data_2.set_first_seen(date);
+        // Update last and first seen in this date for this user
+        if user_row_data_1.first_seen > datetime {
+            user_row_data_1.set_first_seen(datetime);
         }
 
-        if user_row_data_2.last_seen < date {
-            user_row_data_2.set_last_seen(date);
+        if user_row_data_1.last_seen < datetime {
+            user_row_data_1.set_last_seen(datetime);
         }
 
-        // Start date = the oldest date where at least one message was found
+        if user_row_data_2.first_seen > datetime {
+            user_row_data_2.set_first_seen(datetime);
+        }
+
+        if user_row_data_2.last_seen < datetime {
+            user_row_data_2.set_last_seen(datetime);
+        }
+
         // The date picker is disabled when processing/no data
-        // Ensure the Start date is selected in the UI + make it the last selected date
-        // while data is still being processed
-        if self.start_date.is_none() {
+        // Update the UI date to the latest/oldest date accordingly
+        if self
+            .start_date
+            .map_or(true, |current_date| current_date > date)
+        {
+            self.from_date = date;
             self.start_date = Some(date);
-        } else {
-            let current_date = self.start_date.unwrap();
-            if current_date > date {
-                self.from_date = date;
-                self.start_date = Some(date);
-                self.last_from_date = Some(date);
-            }
+            self.last_from_date = Some(date);
         }
 
-        // End date = the newest date where at least one message was found
-        // The date picker is disabled when processing/no data
-        // Ensure the End date is selected in the UI + make it the last selected date
-        // while data is still being processed
-        if self.end_date.is_none() {
+        if self
+            .end_date
+            .map_or(true, |current_date| current_date < date)
+        {
+            self.to_date = date;
             self.end_date = Some(date);
-        } else {
-            let current_date = self.end_date.unwrap();
-            if current_date < date {
-                self.to_date = date;
-                self.end_date = Some(date);
-                self.last_to_date = Some(date);
-            }
+            self.last_to_date = Some(date);
         }
 
         let total_char = message_text.len() as u32;
@@ -315,9 +300,11 @@ impl UserTableData {
         self.formatted_rows.clone()
     }
 
+    /// Recreate the rows that will be shown in the UI. Used only when date picker date is updated
     fn create_rows(&mut self) {
         let mut row_data = HashMap::new();
 
+        // Go by all the data that are within the range and join them together
         for (date, data) in &self.user_data {
             let within_range = date >= &self.from_date && date <= &self.to_date;
 
@@ -328,13 +315,12 @@ impl UserTableData {
             for (id, row) in data {
                 if row_data.contains_key(id) {
                     let user_row_data: &mut UserRowData = row_data.get_mut(id).unwrap();
-
-                    if user_row_data.first_seen > *date {
-                        user_row_data.set_first_seen(*date);
+                    if user_row_data.first_seen > row.first_seen {
+                        user_row_data.set_first_seen(row.first_seen);
                     }
 
-                    if user_row_data.last_seen < *date {
-                        user_row_data.set_last_seen(*date);
+                    if user_row_data.last_seen < row.last_seen {
+                        user_row_data.set_last_seen(row.last_seen);
                     }
 
                     let total_char = row.total_char;
@@ -759,6 +745,10 @@ impl UserTableData {
     fn check_date_change(&mut self) {
         if let Some(d) = self.last_from_date {
             if d != self.from_date {
+                if self.from_date > self.to_date {
+                    self.from_date = self.to_date;
+                }
+
                 self.create_rows();
                 self.last_from_date = Some(self.from_date);
                 // Already reset once, no need for the other check
@@ -767,6 +757,10 @@ impl UserTableData {
         }
         if let Some(d) = self.last_to_date {
             if d != self.to_date {
+                if self.to_date < self.from_date {
+                    self.to_date = self.from_date;
+                }
+
                 self.create_rows();
                 self.last_to_date = Some(self.to_date);
             }
