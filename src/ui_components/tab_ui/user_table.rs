@@ -965,7 +965,7 @@ impl MainWindow {
             }
             self.user_table.drag_started_on = Some((row_data.id, column_name.clone()));
         }
-        if label.drag_released() {
+        if label.drag_stopped() {
             self.user_table.last_active_row = None;
             self.user_table.last_active_column = None;
             self.user_table.drag_started_on = None;
