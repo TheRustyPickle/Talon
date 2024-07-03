@@ -1,6 +1,7 @@
 use chrono::{Datelike, Duration, NaiveDate, NaiveDateTime, Timelike, Weekday};
 use eframe::egui::{Align, Button, Grid, Layout, RichText, Ui};
 use egui_dropdown::DropDownBox;
+use egui_extras::DatePickerButton;
 use egui_plot::{Bar, BarChart, Legend, Plot};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::env::current_dir;
@@ -29,6 +30,16 @@ pub struct ChartsData {
     user_ids: HashMap<String, i64>,
     hourly_bars: Option<BTreeMap<String, Vec<Bar>>>,
     daily_bars: Option<BTreeMap<String, Vec<Bar>>>,
+    from_date: NaiveDate,
+    to_date: NaiveDate,
+    /// The last selected date in the from date picker
+    last_from_date: Option<NaiveDate>,
+    /// The last selected date in the to date picker
+    last_to_date: Option<NaiveDate>,
+    /// The oldest date in total gathered data
+    start_date: Option<NaiveDate>,
+    /// The newest date in total gathered data
+    end_date: Option<NaiveDate>,
 }
 
 impl ChartsData {
@@ -57,7 +68,13 @@ impl ChartsData {
     }
 
     /// Takes a message creation time and the unique user to create necessary data to form a chart
-    pub fn add_message(&mut self, time: NaiveDateTime, add_to: String, client_name: String) {
+    pub fn add_message(
+        &mut self,
+        time: NaiveDateTime,
+        date: NaiveDate,
+        add_to: String,
+        client_name: String,
+    ) {
         // keep a common value among messages for example messages sent within the same hour,
         // reset the second and minute value to 0 so these messages can be grouped
         let hourly_time = time.with_second(0).unwrap().with_minute(0).unwrap();
@@ -177,6 +194,26 @@ impl ChartsData {
 
         self.hourly_bars = None;
         self.daily_bars = None;
+
+        // The date picker is disabled when processing/no data
+        // Update the UI date to the latest/oldest date accordingly
+        if self
+            .start_date
+            .map_or(true, |current_date| current_date > date)
+        {
+            self.from_date = date;
+            self.start_date = Some(date);
+            self.last_from_date = Some(date);
+        }
+
+        if self
+            .end_date
+            .map_or(true, |current_date| current_date < date)
+        {
+            self.to_date = date;
+            self.end_date = Some(date);
+            self.last_to_date = Some(date);
+        }
     }
 
     /// Reset chart data
@@ -216,6 +253,12 @@ impl ChartsData {
         self.add_to_chart();
         self.dropdown_user = "Show whitelisted data".to_string();
         self.add_to_chart();
+        self.from_date = NaiveDate::default();
+        self.to_date = NaiveDate::default();
+        self.start_date = None;
+        self.end_date = None;
+        self.last_from_date = None;
+        self.last_to_date = None;
     }
 
     /// Used to export chart data points to a text file
@@ -298,6 +341,41 @@ impl ChartsData {
             }
         }
         (user_data, total_message, total_user)
+    }
+
+    fn check_date_change(&mut self) {
+        if let Some(d) = self.last_from_date {
+            if d != self.from_date {
+                if self.from_date > self.to_date {
+                    self.from_date = self.to_date;
+                }
+
+                self.hourly_bars = None;
+                self.daily_bars = None;
+                self.last_from_date = Some(self.from_date);
+                // Already reset once, no need for the other check
+                return;
+            }
+        }
+        if let Some(d) = self.last_to_date {
+            if d != self.to_date {
+                if self.to_date < self.from_date {
+                    self.to_date = self.from_date;
+                }
+
+                self.hourly_bars = None;
+                self.daily_bars = None;
+                self.last_to_date = Some(self.to_date);
+            }
+        }
+    }
+
+    fn reset_date_selection(&mut self) {
+        self.from_date = self.start_date.unwrap();
+        self.to_date = self.end_date.unwrap();
+        self.last_from_date = Some(self.from_date);
+        self.last_to_date = Some(self.to_date);
+        // self.create_rows();
     }
 }
 
@@ -462,6 +540,26 @@ impl MainWindow {
             ui.separator();
         }
 
+        let date_enabled = !self.is_processing && !self.charts_data.available_users.is_empty();
+
+        ui.add_enabled_ui(date_enabled, |ui| {
+            ui.horizontal(|ui| {
+                ui.label("From:");
+                ui.add(DatePickerButton::new(&mut self.charts_data.from_date).id_source("1"));
+                ui.label("To:");
+                ui.add(DatePickerButton::new(&mut self.charts_data.to_date).id_source("2"));
+                if ui.button("Reset Date Selection").clicked() {
+                    self.charts_data.reset_date_selection()
+                }
+            });
+        });
+
+        if date_enabled {
+            self.charts_data.check_date_change();
+        }
+
+        ui.separator();
+
         ui.horizontal(|ui| {
             let button_text = if [ChartType::ActiveUserWeekDay, ChartType::MessageWeekDay].contains(&self.charts_data.chart_type) {
                 format!("Export {} Chart Data", self.charts_data.chart_type)
@@ -471,8 +569,9 @@ impl MainWindow {
                     self.charts_data.chart_type, self.charts_data.chart_timing
                 )
             };
-
-            if ui.add_enabled(!self.is_processing, Button::new(button_text)).on_hover_text("Export Chart data in text file").clicked()
+            
+            let enable_export = !self.is_processing && !self.charts_data.available_users.is_empty();
+            if ui.add_enabled(enable_export, Button::new(button_text)).on_hover_text("Export Chart data in text file").clicked()
             {
                 self.charts_data.export_chart_data();
                 self.process_state = ProcessState::DataExported(current_dir().unwrap().to_string_lossy().into());
@@ -540,6 +639,21 @@ impl MainWindow {
         // Key = The common time where one or more message may have been sent
         // user = All users that sent messages to this common time + the amount of message
         for (key, user) in to_iter {
+            let key_date = key.date();
+            
+            // Check whether the date is within the given range and whether before the to value
+            // BTreeMap is already sorted, we are going from low to high so if already beyond the
+            // to value, there is no use iterating further and break
+            let within_range =
+                key_date >= self.charts_data.from_date && key_date <= self.charts_data.to_date;
+            let before_to_range = key_date < self.charts_data.to_date;
+            
+            if !within_range && before_to_range {
+                continue;
+            } else if !within_range {
+                break;
+            }
+
             let mut total_message = 0;
             let mut whitelisted_message = 0;
 
@@ -866,28 +980,33 @@ impl MainWindow {
         };
 
         // Whitelist message should be above the total message
+        // In case the date picker is used the bar list may not contain the following bar names
+        // even if they are already in the list
         if show_whitelisted_message {
-            let whitelist_bar = bar_list.remove("Show whitelisted data").unwrap();
-            let mut whitelist_chart = BarChart::new(whitelist_bar)
-                .width(point_value)
-                .name(whitelist_data_name);
+            if let Some(whitelist_bar) = bar_list.remove("Show whitelisted data") {
+                let mut whitelist_chart = BarChart::new(whitelist_bar)
+                    .width(point_value)
+                    .name(whitelist_data_name);
 
-            if show_total_message {
-                let total_message_bars = bar_list.remove("Show total data").unwrap();
+                if show_total_message {
+                    if let Some(total_message_bars) = bar_list.remove("Show total data") {
+                        let total_message_chart = BarChart::new(total_message_bars)
+                            .width(point_value)
+                            .name(total_data_name);
+
+                        whitelist_chart = whitelist_chart.stack_on(&[&total_message_chart]);
+                        all_charts.push(total_message_chart);
+                    };
+                }
+                all_charts.push(whitelist_chart);
+            };
+        } else if show_total_message {
+            if let Some(total_message_bars) = bar_list.remove("Show total data") {
                 let total_message_chart = BarChart::new(total_message_bars)
                     .width(point_value)
                     .name(total_data_name);
-
-                whitelist_chart = whitelist_chart.stack_on(&[&total_message_chart]);
                 all_charts.push(total_message_chart);
-            }
-            all_charts.push(whitelist_chart);
-        } else if show_total_message {
-            let total_message_bars = bar_list.remove("Show total data").unwrap();
-            let total_message_chart = BarChart::new(total_message_bars)
-                .width(point_value)
-                .name(total_data_name);
-            all_charts.push(total_message_chart);
+            };
         };
 
         // User data stacking only happens on Message chart

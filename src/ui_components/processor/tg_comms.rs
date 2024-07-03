@@ -146,6 +146,7 @@ impl MainWindow {
 
                     self.charts_data.add_message(
                         local_time_datetime,
+                        local_time_date,
                         chart_user,
                         count_data.name(),
                     );
