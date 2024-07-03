@@ -800,7 +800,7 @@ impl MainWindow {
                 ui.label("To:");
                 ui.add(DatePickerButton::new(&mut self.user_table.to_date).id_source("2"));
                 if ui.button("Reset Date Selection").clicked() {
-                    self.user_table.reset_date_selection()
+                    self.user_table.reset_date_selection();
                 }
             });
         });
@@ -873,32 +873,34 @@ impl MainWindow {
                         let table_rows = self.user_table.rows();
                         body.rows(25.0, table_rows.len(), |mut row| {
                             let row_data = &table_rows[row.index()];
-                            row.col(|ui| self.create_table_row(ColumnName::Name, row_data, ui));
-                            row.col(|ui| self.create_table_row(ColumnName::Username, row_data, ui));
-                            row.col(|ui| self.create_table_row(ColumnName::UserID, row_data, ui));
+                            row.col(|ui| self.create_table_row(&ColumnName::Name, row_data, ui));
                             row.col(|ui| {
-                                self.create_table_row(ColumnName::TotalMessage, row_data, ui);
+                                self.create_table_row(&ColumnName::Username, row_data, ui);
+                            });
+                            row.col(|ui| self.create_table_row(&ColumnName::UserID, row_data, ui));
+                            row.col(|ui| {
+                                self.create_table_row(&ColumnName::TotalMessage, row_data, ui);
                             });
                             row.col(|ui| {
-                                self.create_table_row(ColumnName::TotalWord, row_data, ui);
+                                self.create_table_row(&ColumnName::TotalWord, row_data, ui);
                             });
                             row.col(|ui| {
-                                self.create_table_row(ColumnName::TotalChar, row_data, ui);
+                                self.create_table_row(&ColumnName::TotalChar, row_data, ui);
                             });
                             row.col(|ui| {
-                                self.create_table_row(ColumnName::AverageWord, row_data, ui);
+                                self.create_table_row(&ColumnName::AverageWord, row_data, ui);
                             });
                             row.col(|ui| {
-                                self.create_table_row(ColumnName::AverageChar, row_data, ui);
+                                self.create_table_row(&ColumnName::AverageChar, row_data, ui);
                             });
                             row.col(|ui| {
-                                self.create_table_row(ColumnName::FirstMessageSeen, row_data, ui);
+                                self.create_table_row(&ColumnName::FirstMessageSeen, row_data, ui);
                             });
                             row.col(|ui| {
-                                self.create_table_row(ColumnName::LastMessageSeen, row_data, ui);
+                                self.create_table_row(&ColumnName::LastMessageSeen, row_data, ui);
                             });
                             row.col(|ui| {
-                                self.create_table_row(ColumnName::Whitelisted, row_data, ui);
+                                self.create_table_row(&ColumnName::Whitelisted, row_data, ui);
                             });
                         });
                     });
@@ -906,7 +908,7 @@ impl MainWindow {
     }
 
     /// Create a table row from a column name and the row data
-    fn create_table_row(&mut self, column_name: ColumnName, row_data: &UserRowData, ui: &mut Ui) {
+    fn create_table_row(&mut self, column_name: &ColumnName, row_data: &UserRowData, ui: &mut Ui) {
         let mut show_tooltip = false;
         let row_text = match column_name {
             ColumnName::Name => {
@@ -931,7 +933,7 @@ impl MainWindow {
             }
         };
 
-        let is_selected = row_data.selected_columns.contains(&column_name);
+        let is_selected = row_data.selected_columns.contains(column_name);
         let is_whitelisted = row_data.whitelisted;
 
         let mut label = ui
@@ -984,7 +986,7 @@ impl MainWindow {
                 self.user_table.unselected_all();
             }
             self.user_table
-                .select_single_row_cell(row_data.id, &column_name);
+                .select_single_row_cell(row_data.id, column_name);
         }
 
         if ui.ui_contains_pointer() && self.user_table.drag_started_on.is_some() {
@@ -992,13 +994,13 @@ impl MainWindow {
                 // Only call drag either when not on the starting drag row/column or went beyond the
                 // drag point at least once. Otherwise normal click would be considered as drag
                 if drag_start.0 != row_data.id
-                    || drag_start.1 != column_name
+                    || drag_start.1 != *column_name
                     || self.user_table.beyond_drag_point
                 {
                     let is_ctrl_pressed = ui.ctx().input(|i| i.modifiers.ctrl);
                     self.user_table.select_dragged_row_cell(
                         row_data.id,
-                        &column_name,
+                        column_name,
                         is_ctrl_pressed,
                     );
                 }
@@ -1018,13 +1020,13 @@ impl MainWindow {
             )
             .on_hover_text(hover_text);
 
-        self.handle_header_selection(response, is_selected, column_name);
+        self.handle_header_selection(&response, is_selected, column_name);
     }
 
     /// Handles sort order and value on header click
     fn handle_header_selection(
         &mut self,
-        response: Response,
+        response: &Response,
         is_selected: bool,
         sort_type: ColumnName,
     ) {

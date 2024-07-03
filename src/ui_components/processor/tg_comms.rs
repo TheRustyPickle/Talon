@@ -83,7 +83,7 @@ impl MainWindow {
                         count_data.name(),
                     );
 
-                    if user_id != 0 && self.whitelist_data.is_user_whitelisted(&user_id) {
+                    if user_id != 0 && self.whitelist_data.is_user_whitelisted(user_id) {
                         self.user_table.set_as_whitelisted(user_id);
                     }
 
@@ -148,7 +148,7 @@ impl MainWindow {
                         local_time_datetime,
                         local_time_date,
                         chart_user,
-                        count_data.name(),
+                        &count_data.name(),
                     );
                 }
                 ProcessResult::ProcessFailed(err) => {

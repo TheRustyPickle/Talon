@@ -73,7 +73,7 @@ impl ChartsData {
         time: NaiveDateTime,
         date: NaiveDate,
         add_to: String,
-        client_name: String,
+        client_name: &str,
     ) {
         // keep a common value among messages for example messages sent within the same hour,
         // reset the second and minute value to 0 so these messages can be grouped
@@ -109,7 +109,7 @@ impl ChartsData {
 
         // If last day is January 10, current day is January 5, add january 6 to 9 with 0 value
         // Apply the same for all of them
-        if let Some(Some(last_hour)) = self.last_hour.get_mut(&client_name) {
+        if let Some(Some(last_hour)) = self.last_hour.get_mut(client_name) {
             let missing_hour = (*last_hour - hourly_time).num_hours();
 
             let mut ongoing_hour = *last_hour;
@@ -121,10 +121,10 @@ impl ChartsData {
             *last_hour = hourly_time;
         } else {
             self.last_hour
-                .insert(client_name.clone(), Some(hourly_time));
+                .insert(client_name.to_string(), Some(hourly_time));
         }
 
-        if let Some(Some(last_day)) = self.last_day.get_mut(&client_name) {
+        if let Some(Some(last_day)) = self.last_day.get_mut(client_name) {
             let missing_day = (*last_day - daily_time).num_days();
 
             let mut ongoing_day = *last_day;
@@ -135,10 +135,11 @@ impl ChartsData {
             }
             *last_day = daily_time;
         } else {
-            self.last_day.insert(client_name.clone(), Some(daily_time));
+            self.last_day
+                .insert(client_name.to_string(), Some(daily_time));
         }
 
-        if let Some(Some(last_week)) = self.last_week.get_mut(&client_name) {
+        if let Some(Some(last_week)) = self.last_week.get_mut(client_name) {
             let missing_week = (*last_week - weekly_time).num_weeks();
 
             let mut ongoing_week = *last_week;
@@ -150,10 +151,10 @@ impl ChartsData {
             *last_week = weekly_time;
         } else {
             self.last_week
-                .insert(client_name.clone(), Some(weekly_time));
+                .insert(client_name.to_string(), Some(weekly_time));
         }
 
-        if let Some(Some(last_month)) = self.last_month.get_mut(&client_name) {
+        if let Some(Some(last_month)) = self.last_month.get_mut(client_name) {
             let mut ongoing_month = *last_month;
 
             // All monthly date has the day set as 1. Reducing 2 days would take us to the previous month
@@ -169,7 +170,7 @@ impl ChartsData {
             *last_month = monthly_time;
         } else {
             self.last_month
-                .insert(client_name.clone(), Some(monthly_time));
+                .insert(client_name.to_string(), Some(monthly_time));
         }
 
         let counter = self.hourly_message.entry(hourly_time).or_default();
@@ -304,7 +305,7 @@ impl ChartsData {
             let data = weekday_data.unwrap();
 
             for (timing, message_data) in data {
-                let weekday_name = weekday_num_to_string(timing);
+                let weekday_name = weekday_num_to_string(*timing);
 
                 export_data += &format!("Weekday: {weekday_name}\n");
                 let (user_data, total_message, total_user) = self.chart_data_to_text(message_data);
@@ -315,7 +316,7 @@ impl ChartsData {
             }
         }
 
-        create_export_file(export_data, export_file_name);
+        create_export_file(&export_data, export_file_name);
     }
 
     /// Converts chart data points into textual representation
@@ -549,7 +550,7 @@ impl MainWindow {
                 ui.label("To:");
                 ui.add(DatePickerButton::new(&mut self.charts_data.to_date).id_source("2"));
                 if ui.button("Reset Date Selection").clicked() {
-                    self.charts_data.reset_date_selection()
+                    self.charts_data.reset_date_selection();
                 }
             });
         });
@@ -569,7 +570,7 @@ impl MainWindow {
                     self.charts_data.chart_type, self.charts_data.chart_timing
                 )
             };
-            
+
             let enable_export = !self.is_processing && !self.charts_data.available_users.is_empty();
             if ui.add_enabled(enable_export, Button::new(button_text)).on_hover_text("Export Chart data in text file").clicked()
             {
@@ -640,17 +641,18 @@ impl MainWindow {
         // user = All users that sent messages to this common time + the amount of message
         for (key, user) in to_iter {
             let key_date = key.date();
-            
+
             // Check whether the date is within the given range and whether before the to value
             // BTreeMap is already sorted, we are going from low to high so if already beyond the
             // to value, there is no use iterating further and break
             let within_range =
                 key_date >= self.charts_data.from_date && key_date <= self.charts_data.to_date;
             let before_to_range = key_date < self.charts_data.to_date;
-            
+
             if !within_range && before_to_range {
                 continue;
-            } else if !within_range {
+            }
+            if !within_range {
                 break;
             }
 
@@ -677,7 +679,7 @@ impl MainWindow {
                 if show_whitelisted_message {
                     let is_whitelisted = self
                         .whitelist_data
-                        .is_user_whitelisted(self.charts_data.user_ids.get(user_name).unwrap());
+                        .is_user_whitelisted(*self.charts_data.user_ids.get(user_name).unwrap());
 
                     if is_whitelisted {
                         whitelisted_message += num;
@@ -778,7 +780,7 @@ impl MainWindow {
                 for user_name in user.keys() {
                     let is_whitelisted = self
                         .whitelist_data
-                        .is_user_whitelisted(self.charts_data.user_ids.get(user_name).unwrap());
+                        .is_user_whitelisted(*self.charts_data.user_ids.get(user_name).unwrap());
 
                     if is_whitelisted {
                         whitelisted_user += 1;
@@ -801,7 +803,7 @@ impl MainWindow {
             }
 
             if show_whitelisted_message {
-                let bar = Bar::new(ongoing_arg, whitelisted_user as f64).name(format!(
+                let bar = Bar::new(ongoing_arg, f64::from(whitelisted_user)).name(format!(
                     "{} Whitelisted user",
                     time_to_string(key, &self.charts_data.chart_timing)
                 ));
@@ -849,7 +851,7 @@ impl MainWindow {
                 if show_whitelisted_message {
                     let is_whitelisted = self
                         .whitelist_data
-                        .is_user_whitelisted(self.charts_data.user_ids.get(user_name).unwrap());
+                        .is_user_whitelisted(*self.charts_data.user_ids.get(user_name).unwrap());
 
                     if is_whitelisted {
                         whitelisted_message += num;
@@ -863,7 +865,7 @@ impl MainWindow {
 
             if show_total_message {
                 let bar = Bar::new(ongoing_arg, total_message as f64)
-                    .name(format!("{} Total message", weekday_num_to_string(key)));
+                    .name(format!("{} Total message", weekday_num_to_string(*key)));
                 let bar_value = bar_list
                     .entry("Show total data".to_owned())
                     .or_insert(Vec::new());
@@ -873,7 +875,7 @@ impl MainWindow {
             if show_whitelisted_message {
                 let bar = Bar::new(ongoing_arg, whitelisted_message as f64).name(format!(
                     "{} Whitelisted message ",
-                    weekday_num_to_string(key)
+                    weekday_num_to_string(*key)
                 ));
                 let bar_value = bar_list
                     .entry("Show whitelisted data".to_owned())
@@ -919,7 +921,7 @@ impl MainWindow {
                 for user_name in user.keys() {
                     let is_whitelisted = self
                         .whitelist_data
-                        .is_user_whitelisted(self.charts_data.user_ids.get(user_name).unwrap());
+                        .is_user_whitelisted(*self.charts_data.user_ids.get(user_name).unwrap());
 
                     if is_whitelisted {
                         whitelisted_user += 1;
@@ -932,7 +934,7 @@ impl MainWindow {
 
             if show_total_message {
                 let bar = Bar::new(ongoing_arg, total_user as f64)
-                    .name(format!("{} Total user", weekday_num_to_string(key)));
+                    .name(format!("{} Total user", weekday_num_to_string(*key)));
                 let bar_value = bar_list
                     .entry("Show total data".to_owned())
                     .or_insert(Vec::new());
@@ -940,8 +942,8 @@ impl MainWindow {
             }
 
             if show_whitelisted_message {
-                let bar = Bar::new(ongoing_arg, whitelisted_user as f64)
-                    .name(format!("{} Whitelisted user", weekday_num_to_string(key)));
+                let bar = Bar::new(ongoing_arg, f64::from(whitelisted_user))
+                    .name(format!("{} Whitelisted user", weekday_num_to_string(*key)));
                 let bar_value = bar_list
                     .entry("Show whitelisted data".to_owned())
                     .or_insert(Vec::new());
