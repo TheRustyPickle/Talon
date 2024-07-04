@@ -6,7 +6,9 @@ use egui_extras::{Column, DatePickerButton, TableBuilder};
 use grammers_client::types::{Chat, Message};
 use std::collections::{HashMap, HashSet};
 
-use crate::ui_components::processor::{ColumnName, PackedWhitelistedUser, ProcessState, SortOrder};
+use crate::ui_components::processor::{
+    ColumnName, DatePickerHandler, PackedWhitelistedUser, ProcessState, SortOrder,
+};
 use crate::ui_components::widgets::RowLabel;
 use crate::ui_components::MainWindow;
 use crate::utils::{entry_insert_user, save_whitelisted_users};
@@ -141,16 +143,7 @@ pub struct UserTableData {
     /// To track whether the mouse pointer went beyond the drag point at least once
     beyond_drag_point: bool,
     indexed_user_ids: HashMap<i64, usize>,
-    from_date: NaiveDate,
-    to_date: NaiveDate,
-    /// The last selected date in the from date picker
-    last_from_date: Option<NaiveDate>,
-    /// The last selected date in the to date picker
-    last_to_date: Option<NaiveDate>,
-    /// The oldest date in total gathered data
-    start_date: Option<NaiveDate>,
-    /// The newest date in total gathered data
-    end_date: Option<NaiveDate>,
+    date_handler: DatePickerHandler,
 }
 
 impl UserTableData {
@@ -253,25 +246,7 @@ impl UserTableData {
             user_row_data_2.set_last_seen(datetime);
         }
 
-        // The date picker is disabled when processing/no data
-        // Update the UI date to the latest/oldest date accordingly
-        if self
-            .start_date
-            .map_or(true, |current_date| current_date > date)
-        {
-            self.from_date = date;
-            self.start_date = Some(date);
-            self.last_from_date = Some(date);
-        }
-
-        if self
-            .end_date
-            .map_or(true, |current_date| current_date < date)
-        {
-            self.to_date = date;
-            self.end_date = Some(date);
-            self.last_to_date = Some(date);
-        }
+        self.date_handler.update_dates(date);
 
         let total_char = message_text.len() as u32;
         let total_word = message_text.split_whitespace().count() as u32;
@@ -306,9 +281,7 @@ impl UserTableData {
 
         // Go by all the data that are within the range and join them together
         for (date, data) in &self.user_data {
-            let within_range = date >= &self.from_date && date <= &self.to_date;
-
-            if !within_range {
+            if !self.date_handler.within_range(*date) {
                 continue;
             }
 
@@ -740,41 +713,6 @@ impl UserTableData {
 
         row_data
     }
-
-    /// Check whether either of the dates in the UI was changed
-    fn check_date_change(&mut self) {
-        if let Some(d) = self.last_from_date {
-            if d != self.from_date {
-                if self.from_date > self.to_date {
-                    self.from_date = self.to_date;
-                }
-
-                self.create_rows();
-                self.last_from_date = Some(self.from_date);
-                // Already reset once, no need for the other check
-                return;
-            }
-        }
-        if let Some(d) = self.last_to_date {
-            if d != self.to_date {
-                if self.to_date < self.from_date {
-                    self.to_date = self.from_date;
-                }
-
-                self.create_rows();
-                self.last_to_date = Some(self.to_date);
-            }
-        }
-    }
-
-    /// Reset date picker date selection
-    fn reset_date_selection(&mut self) {
-        self.from_date = self.start_date.unwrap();
-        self.to_date = self.end_date.unwrap();
-        self.last_from_date = Some(self.from_date);
-        self.last_to_date = Some(self.to_date);
-        self.create_rows();
-    }
 }
 
 impl MainWindow {
@@ -796,17 +734,24 @@ impl MainWindow {
         ui.add_enabled_ui(date_enabled, |ui| {
             ui.horizontal(|ui| {
                 ui.label("From:");
-                ui.add(DatePickerButton::new(&mut self.user_table.from_date).id_source("1"));
+                ui.add(
+                    DatePickerButton::new(&mut self.user_table.date_handler.from).id_source("1"),
+                )
+                .on_hover_text("Show data only after this date, including the date itself");
                 ui.label("To:");
-                ui.add(DatePickerButton::new(&mut self.user_table.to_date).id_source("2"));
-                if ui.button("Reset Date Selection").clicked() {
-                    self.user_table.reset_date_selection()
+                ui.add(DatePickerButton::new(&mut self.user_table.date_handler.to).id_source("2"))
+                    .on_hover_text("Show data only before this date, including the date itself");
+                let reset_button = ui.button("Reset Date Selection").on_hover_text("Reset selected date to the oldest and the newest date with at least 1 data point");
+                if reset_button.clicked() {
+                    self.user_table.date_handler.reset_dates();
+                    self.user_table.create_rows();
                 }
             });
         });
 
-        if date_enabled {
-            self.user_table.check_date_change();
+        // recreate the rows if either of dates have changed
+        if date_enabled && self.user_table.date_handler.check_date_change() {
+            self.user_table.create_rows();
         }
 
         ui.add_space(5.0);
@@ -873,32 +818,34 @@ impl MainWindow {
                         let table_rows = self.user_table.rows();
                         body.rows(25.0, table_rows.len(), |mut row| {
                             let row_data = &table_rows[row.index()];
-                            row.col(|ui| self.create_table_row(ColumnName::Name, row_data, ui));
-                            row.col(|ui| self.create_table_row(ColumnName::Username, row_data, ui));
-                            row.col(|ui| self.create_table_row(ColumnName::UserID, row_data, ui));
+                            row.col(|ui| self.create_table_row(&ColumnName::Name, row_data, ui));
                             row.col(|ui| {
-                                self.create_table_row(ColumnName::TotalMessage, row_data, ui);
+                                self.create_table_row(&ColumnName::Username, row_data, ui);
+                            });
+                            row.col(|ui| self.create_table_row(&ColumnName::UserID, row_data, ui));
+                            row.col(|ui| {
+                                self.create_table_row(&ColumnName::TotalMessage, row_data, ui);
                             });
                             row.col(|ui| {
-                                self.create_table_row(ColumnName::TotalWord, row_data, ui);
+                                self.create_table_row(&ColumnName::TotalWord, row_data, ui);
                             });
                             row.col(|ui| {
-                                self.create_table_row(ColumnName::TotalChar, row_data, ui);
+                                self.create_table_row(&ColumnName::TotalChar, row_data, ui);
                             });
                             row.col(|ui| {
-                                self.create_table_row(ColumnName::AverageWord, row_data, ui);
+                                self.create_table_row(&ColumnName::AverageWord, row_data, ui);
                             });
                             row.col(|ui| {
-                                self.create_table_row(ColumnName::AverageChar, row_data, ui);
+                                self.create_table_row(&ColumnName::AverageChar, row_data, ui);
                             });
                             row.col(|ui| {
-                                self.create_table_row(ColumnName::FirstMessageSeen, row_data, ui);
+                                self.create_table_row(&ColumnName::FirstMessageSeen, row_data, ui);
                             });
                             row.col(|ui| {
-                                self.create_table_row(ColumnName::LastMessageSeen, row_data, ui);
+                                self.create_table_row(&ColumnName::LastMessageSeen, row_data, ui);
                             });
                             row.col(|ui| {
-                                self.create_table_row(ColumnName::Whitelisted, row_data, ui);
+                                self.create_table_row(&ColumnName::Whitelisted, row_data, ui);
                             });
                         });
                     });
@@ -906,7 +853,7 @@ impl MainWindow {
     }
 
     /// Create a table row from a column name and the row data
-    fn create_table_row(&mut self, column_name: ColumnName, row_data: &UserRowData, ui: &mut Ui) {
+    fn create_table_row(&mut self, column_name: &ColumnName, row_data: &UserRowData, ui: &mut Ui) {
         let mut show_tooltip = false;
         let row_text = match column_name {
             ColumnName::Name => {
@@ -931,7 +878,7 @@ impl MainWindow {
             }
         };
 
-        let is_selected = row_data.selected_columns.contains(&column_name);
+        let is_selected = row_data.selected_columns.contains(column_name);
         let is_whitelisted = row_data.whitelisted;
 
         let mut label = ui
@@ -984,7 +931,7 @@ impl MainWindow {
                 self.user_table.unselected_all();
             }
             self.user_table
-                .select_single_row_cell(row_data.id, &column_name);
+                .select_single_row_cell(row_data.id, column_name);
         }
 
         if ui.ui_contains_pointer() && self.user_table.drag_started_on.is_some() {
@@ -992,13 +939,13 @@ impl MainWindow {
                 // Only call drag either when not on the starting drag row/column or went beyond the
                 // drag point at least once. Otherwise normal click would be considered as drag
                 if drag_start.0 != row_data.id
-                    || drag_start.1 != column_name
+                    || drag_start.1 != *column_name
                     || self.user_table.beyond_drag_point
                 {
                     let is_ctrl_pressed = ui.ctx().input(|i| i.modifiers.ctrl);
                     self.user_table.select_dragged_row_cell(
                         row_data.id,
-                        &column_name,
+                        column_name,
                         is_ctrl_pressed,
                     );
                 }
@@ -1018,13 +965,13 @@ impl MainWindow {
             )
             .on_hover_text(hover_text);
 
-        self.handle_header_selection(response, is_selected, column_name);
+        self.handle_header_selection(&response, is_selected, column_name);
     }
 
     /// Handles sort order and value on header click
     fn handle_header_selection(
         &mut self,
-        response: Response,
+        response: &Response,
         is_selected: bool,
         sort_type: ColumnName,
     ) {

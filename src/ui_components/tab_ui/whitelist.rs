@@ -91,8 +91,8 @@ impl WhitelistData {
     }
 
     /// Check if user is whitelisted/in the whitelist UI
-    pub fn is_user_whitelisted(&self, id: &i64) -> bool {
-        self.rows.contains_key(id)
+    pub fn is_user_whitelisted(&self, id: i64) -> bool {
+        self.rows.contains_key(&id)
     }
 
     /// Overwrite the current row data in the whitelist json
@@ -245,32 +245,34 @@ then right click on User Table to whitelist",
                 table
                     .header(20.0, |mut header| {
                         header.col(|ui| {
-                            self.create_whitelist_header(ColumnName::Name, ui);
+                            self.create_whitelist_header(&ColumnName::Name, ui);
                         });
                         header.col(|ui| {
-                            self.create_whitelist_header(ColumnName::Username, ui);
+                            self.create_whitelist_header(&ColumnName::Username, ui);
                         });
                         header.col(|ui| {
-                            self.create_whitelist_header(ColumnName::UserID, ui);
+                            self.create_whitelist_header(&ColumnName::UserID, ui);
                         });
                     })
                     .body(|body| {
                         let table_rows = self.whitelist_data.rows();
                         body.rows(25.0, table_rows.len(), |mut row| {
                             let row_data = &table_rows[row.index()];
-                            row.col(|ui| self.create_whitelist_row(ColumnName::Name, row_data, ui));
                             row.col(|ui| {
-                                self.create_whitelist_row(ColumnName::Username, row_data, ui);
+                                self.create_whitelist_row(&ColumnName::Name, row_data, ui);
                             });
                             row.col(|ui| {
-                                self.create_whitelist_row(ColumnName::UserID, row_data, ui);
+                                self.create_whitelist_row(&ColumnName::Username, row_data, ui);
+                            });
+                            row.col(|ui| {
+                                self.create_whitelist_row(&ColumnName::UserID, row_data, ui);
                             });
                         });
                     });
             });
     }
 
-    fn create_whitelist_header(&self, column: ColumnName, ui: &mut Ui) {
+    fn create_whitelist_header(&self, column: &ColumnName, ui: &mut Ui) {
         let (text, hover_text) = match column {
             ColumnName::Name => ("Name".to_string(), "Telegram name of the user".to_string()),
             ColumnName::Username => (
@@ -291,7 +293,7 @@ then right click on User Table to whitelist",
 
     fn create_whitelist_row(
         &mut self,
-        column: ColumnName,
+        column: &ColumnName,
         row_data: &WhiteListRowData,
         ui: &mut Ui,
     ) {

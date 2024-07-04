@@ -230,7 +230,7 @@ pub fn time_to_string(time: &NaiveDateTime, timing: &ChartTiming) -> String {
 }
 
 /// Convenient function to convert u8 to a Week name string. used for the Chart UI
-pub fn weekday_num_to_string(weekday: &u8) -> String {
+pub fn weekday_num_to_string(weekday: u8) -> String {
     match weekday {
         0 => String::from("Monday"),
         1 => String::from("Tuesday"),
@@ -243,7 +243,7 @@ pub fn weekday_num_to_string(weekday: &u8) -> String {
     }
 }
 
-pub fn create_export_file(export_data: String, file_name: String) {
+pub fn create_export_file(export_data: &str, file_name: String) {
     let mut export_file_location = PathBuf::from(".");
     export_file_location.push(file_name);
     let mut file = File::create(export_file_location).unwrap();
@@ -263,7 +263,7 @@ pub fn separate_whitelist_by_seen(
     separated_data
 }
 
-/// Checks for a value in the HashMap of a HashMap
+/// Checks for a value in the `HashMap` of a `HashMap`
 pub fn entry_insert_user(
     user_data: &mut HashMap<NaiveDate, HashMap<i64, UserRowData>>,
     row_data: &mut HashMap<i64, UserRowData>,
