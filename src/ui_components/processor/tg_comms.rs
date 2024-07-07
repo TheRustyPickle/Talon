@@ -47,18 +47,18 @@ impl MainWindow {
                     // 101 and 100 is missing so count them as deleted
                     if last_number != end_at {
                         let total_deleted = last_number - end_at;
-                        self.counter_data.add_deleted_message(total_deleted);
+                        self.counter.add_deleted_message(total_deleted);
                     }
 
                     info!("Counting ended for a session");
 
                     // Stop process sets the progress bar to 100
                     // Progress only if 1 session is remaining to be completed or it was 0 (0 in normal counting)
-                    if self.counter_data.session_remaining() <= 1 {
+                    if self.counter.session_remaining() <= 1 {
                         self.stop_process();
                         self.process_state = ProcessState::Idle;
                     } else {
-                        self.counter_data.reduce_session();
+                        self.counter.reduce_session();
                     }
                 }
                 ProcessResult::CountingMessage(count_data) => {
@@ -106,7 +106,7 @@ impl MainWindow {
                     );
 
                     let total_user = self.table.get_total_user();
-                    self.counter_data.set_total_user(total_user);
+                    self.counter.set_total_user(total_user);
 
                     let total_to_iter = start_from - end_at;
                     let message_value = 100.0 / total_to_iter as f32;
@@ -122,7 +122,7 @@ impl MainWindow {
                         0
                     };
 
-                    self.counter_data.add_deleted_message(total_deleted);
+                    self.counter.add_deleted_message(total_deleted);
 
                     let total_processed = start_from - current_message_number;
                     let processed_percentage = if total_processed != 0 {
@@ -130,17 +130,17 @@ impl MainWindow {
                     } else {
                         message_value
                     };
-                    self.counter_data.add_one_total_message();
+                    self.counter.add_one_total_message();
 
                     // In single session set the progress by explicitly by counting it on the go
                     // On multi session add whatever percentage there is + new value for this session
                     if multi_session {
-                        self.counter_data.set_session_percentage(
+                        self.counter.set_session_percentage(
                             &count_data.name(),
                             processed_percentage / 100.0,
                         );
                     } else {
-                        self.counter_data
+                        self.counter
                             .set_bar_percentage(processed_percentage / 100.0);
                     }
 
@@ -268,7 +268,7 @@ impl MainWindow {
 
                     info!("Each session to process {}~ messages", per_session_value);
 
-                    self.counter_data.set_session_count(total_session);
+                    self.counter.set_session_count(total_session);
 
                     let mut ongoing_start_at = start_at;
                     let mut ongoing_end_at = start_at - per_session_value;
@@ -276,7 +276,7 @@ impl MainWindow {
                     let mut negative_added = false;
 
                     for (index, client) in self.tg_clients.values().enumerate() {
-                        self.counter_data.add_session(client.name());
+                        self.counter.add_session(client.name());
 
                         let client = client.clone();
                         let chat_name = chat_name.clone();
@@ -323,6 +323,6 @@ impl MainWindow {
 
     fn stop_process(&mut self) {
         self.is_processing = false;
-        self.counter_data.counting_ended();
+        self.counter.counting_ended();
     }
 }

@@ -124,7 +124,7 @@ impl MainWindow {
                         ui.label("Messages Checked:")
                     });
                     ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
-                        ui.label(format!("{}", &mut self.counter_data.total_message));
+                        ui.label(format!("{}", &mut self.counter.total_message));
                     });
 
                     ui.end_row();
@@ -133,7 +133,7 @@ impl MainWindow {
                         ui.label("Whitelisted Messages:")
                     });
                     ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
-                        ui.label(format!("{}", &mut self.counter_data.whitelisted_message));
+                        ui.label(format!("{}", &mut self.counter.whitelisted_message));
                     });
 
                     ui.end_row();
@@ -142,7 +142,7 @@ impl MainWindow {
                         ui.label("Users Found:")
                     });
                     ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
-                        ui.label(format!("{}", &mut self.counter_data.total_user));
+                        ui.label(format!("{}", &mut self.counter.total_user));
                     });
 
                     ui.end_row();
@@ -151,7 +151,7 @@ impl MainWindow {
                         ui.label("Whitelisted Users:")
                     });
                     ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
-                        ui.label(format!("{}", &mut self.counter_data.whitelisted_user));
+                        ui.label(format!("{}", &mut self.counter.whitelisted_user));
                     });
 
                     ui.end_row();
@@ -160,7 +160,7 @@ impl MainWindow {
                         ui.label("Deleted Message:")
                     });
                     ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
-                        ui.label(format!("{}", &mut self.counter_data.deleted_message));
+                        ui.label(format!("{}", &mut self.counter.deleted_message));
                     });
 
                     ui.end_row();
@@ -179,9 +179,9 @@ impl MainWindow {
         });
 
         ui.with_layout(Layout::bottom_up(Align::Min), |ui| {
-            let progress_bar = ProgressBar::new(self.counter_data.bar_percentage)
+            let progress_bar = ProgressBar::new(self.counter.bar_percentage)
                 .show_percentage()
-                .animate(self.counter_data.counting);
+                .animate(self.counter.counting);
             ui.add(progress_bar);
         });
     }
@@ -202,11 +202,11 @@ impl MainWindow {
             };
             ComboBox::from_id_source("Session Box").show_index(
                 ui,
-                &mut self.counter_data.session_index,
+                &mut self.counter.session_index,
                 self.tg_clients.len(),
                 |i| &values[i],
             );
-            ui.checkbox(&mut self.counter_data.use_all_sessions, "Use all sessions")
+            ui.checkbox(&mut self.counter.use_all_sessions, "Use all sessions")
                 .on_hover_text(
                     "Whether to use all the available sessions for counting
             
@@ -224,7 +224,7 @@ Login to one or more accounts multiple times with different session names!",
                 .width(60.0)
                 .show_index(
                     ui,
-                    &mut self.counter_data.comm_limit,
+                    &mut self.counter.comm_limit,
                     LIMIT_SELECTION.len(),
                     |i| LIMIT_SELECTION[i],
                 )
@@ -243,7 +243,7 @@ Info: Each session can count about 3000 messages before flood wait is triggered.
             ui.add(Label::new("Starting Point:"));
         });
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            let clear_paste_button = if self.counter_data.start_from.is_empty() {
+            let clear_paste_button = if self.counter.start_from.is_empty() {
                 ui.add(Button::new("Paste"))
                     .on_hover_text("Paste copied content")
             } else {
@@ -252,19 +252,19 @@ Info: Each session can count about 3000 messages before flood wait is triggered.
             };
 
             if clear_paste_button.clicked() {
-                if self.counter_data.start_from.is_empty() {
+                if self.counter.start_from.is_empty() {
                     if let Ok(mut clipboard) = Clipboard::new() {
                         if let Ok(copied_content) = clipboard.get_text() {
-                            self.counter_data.start_from = copied_content;
+                            self.counter.start_from = copied_content;
                         }
                     }
                 } else {
-                    self.counter_data.start_from = String::new();
+                    self.counter.start_from = String::new();
                 }
             }
             ui.add_sized(
                 ui.available_size(),
-                TextEdit::singleline(&mut self.counter_data.start_from)
+                TextEdit::singleline(&mut self.counter.start_from)
                     .hint_text("https://t.me/chat_name/1234"),
             )
             .on_hover_text(
@@ -290,7 +290,7 @@ To count all messages in a chat, paste the latest message link.",
         });
 
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            let clear_paste_button = if self.counter_data.end_at.is_empty() {
+            let clear_paste_button = if self.counter.end_at.is_empty() {
                 ui.add(Button::new("Paste"))
                     .on_hover_text("Paste copied content")
             } else {
@@ -299,19 +299,19 @@ To count all messages in a chat, paste the latest message link.",
             };
 
             if clear_paste_button.clicked() {
-                if self.counter_data.end_at.is_empty() {
+                if self.counter.end_at.is_empty() {
                     if let Ok(mut clipboard) = Clipboard::new() {
                         if let Ok(copied_content) = clipboard.get_text() {
-                            self.counter_data.end_at = copied_content;
+                            self.counter.end_at = copied_content;
                         }
                     }
                 } else {
-                    self.counter_data.end_at = String::new();
+                    self.counter.end_at = String::new();
                 }
             }
             ui.add_sized(
                 ui.available_size(),
-                TextEdit::singleline(&mut self.counter_data.end_at)
+                TextEdit::singleline(&mut self.counter.end_at)
                     .hint_text("(Optional) https://t.me/chat_name/1234"),
             )
             .on_hover_text(
@@ -341,8 +341,8 @@ To count all messages in a chat, paste the very first message link or keep it em
             return;
         }
 
-        let start_from = self.counter_data.get_start_from();
-        let end_at = self.counter_data.get_end_at();
+        let start_from = self.counter.get_start_from();
+        let end_at = self.counter.get_end_at();
 
         let (start_chat, start_num) = parse_tg_chat(start_from);
         let (end_chat, end_num) = parse_tg_chat(end_at);
@@ -372,12 +372,12 @@ To count all messages in a chat, paste the very first message link or keep it em
         self.table.clear_row_data();
         self.chart.reset_chart();
         self.process_state = ProcessState::Counting(0);
-        self.counter_data.counting_started();
+        self.counter.counting_started();
         self.is_processing = true;
 
         let client = self.tg_clients.get(&selected_client).unwrap().clone();
 
-        if self.counter_data.use_all_sessions && self.tg_clients.len() > 1 {
+        if self.counter.use_all_sessions && self.tg_clients.len() > 1 {
             thread::spawn(move || {
                 client.start_process(ProcessStart::CheckChatExistence(
                     start_chat, start_num, end_num,
@@ -395,7 +395,7 @@ To count all messages in a chat, paste the very first message link or keep it em
     /// Returns the session name that is selected on the combo box
     pub fn get_selected_session(&self) -> String {
         let all_sessions = self.get_session_names();
-        let selected_index = self.counter_data.session_index;
+        let selected_index = self.counter.session_index;
         if let Some(session) = all_sessions.get(selected_index) {
             session.to_owned()
         } else {

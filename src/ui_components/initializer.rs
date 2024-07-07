@@ -24,7 +24,7 @@ use crate::utils::{find_session_files, get_api_keys, get_font_data, get_theme_em
 pub struct MainWindow {
     pub app_state: AppState,
     pub tg_keys: TGKeys,
-    pub counter_data: CounterData,
+    pub counter: CounterData,
     pub table: UserTableData,
     pub chart: ChartsData,
     pub session: SessionData,
@@ -47,7 +47,7 @@ impl Default for MainWindow {
         Self {
             app_state: AppState::default(),
             tg_keys: TGKeys::default(),
-            counter_data: CounterData::default(),
+            counter: CounterData::default(),
             table: UserTableData::default(),
             chart: ChartsData::default(),
             whitelist: WhitelistData::default(),
@@ -202,7 +202,7 @@ impl App for MainWindow {
                     } else {
                         // At each UI loop, check on the receiver channel to check if there is anything
                         // limit total number of messages to check on the receiver to prevent frame freeze
-                        for _ in 0..self.counter_data.get_comm_limit() {
+                        for _ in 0..self.counter.get_comm_limit() {
                             if !self.check_receiver() {
                                 break;
                             }
