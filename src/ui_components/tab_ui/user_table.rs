@@ -725,15 +725,15 @@ impl MainWindow {
             self.copy_selected_cells(ui);
         }
         if is_ctrl_pressed && key_a_pressed {
-            self.user_table.select_all();
+            self.table.select_all();
         }
 
         // Date section remains disabled while data processing is ongoing or the table is empty
-        let date_enabled = !self.is_processing && !self.user_table.user_data.is_empty();
+        let date_enabled = !self.is_processing && !self.table.user_data.is_empty();
 
         ui.add_enabled_ui(date_enabled, |ui| {
             ui.horizontal(|ui| {
-                let table = &mut self.user_table;
+                let table = &mut self.table;
 
                 ui.label("From:");
                 ui.add(
@@ -774,8 +774,8 @@ impl MainWindow {
         });
 
         // recreate the rows if either of dates have changed
-        if date_enabled && self.user_table.date_nav.handler().check_date_change() {
-            self.user_table.create_rows();
+        if date_enabled && self.table.date_nav.handler().check_date_change() {
+            self.table.create_rows();
         }
 
         ui.add_space(5.0);
@@ -839,7 +839,7 @@ impl MainWindow {
                         });
                     })
                     .body(|body| {
-                        let table_rows = self.user_table.rows();
+                        let table_rows = self.table.rows();
                         body.rows(25.0, table_rows.len(), |mut row| {
                             let row_data = &table_rows[row.index()];
                             row.col(|ui| self.create_table_row(&ColumnName::Name, row_data, ui));
@@ -932,15 +932,15 @@ impl MainWindow {
             if !ui.ctx().input(|i| i.modifiers.ctrl)
                 && !ui.ctx().input(|i| i.pointer.secondary_clicked())
             {
-                self.user_table.unselected_all();
+                self.table.unselected_all();
             }
-            self.user_table.drag_started_on = Some((row_data.id, column_name.clone()));
+            self.table.drag_started_on = Some((row_data.id, column_name.clone()));
         }
         if label.drag_stopped() {
-            self.user_table.last_active_row = None;
-            self.user_table.last_active_column = None;
-            self.user_table.drag_started_on = None;
-            self.user_table.beyond_drag_point = false;
+            self.table.last_active_row = None;
+            self.table.last_active_column = None;
+            self.table.drag_started_on = None;
+            self.table.beyond_drag_point = false;
         }
 
         // Drag part handling has ended, need to handle click event from here.
@@ -952,26 +952,22 @@ impl MainWindow {
             if !ui.ctx().input(|i| i.modifiers.ctrl)
                 && !ui.ctx().input(|i| i.pointer.secondary_clicked())
             {
-                self.user_table.unselected_all();
+                self.table.unselected_all();
             }
-            self.user_table
-                .select_single_row_cell(row_data.id, column_name);
+            self.table.select_single_row_cell(row_data.id, column_name);
         }
 
-        if ui.ui_contains_pointer() && self.user_table.drag_started_on.is_some() {
-            if let Some(drag_start) = &self.user_table.drag_started_on {
+        if ui.ui_contains_pointer() && self.table.drag_started_on.is_some() {
+            if let Some(drag_start) = &self.table.drag_started_on {
                 // Only call drag either when not on the starting drag row/column or went beyond the
                 // drag point at least once. Otherwise normal click would be considered as drag
                 if drag_start.0 != row_data.id
                     || drag_start.1 != *column_name
-                    || self.user_table.beyond_drag_point
+                    || self.table.beyond_drag_point
                 {
                     let is_ctrl_pressed = ui.ctx().input(|i| i.modifiers.ctrl);
-                    self.user_table.select_dragged_row_cell(
-                        row_data.id,
-                        column_name,
-                        is_ctrl_pressed,
-                    );
+                    self.table
+                        .select_dragged_row_cell(row_data.id, column_name, is_ctrl_pressed);
                 }
             }
         }
@@ -979,7 +975,7 @@ impl MainWindow {
 
     /// Create a header column
     fn create_header(&mut self, column_name: ColumnName, ui: &mut Ui) {
-        let is_selected = self.user_table.sorted_by == column_name;
+        let is_selected = self.table.sorted_by == column_name;
         let (label_text, hover_text) = self.get_header_text(&column_name);
 
         let response = ui
@@ -1001,9 +997,9 @@ impl MainWindow {
     ) {
         if response.clicked() {
             if is_selected {
-                self.user_table.change_sort_order();
+                self.table.change_sort_order();
             } else {
-                self.user_table.change_sorted_by(sort_type);
+                self.table.change_sorted_by(sort_type);
             }
         }
     }
@@ -1057,8 +1053,8 @@ impl MainWindow {
             ),
         };
 
-        if header_type == &self.user_table.sorted_by {
-            match self.user_table.sort_order {
+        if header_type == &self.table.sorted_by {
+            match self.table.sort_order {
                 SortOrder::Ascending => text.push('🔽'),
                 SortOrder::Descending => text.push('🔼'),
             };
@@ -1068,7 +1064,7 @@ impl MainWindow {
 
     /// Copy the selected rows in an organized manner
     fn copy_selected_cells(&mut self, ui: &mut Ui) {
-        let all_rows = self.user_table.rows();
+        let all_rows = self.table.rows();
         let mut selected_rows = Vec::new();
 
         let mut column_max_length = HashMap::new();
@@ -1077,7 +1073,7 @@ impl MainWindow {
         // Keep track of the biggest length of a value of a column
         for row in all_rows {
             if !row.selected_columns.is_empty() {
-                for column in &self.user_table.active_columns {
+                for column in &self.table.active_columns {
                     if row.selected_columns.contains(column) {
                         let field_length = row.get_column_length(column);
                         let entry = column_max_length.entry(column).or_insert(0);
@@ -1101,7 +1097,7 @@ impl MainWindow {
             let mut ongoing_column = ColumnName::Name;
             let mut row_text = String::new();
             loop {
-                if self.user_table.active_columns.contains(&ongoing_column)
+                if self.table.active_columns.contains(&ongoing_column)
                     && row.selected_columns.contains(&ongoing_column)
                 {
                     total_cells += 1;
@@ -1111,7 +1107,7 @@ impl MainWindow {
                         column_text,
                         width = column_max_length[&ongoing_column] + 1
                     );
-                } else if self.user_table.active_columns.contains(&ongoing_column)
+                } else if self.table.active_columns.contains(&ongoing_column)
                     && !row.selected_columns.contains(&ongoing_column)
                 {
                     row_text += &format!(
@@ -1136,7 +1132,7 @@ impl MainWindow {
 
     /// Marks all the rows with at least 1 column selected as whitelisted
     fn whitelist_selected_rows(&mut self) {
-        let all_rows = self.user_table.rows();
+        let all_rows = self.table.rows();
         let mut selected_rows = Vec::new();
 
         for row in all_rows {
@@ -1149,8 +1145,8 @@ impl MainWindow {
 
         for row in selected_rows {
             let cloned_row = row.clone();
-            self.user_table.set_as_whitelisted(row.id);
-            self.whitelist_data.add_to_whitelist(
+            self.table.set_as_whitelisted(row.id);
+            self.whitelist.add_to_whitelist(
                 row.name,
                 row.username,
                 row.id,
