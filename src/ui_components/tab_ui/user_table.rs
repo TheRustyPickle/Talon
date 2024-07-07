@@ -7,7 +7,7 @@ use grammers_client::types::{Chat, Message};
 use std::collections::{HashMap, HashSet};
 
 use crate::ui_components::processor::{
-    ColumnName, DatePickerHandler, PackedWhitelistedUser, ProcessState, SortOrder,
+    ColumnName, DateNavigator, NavigationType, PackedWhitelistedUser, ProcessState, SortOrder,
 };
 use crate::ui_components::widgets::RowLabel;
 use crate::ui_components::MainWindow;
@@ -143,7 +143,7 @@ pub struct UserTableData {
     /// To track whether the mouse pointer went beyond the drag point at least once
     beyond_drag_point: bool,
     indexed_user_ids: HashMap<i64, usize>,
-    date_handler: DatePickerHandler,
+    date_nav: DateNavigator,
 }
 
 impl UserTableData {
@@ -246,7 +246,7 @@ impl UserTableData {
             user_row_data_2.set_last_seen(datetime);
         }
 
-        self.date_handler.update_dates(date);
+        self.date_nav.handler().update_dates(date);
 
         let total_char = message_text.len() as u32;
         let total_word = message_text.split_whitespace().count() as u32;
@@ -281,7 +281,7 @@ impl UserTableData {
 
         // Go by all the data that are within the range and join them together
         for (date, data) in &self.user_data {
-            if !self.date_handler.within_range(*date) {
+            if !self.date_nav.handler().within_range(*date) {
                 continue;
             }
 
@@ -725,33 +725,57 @@ impl MainWindow {
             self.copy_selected_cells(ui);
         }
         if is_ctrl_pressed && key_a_pressed {
-            self.user_table.select_all();
+            self.table.select_all();
         }
 
         // Date section remains disabled while data processing is ongoing or the table is empty
-        let date_enabled = !self.is_processing && !self.user_table.user_data.is_empty();
+        let date_enabled = !self.is_processing && !self.table.user_data.is_empty();
 
         ui.add_enabled_ui(date_enabled, |ui| {
             ui.horizontal(|ui| {
+                let table = &mut self.table;
+
                 ui.label("From:");
                 ui.add(
-                    DatePickerButton::new(&mut self.user_table.date_handler.from).id_source("1"),
+                    DatePickerButton::new(table.date_nav.handler().from()).id_source("1"),
                 )
                 .on_hover_text("Show data only after this date, including the date itself");
+
                 ui.label("To:");
-                ui.add(DatePickerButton::new(&mut self.user_table.date_handler.to).id_source("2"))
+                ui.add(DatePickerButton::new(table.date_nav.handler().to()).id_source("2"))
                     .on_hover_text("Show data only before this date, including the date itself");
+
                 let reset_button = ui.button("Reset Date Selection").on_hover_text("Reset selected date to the oldest and the newest date with at least 1 data point");
                 if reset_button.clicked() {
-                    self.user_table.date_handler.reset_dates();
-                    self.user_table.create_rows();
+                    table.date_nav.handler().reset_dates();
+                    table.create_rows();
                 }
+
+                ui.separator();
+
+                ui.selectable_value(table.date_nav.nav_type(), NavigationType::Day, "Day");
+                ui.selectable_value(table.date_nav.nav_type(), NavigationType::Week, "Week");
+                ui.selectable_value(table.date_nav.nav_type(), NavigationType::Month, "Month");
+                ui.selectable_value(table.date_nav.nav_type(), NavigationType::Year, "Year");
+
+                ui.separator();
+
+                let previous_hover = format!("Go back by 1 {} from the current date", table.date_nav.nav_name());
+                let next_hover = format!("Go next by 1 {} from the current date", table.date_nav.nav_name());
+
+                if ui.button(format!("Previous {}", table.date_nav.nav_name())).on_hover_text(previous_hover).clicked() {
+                    table.date_nav.go_previous();
+                };
+
+                if ui.button(format!("Next {}", table.date_nav.nav_name())).on_hover_text(next_hover).clicked() {
+                    table.date_nav.go_next();
+                };
             });
         });
 
         // recreate the rows if either of dates have changed
-        if date_enabled && self.user_table.date_handler.check_date_change() {
-            self.user_table.create_rows();
+        if date_enabled && self.table.date_nav.handler().check_date_change() {
+            self.table.create_rows();
         }
 
         ui.add_space(5.0);
@@ -815,7 +839,7 @@ impl MainWindow {
                         });
                     })
                     .body(|body| {
-                        let table_rows = self.user_table.rows();
+                        let table_rows = self.table.rows();
                         body.rows(25.0, table_rows.len(), |mut row| {
                             let row_data = &table_rows[row.index()];
                             row.col(|ui| self.create_table_row(&ColumnName::Name, row_data, ui));
@@ -908,15 +932,15 @@ impl MainWindow {
             if !ui.ctx().input(|i| i.modifiers.ctrl)
                 && !ui.ctx().input(|i| i.pointer.secondary_clicked())
             {
-                self.user_table.unselected_all();
+                self.table.unselected_all();
             }
-            self.user_table.drag_started_on = Some((row_data.id, column_name.clone()));
+            self.table.drag_started_on = Some((row_data.id, column_name.clone()));
         }
         if label.drag_stopped() {
-            self.user_table.last_active_row = None;
-            self.user_table.last_active_column = None;
-            self.user_table.drag_started_on = None;
-            self.user_table.beyond_drag_point = false;
+            self.table.last_active_row = None;
+            self.table.last_active_column = None;
+            self.table.drag_started_on = None;
+            self.table.beyond_drag_point = false;
         }
 
         // Drag part handling has ended, need to handle click event from here.
@@ -928,26 +952,22 @@ impl MainWindow {
             if !ui.ctx().input(|i| i.modifiers.ctrl)
                 && !ui.ctx().input(|i| i.pointer.secondary_clicked())
             {
-                self.user_table.unselected_all();
+                self.table.unselected_all();
             }
-            self.user_table
-                .select_single_row_cell(row_data.id, column_name);
+            self.table.select_single_row_cell(row_data.id, column_name);
         }
 
-        if ui.ui_contains_pointer() && self.user_table.drag_started_on.is_some() {
-            if let Some(drag_start) = &self.user_table.drag_started_on {
+        if ui.ui_contains_pointer() && self.table.drag_started_on.is_some() {
+            if let Some(drag_start) = &self.table.drag_started_on {
                 // Only call drag either when not on the starting drag row/column or went beyond the
                 // drag point at least once. Otherwise normal click would be considered as drag
                 if drag_start.0 != row_data.id
                     || drag_start.1 != *column_name
-                    || self.user_table.beyond_drag_point
+                    || self.table.beyond_drag_point
                 {
                     let is_ctrl_pressed = ui.ctx().input(|i| i.modifiers.ctrl);
-                    self.user_table.select_dragged_row_cell(
-                        row_data.id,
-                        column_name,
-                        is_ctrl_pressed,
-                    );
+                    self.table
+                        .select_dragged_row_cell(row_data.id, column_name, is_ctrl_pressed);
                 }
             }
         }
@@ -955,7 +975,7 @@ impl MainWindow {
 
     /// Create a header column
     fn create_header(&mut self, column_name: ColumnName, ui: &mut Ui) {
-        let is_selected = self.user_table.sorted_by == column_name;
+        let is_selected = self.table.sorted_by == column_name;
         let (label_text, hover_text) = self.get_header_text(&column_name);
 
         let response = ui
@@ -977,9 +997,9 @@ impl MainWindow {
     ) {
         if response.clicked() {
             if is_selected {
-                self.user_table.change_sort_order();
+                self.table.change_sort_order();
             } else {
-                self.user_table.change_sorted_by(sort_type);
+                self.table.change_sorted_by(sort_type);
             }
         }
     }
@@ -1033,8 +1053,8 @@ impl MainWindow {
             ),
         };
 
-        if header_type == &self.user_table.sorted_by {
-            match self.user_table.sort_order {
+        if header_type == &self.table.sorted_by {
+            match self.table.sort_order {
                 SortOrder::Ascending => text.push('🔽'),
                 SortOrder::Descending => text.push('🔼'),
             };
@@ -1044,7 +1064,7 @@ impl MainWindow {
 
     /// Copy the selected rows in an organized manner
     fn copy_selected_cells(&mut self, ui: &mut Ui) {
-        let all_rows = self.user_table.rows();
+        let all_rows = self.table.rows();
         let mut selected_rows = Vec::new();
 
         let mut column_max_length = HashMap::new();
@@ -1053,7 +1073,7 @@ impl MainWindow {
         // Keep track of the biggest length of a value of a column
         for row in all_rows {
             if !row.selected_columns.is_empty() {
-                for column in &self.user_table.active_columns {
+                for column in &self.table.active_columns {
                     if row.selected_columns.contains(column) {
                         let field_length = row.get_column_length(column);
                         let entry = column_max_length.entry(column).or_insert(0);
@@ -1077,7 +1097,7 @@ impl MainWindow {
             let mut ongoing_column = ColumnName::Name;
             let mut row_text = String::new();
             loop {
-                if self.user_table.active_columns.contains(&ongoing_column)
+                if self.table.active_columns.contains(&ongoing_column)
                     && row.selected_columns.contains(&ongoing_column)
                 {
                     total_cells += 1;
@@ -1087,7 +1107,7 @@ impl MainWindow {
                         column_text,
                         width = column_max_length[&ongoing_column] + 1
                     );
-                } else if self.user_table.active_columns.contains(&ongoing_column)
+                } else if self.table.active_columns.contains(&ongoing_column)
                     && !row.selected_columns.contains(&ongoing_column)
                 {
                     row_text += &format!(
@@ -1112,7 +1132,7 @@ impl MainWindow {
 
     /// Marks all the rows with at least 1 column selected as whitelisted
     fn whitelist_selected_rows(&mut self) {
-        let all_rows = self.user_table.rows();
+        let all_rows = self.table.rows();
         let mut selected_rows = Vec::new();
 
         for row in all_rows {
@@ -1125,8 +1145,8 @@ impl MainWindow {
 
         for row in selected_rows {
             let cloned_row = row.clone();
-            self.user_table.set_as_whitelisted(row.id);
-            self.whitelist_data.add_to_whitelist(
+            self.table.set_as_whitelisted(row.id);
+            self.whitelist.add_to_whitelist(
                 row.name,
                 row.username,
                 row.id,

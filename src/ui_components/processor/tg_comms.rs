@@ -47,18 +47,18 @@ impl MainWindow {
                     // 101 and 100 is missing so count them as deleted
                     if last_number != end_at {
                         let total_deleted = last_number - end_at;
-                        self.counter_data.add_deleted_message(total_deleted);
+                        self.counter.add_deleted_message(total_deleted);
                     }
 
                     info!("Counting ended for a session");
 
                     // Stop process sets the progress bar to 100
                     // Progress only if 1 session is remaining to be completed or it was 0 (0 in normal counting)
-                    if self.counter_data.session_remaining() <= 1 {
+                    if self.counter.session_remaining() <= 1 {
                         self.stop_process();
                         self.process_state = ProcessState::Idle;
                     } else {
-                        self.counter_data.reduce_session();
+                        self.counter.reduce_session();
                     }
                 }
                 ProcessResult::CountingMessage(count_data) => {
@@ -76,15 +76,15 @@ impl MainWindow {
                         Local.from_utc_datetime(&message_sent_at).naive_local();
 
                     let sender = message.sender();
-                    let (user_id, full_name, user_name) = self.user_table.add_user(
+                    let (user_id, full_name, user_name) = self.table.add_user(
                         sender,
                         local_time_date,
                         local_time_datetime,
                         count_data.name(),
                     );
 
-                    if user_id != 0 && self.whitelist_data.is_user_whitelisted(user_id) {
-                        self.user_table.set_as_whitelisted(user_id);
+                    if user_id != 0 && self.whitelist.is_user_whitelisted(user_id) {
+                        self.table.set_as_whitelisted(user_id);
                     }
 
                     let chart_user = {
@@ -97,16 +97,16 @@ impl MainWindow {
                         }
                     };
 
-                    self.charts_data.add_user(chart_user.clone(), user_id);
-                    self.user_table.count_user_message(
+                    self.chart.add_user(chart_user.clone(), user_id);
+                    self.table.count_user_message(
                         user_id,
                         message,
                         local_time_date,
                         local_time_datetime,
                     );
 
-                    let total_user = self.user_table.get_total_user();
-                    self.counter_data.set_total_user(total_user);
+                    let total_user = self.table.get_total_user();
+                    self.counter.set_total_user(total_user);
 
                     let total_to_iter = start_from - end_at;
                     let message_value = 100.0 / total_to_iter as f32;
@@ -122,7 +122,7 @@ impl MainWindow {
                         0
                     };
 
-                    self.counter_data.add_deleted_message(total_deleted);
+                    self.counter.add_deleted_message(total_deleted);
 
                     let total_processed = start_from - current_message_number;
                     let processed_percentage = if total_processed != 0 {
@@ -130,21 +130,21 @@ impl MainWindow {
                     } else {
                         message_value
                     };
-                    self.counter_data.add_one_total_message();
+                    self.counter.add_one_total_message();
 
                     // In single session set the progress by explicitly by counting it on the go
                     // On multi session add whatever percentage there is + new value for this session
                     if multi_session {
-                        self.counter_data.set_session_percentage(
+                        self.counter.set_session_percentage(
                             &count_data.name(),
                             processed_percentage / 100.0,
                         );
                     } else {
-                        self.counter_data
+                        self.counter
                             .set_bar_percentage(processed_percentage / 100.0);
                     }
 
-                    self.charts_data.add_message(
+                    self.chart.add_message(
                         local_time_datetime,
                         local_time_date,
                         chart_user,
@@ -192,19 +192,19 @@ impl MainWindow {
                     info!("Login code sent to the client");
                     self.stop_process();
                     self.incomplete_tg_client = Some(client);
-                    self.session_data.set_login_token(token);
+                    self.session.set_login_token(token);
                     self.process_state = ProcessState::TGCodeSent;
                 }
                 ProcessResult::PasswordRequired(token) => {
                     info!("Client requires a password authentication");
                     self.stop_process();
-                    self.session_data.set_password_token(*token);
+                    self.session.set_password_token(*token);
                     self.process_state = ProcessState::PasswordRequired;
                 }
                 ProcessResult::LoggedIn(name) => {
                     info!("Logged in to the client {name}");
                     self.stop_process();
-                    self.session_data.reset_data();
+                    self.session.reset_data();
                     let incomplete_client = self.incomplete_tg_client.take().unwrap();
                     self.tg_clients
                         .insert(incomplete_client.name(), incomplete_client);
@@ -221,7 +221,7 @@ impl MainWindow {
                         } else {
                             String::from("Empty")
                         };
-                        self.whitelist_data.add_to_whitelist(
+                        self.whitelist.add_to_whitelist(
                             chat.user_chat.name().to_string(),
                             username,
                             chat.user_chat.id(),
@@ -231,9 +231,9 @@ impl MainWindow {
                     }
                     self.is_processing = false;
 
-                    self.whitelist_data.increase_failed_by(failed_chats);
-                    let total_chat = self.whitelist_data.row_len();
-                    let failed_chat_num = self.whitelist_data.failed_whitelist_num();
+                    self.whitelist.increase_failed_by(failed_chats);
+                    let total_chat = self.whitelist.row_len();
+                    let failed_chat_num = self.whitelist.failed_whitelist_num();
 
                     self.process_state =
                         ProcessState::LoadedWhitelistedUsers(total_chat, failed_chat_num);
@@ -249,15 +249,15 @@ impl MainWindow {
                     } else {
                         String::from("Empty")
                     };
-                    self.whitelist_data.add_to_whitelist(
+                    self.whitelist.add_to_whitelist(
                         chat.user_chat.name().to_string(),
                         username,
                         user_id,
                         chat.user_chat,
                         chat.seen_by,
                     );
-                    self.whitelist_data.clear_text_box();
-                    self.user_table.set_as_whitelisted(user_id);
+                    self.whitelist.clear_text_box();
+                    self.table.set_as_whitelisted(user_id);
                     self.process_state = ProcessState::AddedToWhitelist;
                 }
                 ProcessResult::ChatExists(chat_name, start_at, end_at) => {
@@ -268,7 +268,7 @@ impl MainWindow {
 
                     info!("Each session to process {}~ messages", per_session_value);
 
-                    self.counter_data.set_session_count(total_session);
+                    self.counter.set_session_count(total_session);
 
                     let mut ongoing_start_at = start_at;
                     let mut ongoing_end_at = start_at - per_session_value;
@@ -276,7 +276,7 @@ impl MainWindow {
                     let mut negative_added = false;
 
                     for (index, client) in self.tg_clients.values().enumerate() {
-                        self.counter_data.add_session(client.name());
+                        self.counter.add_session(client.name());
 
                         let client = client.clone();
                         let chat_name = chat_name.clone();
@@ -323,6 +323,6 @@ impl MainWindow {
 
     fn stop_process(&mut self) {
         self.is_processing = false;
-        self.counter_data.counting_ended();
+        self.counter.counting_ended();
     }
 }

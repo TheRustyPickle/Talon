@@ -76,14 +76,12 @@ impl MainWindow {
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     ui.add(Label::new("Session Name:"));
                 });
-                let text_edit = TextEdit::singleline(&mut self.session_data.session_name)
+                let text_edit = TextEdit::singleline(&mut self.session.session_name)
                     .hint_text("My TG Session Name");
-                if self.session_data.tg_code_token.is_some()
-                    || self.session_data.password_token.is_some()
-                {
+                if self.session.tg_code_token.is_some() || self.session.password_token.is_some() {
                     ui.add_enabled(false, text_edit.min_size(ui.available_size()));
                 } else {
-                    let hover_text = if self.session_data.is_temporary {
+                    let hover_text = if self.session.is_temporary {
                         "A name for the temporary session"
                     } else {
                         "Save the session in a file with this name for later access"
@@ -100,10 +98,9 @@ impl MainWindow {
                     ui.add(Label::new("Phone Number:"));
                 });
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    let text_edit = TextEdit::singleline(&mut self.session_data.phone_number)
+                    let text_edit = TextEdit::singleline(&mut self.session.phone_number)
                         .hint_text("International format: +1234567890");
-                    if self.session_data.password_token.is_some()
-                        || self.session_data.tg_code_token.is_some()
+                    if self.session.password_token.is_some() || self.session.tg_code_token.is_some()
                     {
                         ui.add_enabled(false, text_edit.min_size(ui.available_size()));
                     } else {
@@ -120,9 +117,9 @@ impl MainWindow {
                 });
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     let button = Button::new("Send Code");
-                    if self.session_data.phone_number.is_empty()
-                        || self.session_data.password_token.is_some()
-                        || self.session_data.session_name.is_empty()
+                    if self.session.phone_number.is_empty()
+                        || self.session.password_token.is_some()
+                        || self.session.session_name.is_empty()
                         || self.is_processing
                     {
                         ui.add_enabled(false, button);
@@ -135,8 +132,8 @@ impl MainWindow {
                     }
 
                     let text_edit =
-                        TextEdit::singleline(&mut self.session_data.tg_code).hint_text("12345");
-                    if self.session_data.tg_code_token.is_some() {
+                        TextEdit::singleline(&mut self.session.tg_code).hint_text("12345");
+                    if self.session.tg_code_token.is_some() {
                         ui.add_sized(ui.available_size(), text_edit).on_hover_text(
                             "The Telegram login code either sent to TG or to the phone number",
                         );
@@ -151,10 +148,10 @@ impl MainWindow {
                     ui.add(Label::new("Login Password:"));
                 });
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    let text_edit = TextEdit::singleline(&mut self.session_data.tg_password)
+                    let text_edit = TextEdit::singleline(&mut self.session.tg_password)
                         .password(true)
                         .hint_text("Your Telegram login password");
-                    if self.session_data.password_token.is_some() {
+                    if self.session.password_token.is_some() {
                         ui.add_sized(ui.available_size(), text_edit)
                             .on_hover_text("Telegram login password");
                     } else {
@@ -168,17 +165,17 @@ impl MainWindow {
                     ui.add(Label::new("Temporary:"));
                 });
                 ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
-                    if self.session_data.tg_code_token.is_some() || self.is_processing {
+                    if self.session.tg_code_token.is_some() || self.is_processing {
                         ui.add_enabled(
                             false,
                             Checkbox::new(
-                                &mut self.session_data.is_temporary,
+                                &mut self.session.is_temporary,
                                 "Do not create a session file",
                             ),
                         );
                     } else {
                         ui.checkbox(
-                            &mut self.session_data.is_temporary,
+                            &mut self.session.is_temporary,
                             "Do not create a session file",
                         )
                         .on_hover_text(
@@ -192,7 +189,7 @@ If yes, it will try to log out before the app is closed and no session file will
                             .on_hover_text("Reset and clear new session creation data")
                             .clicked()
                         {
-                            self.session_data.reset_data();
+                            self.session.reset_data();
                             self.incomplete_tg_client = None;
                         }
                     })
@@ -204,11 +201,10 @@ If yes, it will try to log out before the app is closed and no session file will
         ui.vertical_centered(|ui| {
             let button = Button::new("Create Session").min_size(vec2(100.0, 40.0));
             if self.is_processing
-                || self.session_data.phone_number.is_empty()
-                || self.session_data.session_name.is_empty()
-                || self.session_data.tg_code.is_empty()
-                || (self.session_data.password_token.is_some()
-                    && self.session_data.tg_password.is_empty())
+                || self.session.phone_number.is_empty()
+                || self.session.session_name.is_empty()
+                || self.session.tg_code.is_empty()
+                || (self.session.password_token.is_some() && self.session.tg_password.is_empty())
             {
                 ui.add_enabled(false, button);
             } else if ui
@@ -216,7 +212,7 @@ If yes, it will try to log out before the app is closed and no session file will
                 .on_hover_text("Try to create a new session with the Telegram login info")
                 .clicked()
             {
-                if self.session_data.password_token.is_some() {
+                if self.session.password_token.is_some() {
                     self.sign_in_password();
                 } else {
                     self.sign_in_code();
@@ -227,9 +223,9 @@ If yes, it will try to log out before the app is closed and no session file will
 
     /// Starts a thread to send a Telegram login code to the phone number
     fn request_login_code(&mut self, context: Context) {
-        let phone_num = self.session_data.get_phone_number();
-        let session_name = self.session_data.get_session_name();
-        let is_temporary = self.session_data.get_is_temporary();
+        let phone_num = self.session.get_phone_number();
+        let session_name = self.session.get_session_name();
+        let is_temporary = self.session.get_is_temporary();
 
         let sender_clone = self.tg_sender.clone();
 
@@ -250,8 +246,8 @@ If yes, it will try to log out before the app is closed and no session file will
         self.is_processing = true;
         self.process_state = ProcessState::LogInWithCode;
 
-        let code = self.session_data.get_tg_code();
-        let token = self.session_data.get_tg_code_token();
+        let code = self.session.get_tg_code();
+        let token = self.session.get_tg_code_token();
 
         let client = self.incomplete_tg_client.clone().unwrap();
         thread::spawn(move || client.start_process(ProcessStart::SignInCode(token, code)));
@@ -262,8 +258,8 @@ If yes, it will try to log out before the app is closed and no session file will
         self.is_processing = true;
         self.process_state = ProcessState::LogInWithPassword;
 
-        let password = self.session_data.get_password();
-        let token = self.session_data.get_password_token();
+        let password = self.session.get_password();
+        let token = self.session.get_password_token();
 
         let client = self.incomplete_tg_client.clone().unwrap();
         thread::spawn(move || client.start_process(ProcessStart::SignInPasswords(token, password)));

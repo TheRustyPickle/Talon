@@ -18,6 +18,12 @@ pub struct DatePickerHandler {
 }
 
 impl DatePickerHandler {
+    pub fn from(&mut self) -> &mut NaiveDate {
+        &mut self.from
+    }
+    pub fn to(&mut self) -> &mut NaiveDate {
+        &mut self.to
+    }
     /// Verify whether the current From and To dates have changed
     pub fn check_date_change(&mut self) -> bool {
         if let Some(d) = self.last_from {

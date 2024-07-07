@@ -155,7 +155,7 @@ impl MainWindow {
         let key_a_pressed = ui.ctx().input(|i| i.key_pressed(Key::A));
 
         if is_ctrl_pressed && key_a_pressed {
-            self.whitelist_data.select_all();
+            self.whitelist.select_all();
         }
 
         Grid::new("Whitelist Grid")
@@ -167,7 +167,7 @@ impl MainWindow {
                 });
                 ui.add_sized(
                     ui.available_size(),
-                    TextEdit::singleline(&mut self.whitelist_data.target_username)
+                    TextEdit::singleline(&mut self.whitelist.target_username)
                         .hint_text("Telegram username: @username"),
                 )
                 .on_hover_text(
@@ -180,7 +180,7 @@ then right click on User Table to whitelist",
 
         ui.vertical_centered(|ui| {
             ui.add_space(10.0);
-            let button = if self.is_processing || self.whitelist_data.target_username.is_empty() {
+            let button = if self.is_processing || self.whitelist.target_username.is_empty() {
                 ui.add_enabled(false, Button::new("Add to whitelist"))
             } else {
                 ui.button("Add to whitelist")
@@ -200,17 +200,17 @@ then right click on User Table to whitelist",
                 .on_hover_text("Select all users. Also usable with CTRL + A. Use CTRL + mouse click for manual selection")
                 .clicked()
             {
-                self.whitelist_data.select_all();
+                self.whitelist.select_all();
             };
             if ui
                 .button("Delete Selected")
                 .on_hover_text("Delete selected users from whitelist")
                 .clicked()
             {
-                let deleted = self.whitelist_data.remove_selected();
+                let deleted = self.whitelist.remove_selected();
                 let total_to_remove = deleted.len();
                 for i in deleted {
-                    self.user_table.remove_whitelist(i);
+                    self.table.remove_whitelist(i);
                 }
                 self.process_state = ProcessState::WhitelistedUserRemoved(total_to_remove);
             };
@@ -219,10 +219,10 @@ then right click on User Table to whitelist",
                 .on_hover_text("Delete all whitelisted users")
                 .clicked()
             {
-                let deleted = self.whitelist_data.remove_all();
+                let deleted = self.whitelist.remove_all();
 
                 for i in deleted {
-                    self.user_table.remove_whitelist(i);
+                    self.table.remove_whitelist(i);
                 }
                 self.process_state = ProcessState::AllWhitelistRemoved;
             };
@@ -255,7 +255,7 @@ then right click on User Table to whitelist",
                         });
                     })
                     .body(|body| {
-                        let table_rows = self.whitelist_data.rows();
+                        let table_rows = self.whitelist.rows();
                         body.rows(25.0, table_rows.len(), |mut row| {
                             let row_data = &table_rows[row.index()];
                             row.col(|ui| {
@@ -310,10 +310,10 @@ then right click on User Table to whitelist",
         );
         row.context_menu(|ui| {
             if ui.button("Delete Selected").clicked() {
-                let deleted = self.whitelist_data.remove_selected();
+                let deleted = self.whitelist.remove_selected();
 
                 for i in deleted {
-                    self.user_table.remove_whitelist(i);
+                    self.table.remove_whitelist(i);
                 }
                 ui.close_menu();
             }
@@ -321,11 +321,11 @@ then right click on User Table to whitelist",
 
         if row.clicked() {
             if !ui.ctx().input(|i| i.modifiers.ctrl) {
-                self.whitelist_data.unselected_all();
+                self.whitelist.unselected_all();
             }
-            let target_row = self.whitelist_data.rows.get_mut(&row_data.id).unwrap();
+            let target_row = self.whitelist.rows.get_mut(&row_data.id).unwrap();
             target_row.is_selected = true;
-            self.whitelist_data.active_rows.insert(row_data.id);
+            self.whitelist.active_rows.insert(row_data.id);
         };
     }
 
@@ -363,11 +363,10 @@ then right click on User Table to whitelist",
                 error!(
                     "{seen_by} client does not exist! Ignoring {total_whitelist} whitelisted users"
                 );
-                self.whitelist_data
-                    .increase_failed_by(total_whitelist as i32);
+                self.whitelist.increase_failed_by(total_whitelist as i32);
 
-                let success_whitelist = self.whitelist_data.row_len();
-                let failed_whitelist = self.whitelist_data.failed_whitelist_num();
+                let success_whitelist = self.whitelist.row_len();
+                let failed_whitelist = self.whitelist.failed_whitelist_num();
                 self.process_state =
                     ProcessState::LoadedWhitelistedUsers(success_whitelist, failed_whitelist);
                 continue;
@@ -387,7 +386,7 @@ then right click on User Table to whitelist",
         }
 
         let client = self.tg_clients.get(&selected_session).unwrap().clone();
-        let target_username = self.whitelist_data.target_username.clone().replace('@', "");
+        let target_username = self.whitelist.target_username.clone().replace('@', "");
         self.is_processing = true;
 
         thread::spawn(move || {
