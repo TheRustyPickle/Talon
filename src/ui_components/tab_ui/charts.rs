@@ -6,7 +6,9 @@ use egui_plot::{Bar, BarChart, Legend, Plot};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::env::current_dir;
 
-use crate::ui_components::processor::{ChartTiming, ChartType, DatePickerHandler, ProcessState};
+use crate::ui_components::processor::{
+    ChartTiming, ChartType, DateNavigator, NavigationType, ProcessState,
+};
 use crate::ui_components::MainWindow;
 use crate::utils::{create_export_file, time_to_string, weekday_num_to_string};
 
@@ -30,7 +32,7 @@ pub struct ChartsData {
     user_ids: HashMap<String, i64>,
     hourly_bars: Option<BTreeMap<String, Vec<Bar>>>,
     daily_bars: Option<BTreeMap<String, Vec<Bar>>>,
-    date_handler: DatePickerHandler,
+    date_nav: DateNavigator,
 }
 
 impl ChartsData {
@@ -187,7 +189,7 @@ impl ChartsData {
         self.hourly_bars = None;
         self.daily_bars = None;
 
-        self.date_handler.update_dates(date);
+        self.date_nav.handler().update_dates(date);
     }
 
     /// Reset chart data
@@ -227,7 +229,7 @@ impl ChartsData {
         self.add_to_chart();
         self.dropdown_user = "Show whitelisted data".to_string();
         self.add_to_chart();
-        self.date_handler = DatePickerHandler::default();
+        self.date_nav = DateNavigator::default();
     }
 
     /// Used to export chart data points to a text file
@@ -475,33 +477,59 @@ impl MainWindow {
             ui.separator();
         }
 
-        let date_enabled = !self.is_processing && !self.charts_data.available_users.is_empty();
-
+        // Don't show any date stuff if it's a weekday chart
         if not_weekday_chart {
+            let date_enabled = !self.is_processing && !self.charts_data.available_users.is_empty();
+
             ui.add_enabled_ui(date_enabled, |ui| {
                 ui.horizontal(|ui| {
+                    let chart = &mut self.charts_data;
+
                     ui.label("From:");
                     ui.add(
-                        DatePickerButton::new(&mut self.charts_data.date_handler.from)
+                        DatePickerButton::new(chart.date_nav.handler().from())
                             .id_source("1"),
                     )
                     .on_hover_text("Show data only after this date, including the date itself");
                     ui.label("To:");
+
                     ui.add(
-                        DatePickerButton::new(&mut self.charts_data.date_handler.to).id_source("2"),
+                        DatePickerButton::new(chart.date_nav.handler().to()).id_source("2"),
                     )
                     .on_hover_text("Show data only before this date, incluyding the date itself");
+
                     let reset_button = ui.button("Reset Date Selection").on_hover_text("Reset selected date to the oldest and the newest date with at least 1 data point");
                     if reset_button.clicked() {
-                        self.charts_data.date_handler.reset_dates();
-                        self.charts_data.hourly_bars = None;
-                        self.charts_data.daily_bars = None;
+                        chart.date_nav.handler().reset_dates();
+                        chart.hourly_bars = None;
+                        chart.daily_bars = None;
                     }
+
+                    ui.separator();
+
+                    ui.selectable_value(chart.date_nav.nav_type(), NavigationType::Day, "Day");
+                    ui.selectable_value(chart.date_nav.nav_type(), NavigationType::Week, "Week");
+                    ui.selectable_value(chart.date_nav.nav_type(), NavigationType::Month, "Month");
+                    ui.selectable_value(chart.date_nav.nav_type(), NavigationType::Year, "Year");
+
+                    ui.separator();
+
+                    let previous_hover = format!("Go back by 1 {} from the current date", chart.date_nav.nav_name());
+                    let next_hover = format!("Go next by 1 {} from the current date", chart.date_nav.nav_name());
+
+                    if ui.button(format!("Previous {}", chart.date_nav.nav_name())).on_hover_text(previous_hover).clicked() {
+                        chart.date_nav.go_previous();
+                    };
+
+                    if ui.button(format!("Next {}", chart.date_nav.nav_name())).on_hover_text(next_hover).clicked() {
+                        chart.date_nav.go_next();
+                    };
                 });
             });
 
-            // Set pre-saved hourly and daily bars to None if date selection changes
-            if date_enabled && self.charts_data.date_handler.check_date_change() {
+            // Set pre-saved hourly and daily bars to None if date selection changes so they can be
+            // rendered again and saved with the latest data
+            if date_enabled && self.charts_data.date_nav.handler().check_date_change() {
                 self.charts_data.hourly_bars = None;
                 self.charts_data.daily_bars = None;
             }
@@ -593,8 +621,12 @@ impl MainWindow {
             // Check whether the date is within the given range and whether before the to value
             // BTreeMap is already sorted, we are going from low to high so if already beyond the
             // to value, there is no use iterating further and break
-            let within_range = self.charts_data.date_handler.within_range(key_date);
-            let before_to_range = self.charts_data.date_handler.before_to_range(key_date);
+            let within_range = self.charts_data.date_nav.handler().within_range(key_date);
+            let before_to_range = self
+                .charts_data
+                .date_nav
+                .handler()
+                .before_to_range(key_date);
 
             if !within_range && before_to_range {
                 continue;
@@ -724,8 +756,12 @@ impl MainWindow {
             // Check whether the date is within the given range and whether before the to value
             // BTreeMap is already sorted, we are going from low to high so if already beyond the
             // to value, there is no use iterating further and break
-            let within_range = self.charts_data.date_handler.within_range(key_date);
-            let before_to_range = self.charts_data.date_handler.before_to_range(key_date);
+            let within_range = self.charts_data.date_nav.handler().within_range(key_date);
+            let before_to_range = self
+                .charts_data
+                .date_nav
+                .handler()
+                .before_to_range(key_date);
 
             if !within_range && before_to_range {
                 continue;

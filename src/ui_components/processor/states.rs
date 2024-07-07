@@ -264,3 +264,23 @@ impl UnpackedWhitelistedUser {
         UnpackedWhitelistedUser { user_chat, seen_by }
     }
 }
+
+#[derive(Default, PartialEq)]
+pub enum NavigationType {
+    #[default]
+    Day,
+    Week,
+    Month,
+    Year,
+}
+
+impl Display for NavigationType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            NavigationType::Day => write!(f, "Day"),
+            NavigationType::Week => write!(f, "Week"),
+            NavigationType::Month => write!(f, "Month"),
+            NavigationType::Year => write!(f, "Year"),
+        }
+    }
+}

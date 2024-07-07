@@ -7,7 +7,7 @@ use grammers_client::types::{Chat, Message};
 use std::collections::{HashMap, HashSet};
 
 use crate::ui_components::processor::{
-    ColumnName, DatePickerHandler, PackedWhitelistedUser, ProcessState, SortOrder,
+    ColumnName, DateNavigator, NavigationType, PackedWhitelistedUser, ProcessState, SortOrder,
 };
 use crate::ui_components::widgets::RowLabel;
 use crate::ui_components::MainWindow;
@@ -143,7 +143,7 @@ pub struct UserTableData {
     /// To track whether the mouse pointer went beyond the drag point at least once
     beyond_drag_point: bool,
     indexed_user_ids: HashMap<i64, usize>,
-    date_handler: DatePickerHandler,
+    date_nav: DateNavigator,
 }
 
 impl UserTableData {
@@ -246,7 +246,7 @@ impl UserTableData {
             user_row_data_2.set_last_seen(datetime);
         }
 
-        self.date_handler.update_dates(date);
+        self.date_nav.handler().update_dates(date);
 
         let total_char = message_text.len() as u32;
         let total_word = message_text.split_whitespace().count() as u32;
@@ -281,7 +281,7 @@ impl UserTableData {
 
         // Go by all the data that are within the range and join them together
         for (date, data) in &self.user_data {
-            if !self.date_handler.within_range(*date) {
+            if !self.date_nav.handler().within_range(*date) {
                 continue;
             }
 
@@ -733,24 +733,48 @@ impl MainWindow {
 
         ui.add_enabled_ui(date_enabled, |ui| {
             ui.horizontal(|ui| {
+                let table = &mut self.user_table;
+
                 ui.label("From:");
                 ui.add(
-                    DatePickerButton::new(&mut self.user_table.date_handler.from).id_source("1"),
+                    DatePickerButton::new(table.date_nav.handler().from()).id_source("1"),
                 )
                 .on_hover_text("Show data only after this date, including the date itself");
+
                 ui.label("To:");
-                ui.add(DatePickerButton::new(&mut self.user_table.date_handler.to).id_source("2"))
+                ui.add(DatePickerButton::new(table.date_nav.handler().to()).id_source("2"))
                     .on_hover_text("Show data only before this date, including the date itself");
+
                 let reset_button = ui.button("Reset Date Selection").on_hover_text("Reset selected date to the oldest and the newest date with at least 1 data point");
                 if reset_button.clicked() {
-                    self.user_table.date_handler.reset_dates();
-                    self.user_table.create_rows();
+                    table.date_nav.handler().reset_dates();
+                    table.create_rows();
                 }
+
+                ui.separator();
+
+                ui.selectable_value(table.date_nav.nav_type(), NavigationType::Day, "Day");
+                ui.selectable_value(table.date_nav.nav_type(), NavigationType::Week, "Week");
+                ui.selectable_value(table.date_nav.nav_type(), NavigationType::Month, "Month");
+                ui.selectable_value(table.date_nav.nav_type(), NavigationType::Year, "Year");
+
+                ui.separator();
+
+                let previous_hover = format!("Go back by 1 {} from the current date", table.date_nav.nav_name());
+                let next_hover = format!("Go next by 1 {} from the current date", table.date_nav.nav_name());
+
+                if ui.button(format!("Previous {}", table.date_nav.nav_name())).on_hover_text(previous_hover).clicked() {
+                    table.date_nav.go_previous();
+                };
+
+                if ui.button(format!("Next {}", table.date_nav.nav_name())).on_hover_text(next_hover).clicked() {
+                    table.date_nav.go_next();
+                };
             });
         });
 
         // recreate the rows if either of dates have changed
-        if date_enabled && self.user_table.date_handler.check_date_change() {
+        if date_enabled && self.user_table.date_nav.handler().check_date_change() {
             self.user_table.create_rows();
         }
 
