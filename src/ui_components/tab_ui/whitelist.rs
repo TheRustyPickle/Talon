@@ -224,6 +224,7 @@ then right click on User Table to whitelist",
                 for i in deleted {
                     self.table.remove_whitelist(i);
                 }
+                self.chart.reset_saved_bars();
                 self.process_state = ProcessState::AllWhitelistRemoved;
             };
         });

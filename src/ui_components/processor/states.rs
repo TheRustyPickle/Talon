@@ -202,7 +202,7 @@ impl ColumnName {
     }
 }
 
-#[derive(Default, PartialEq)]
+#[derive(Default, PartialEq, Clone, Copy)]
 pub enum ChartType {
     #[default]
     Message,
@@ -222,7 +222,7 @@ impl Display for ChartType {
     }
 }
 
-#[derive(Default, PartialEq)]
+#[derive(Default, PartialEq, Copy, Clone)]
 pub enum ChartTiming {
     #[default]
     Hourly,
