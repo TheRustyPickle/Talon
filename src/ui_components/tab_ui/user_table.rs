@@ -1156,6 +1156,7 @@ impl MainWindow {
             let hex_value = cloned_row.belongs_to.unwrap().pack().to_hex();
             packed_chats.push(PackedWhitelistedUser::new(hex_value, cloned_row.seen_by));
         }
+        self.chart.reset_saved_bars();
 
         save_whitelisted_users(packed_chats, false);
         self.process_state = ProcessState::UsersWhitelisted(total_to_whitelist);

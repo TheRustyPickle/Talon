@@ -258,6 +258,7 @@ impl MainWindow {
                     );
                     self.whitelist.clear_text_box();
                     self.table.set_as_whitelisted(user_id);
+                    self.chart.reset_saved_bars();
                     self.process_state = ProcessState::AddedToWhitelist;
                 }
                 ProcessResult::ChatExists(chat_name, start_at, end_at) => {

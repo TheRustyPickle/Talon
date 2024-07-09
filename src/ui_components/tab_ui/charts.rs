@@ -31,7 +31,9 @@ pub struct ChartsData {
     last_week: HashMap<String, Option<NaiveDateTime>>,
     last_month: HashMap<String, Option<NaiveDateTime>>,
     user_ids: HashMap<String, i64>,
+    /// Pre-saved Bars to for the hourly chart, used for both Message and User
     hourly_bars: Option<BTreeMap<String, Vec<Bar>>>,
+    /// Pre-saved Bars to for the daily chart, used for both Message and User
     daily_bars: Option<BTreeMap<String, Vec<Bar>>>,
     date_nav: DateNavigator,
     /// Hover labels, key = x value in chart. values = (date, total message, whitelist message)
@@ -215,7 +217,6 @@ impl ChartsData {
 
         let mut ongoing_value = Some(Weekday::Mon);
 
-        // Weekday does not implement Ord
         while let Some(value) = ongoing_value {
             self.weekday_message.insert(value as u8, HashMap::new());
             let next_day = value.succ();
@@ -227,6 +228,7 @@ impl ChartsData {
             }
         }
 
+        // These two are added to the chart by default
         self.dropdown_user = "Show total data".to_string();
         self.add_to_chart();
         self.dropdown_user = "Show whitelisted data".to_string();
@@ -316,7 +318,8 @@ impl ChartsData {
         (user_data, total_message, total_user)
     }
 
-    fn reset_saved_bars(&mut self) {
+    /// Clears all pre-saved bars
+    pub fn reset_saved_bars(&mut self) {
         self.hourly_bars = None;
         self.daily_bars = None;
         self.hourly_labels.clear();
@@ -431,6 +434,7 @@ impl MainWindow {
                     {
                         size.to_owned()
                     } else {
+                        // magic math to calculate size taken somewhere from the egui source code
                         (user.len() as f32 * (ui.style().spacing.button_padding.x * 2.0))
                             + ui.spacing().item_spacing.x
                     };
@@ -510,8 +514,7 @@ impl MainWindow {
                     let reset_button = ui.button("Reset Date Selection").on_hover_text("Reset selected date to the oldest and the newest date with at least 1 data point");
                     if reset_button.clicked() {
                         chart.date_nav.handler().reset_dates();
-                        chart.hourly_bars = None;
-                        chart.daily_bars = None;
+                        chart.reset_saved_bars();
                     }
 
                     ui.separator();
@@ -539,8 +542,7 @@ impl MainWindow {
             // Set pre-saved hourly and daily bars to None if date selection changes so they can be
             // rendered again and saved with the latest data
             if date_enabled && self.chart.date_nav.handler().check_date_change() {
-                self.chart.hourly_bars = None;
-                self.chart.daily_bars = None;
+                self.chart.reset_saved_bars()
             }
 
             ui.separator();
@@ -563,7 +565,7 @@ impl MainWindow {
                 self.process_state = ProcessState::DataExported(current_dir().unwrap().to_string_lossy().into());
             };
             ui.add_space(2.0);
-            ui.label("Use CTRL + scroll to zoom, drag or scroll to move and double click to fit/reset the chart");
+            ui.label("Use CTRL + scroll to zoom, drag mouse or scroll to move and double click to fit/reset the chart");
         });
 
         let current_type = &self.chart.chart_type;
@@ -1034,7 +1036,7 @@ impl MainWindow {
 
         let labels = if timing == ChartTiming::Hourly && !is_weekday {
             self.chart.hourly_labels.clone()
-        } else if self.chart.chart_timing == ChartTiming::Daily && !is_weekday {
+        } else if timing == ChartTiming::Daily && !is_weekday {
             self.chart.daily_labels.clone()
         } else {
             self.chart.labels.clone()
@@ -1074,11 +1076,11 @@ impl MainWindow {
                     }
                 }
                 format!(
-                    "{}\nTotal {label_type} = {}\nWhitelisted {label_type} = {}",
-                    date_label, total, whitelist
+                    "{}\nY = {:.0}\nTotal {label_type} = {}\nWhitelisted {label_type} = {}",
+                    date_label, val.y, total, whitelist
                 )
             } else {
-                format!("{:.0}\nMessage Count = {:.2}", val.x, val.y)
+                format!("X = {:.0}\nY = {:.0}", val.x, val.y)
             }
         };
 
