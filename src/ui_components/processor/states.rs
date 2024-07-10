@@ -42,6 +42,7 @@ pub enum ProcessState {
     LoggedIn(String),
     EmptySelectedSession,
     InvalidPhoneOrAPI,
+    InvalidAPIKeys,
     PasswordRequired,
     FloodWait,
     UsersWhitelisted(usize),
@@ -114,6 +115,7 @@ impl Display for ProcessState {
             ProcessState::UnknownError => write!(f, "Status: Unknown error acquired"),
             ProcessState::EmptySelectedSession => write!(f, "Status: No session is selected. Create a new session from the Session tab"),
             ProcessState::InvalidPhoneOrAPI => write!(f, "Status: Unknown error acquired. Possibly invalid phone number given or API keys are invalid"),
+            ProcessState::InvalidAPIKeys => write!(f, "Status: Failed to parse saved API keys. Are the API keys valid?"),
             ProcessState::PasswordRequired => write!(f, "Status: Account requires a password authentication"),
             ProcessState::FloodWait => write!(f, "Status: Flood wait triggered. Will resume again soon"),
             ProcessState::UsersWhitelisted(num) => write!(f, "Status: Whitelisted {num} users"),
@@ -135,7 +137,7 @@ pub enum SortOrder {
     Descending,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Default, Debug)]
+#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Default, Copy)]
 pub enum ColumnName {
     #[default]
     Name,

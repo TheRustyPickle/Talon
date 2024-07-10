@@ -2,7 +2,7 @@ use eframe::egui::Context;
 use grammers_client::types::{LoginToken, PasswordToken};
 use grammers_client::{Client, Config, SignInError};
 use grammers_session::Session;
-use log::info;
+use log::{error, info};
 use std::fs;
 use std::sync::mpsc::Sender;
 use std::sync::Arc;
@@ -19,9 +19,15 @@ pub async fn send_login_code(
     phone_number: String,
     is_temporary: bool,
 ) -> Result<(), ProcessError> {
-    let api_data = get_api_keys().unwrap();
+    let Some(api_data) = get_api_keys() else {
+        error!("No API keys found");
+        return Err(ProcessError::InvalidAPIKeys);
+    };
 
-    let api_id = api_data.api_id.parse().unwrap();
+    let Ok(api_id) = api_data.api_id.parse() else {
+        error!("Failed to parse API ID. Given API ID: {}", api_data.api_id);
+        return Err(ProcessError::InvalidAPIKeys);
+    };
     let api_hash = api_data.api_hash;
 
     let session = if is_temporary {

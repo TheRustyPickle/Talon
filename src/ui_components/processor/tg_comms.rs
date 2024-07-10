@@ -182,6 +182,11 @@ impl MainWindow {
                             error!("Possibly invalid phone number given or API keys error");
                             self.process_state = ProcessState::InvalidPhoneOrAPI;
                         }
+                        ProcessError::InvalidAPIKeys => {
+                            error!("Invalid API keys were given");
+                            self.process_state = ProcessState::InvalidAPIKeys;
+                            self.stop_process();
+                        }
                         ProcessError::FailedLatestMessage => {
                             error!("Failed to get the latest message ID");
                             self.process_state = ProcessState::LatestMessageLoadingFailed;

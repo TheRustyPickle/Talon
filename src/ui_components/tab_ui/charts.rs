@@ -1,5 +1,5 @@
 use chrono::{Datelike, Days, Duration, Months, NaiveDate, NaiveDateTime, Timelike, Weekday};
-use eframe::egui::{Align, Button, Grid, Layout, RichText, Ui};
+use eframe::egui::{Align, Button, Grid, Key, Layout, RichText, Ui};
 use egui_dropdown::DropDownBox;
 use egui_extras::DatePickerButton;
 use egui_plot::{Bar, BarChart, Legend, Plot, PlotPoint};
@@ -526,8 +526,8 @@ impl MainWindow {
 
                     ui.separator();
 
-                    let previous_hover = format!("Go back by 1 {} from the current date", chart.date_nav.nav_name());
-                    let next_hover = format!("Go next by 1 {} from the current date", chart.date_nav.nav_name());
+                    let previous_hover = format!("Go back by 1 {} from the current date. Shortcut Key: H", chart.date_nav.nav_name());
+                    let next_hover = format!("Go next by 1 {} from the current date. Shortcut Key: L", chart.date_nav.nav_name());
 
                     if ui.button(format!("Previous {}", chart.date_nav.nav_name())).on_hover_text(previous_hover).clicked() {
                         chart.date_nav.go_previous();
@@ -538,6 +538,20 @@ impl MainWindow {
                     };
                 });
             });
+
+            // Monitor for H and L key presses
+            if date_enabled {
+                let key_h_pressed = ui.ctx().input(|i| i.key_pressed(Key::H));
+
+                if key_h_pressed {
+                    self.chart.date_nav.go_previous();
+                } else {
+                    let key_l_pressed = ui.ctx().input(|i| i.key_pressed(Key::L));
+                    if key_l_pressed {
+                        self.chart.date_nav.go_next();
+                    }
+                }
+            }
 
             // Set pre-saved hourly and daily bars to None if date selection changes so they can be
             // rendered again and saved with the latest data
