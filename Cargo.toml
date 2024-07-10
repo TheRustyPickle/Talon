@@ -21,9 +21,14 @@ path = "src/main.rs"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+grammers-client = "=0.5.0"
+grammers-session = "=0.5.1"
+grammers-mtproto = "=0.5.0"
+grammers-crypto = "=0.5.1"
+grammers-tl-gen = "=0.5.1"
+grammers-tl-types = "=0.5.1"
+grammers-mtsender = "=0.5.0"
 eframe = "0.27.2"
-grammers-client = "0.5.0"
-grammers-session = "0.5.1"
 tokio = "1.38.0"
 log = "0.4.21"
 pretty_env_logger = "0.5.0"
