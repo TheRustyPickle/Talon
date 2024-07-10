@@ -760,8 +760,8 @@ impl MainWindow {
 
                 ui.separator();
 
-                let previous_hover = format!("Go back by 1 {} from the current date", table.date_nav.nav_name());
-                let next_hover = format!("Go next by 1 {} from the current date", table.date_nav.nav_name());
+                let previous_hover = format!("Go back by 1 {} from the current date. Shortcut key: H", table.date_nav.nav_name());
+                let next_hover = format!("Go next by 1 {} from the current date. Shortcut key: L", table.date_nav.nav_name());
 
                 if ui.button(format!("Previous {}", table.date_nav.nav_name())).on_hover_text(previous_hover).clicked() {
                     table.date_nav.go_previous();
@@ -772,6 +772,21 @@ impl MainWindow {
                 };
             });
         });
+
+        // Monitor for H and L key presses
+        if date_enabled {
+            let key_h_pressed = ui.ctx().input(|i| i.key_pressed(Key::H));
+
+            if key_h_pressed {
+                self.table.date_nav.go_previous();
+            } else {
+                let key_l_pressed = ui.ctx().input(|i| i.key_pressed(Key::L));
+                if key_l_pressed {
+                    self.table.date_nav.go_next();
+                }
+            } 
+
+        }
 
         // recreate the rows if either of dates have changed
         if date_enabled && self.table.date_nav.handler().check_date_change() {
