@@ -135,7 +135,7 @@ pub enum SortOrder {
     Descending,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Default, Debug)]
+#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Default, Copy)]
 pub enum ColumnName {
     #[default]
     Name,

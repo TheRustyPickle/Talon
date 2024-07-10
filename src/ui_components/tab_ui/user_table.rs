@@ -313,14 +313,14 @@ impl UserTableData {
 
     /// Marks a single column of a row as selected
     fn select_single_row_cell(&mut self, user_id: i64, column_name: &ColumnName) {
-        self.active_columns.insert(column_name.clone());
+        self.active_columns.insert(*column_name);
         self.active_rows.insert(user_id);
 
         self.rows
             .get_mut(&user_id)
             .unwrap()
             .selected_columns
-            .insert(column_name.clone());
+            .insert(*column_name);
         self.formatted_rows.clear();
     }
 
@@ -332,20 +332,18 @@ impl UserTableData {
         is_ctrl_pressed: bool,
     ) {
         // If both same then the mouse is still on the same column on the same row so nothing to process
-        if self.last_active_row == Some(user_id)
-            && self.last_active_column == Some(column_name.clone())
-        {
+        if self.last_active_row == Some(user_id) && self.last_active_column == Some(*column_name) {
             return;
         }
 
-        self.active_columns.insert(column_name.clone());
+        self.active_columns.insert(*column_name);
         self.beyond_drag_point = true;
 
-        let drag_start = self.drag_started_on.clone().unwrap();
+        let drag_start = self.drag_started_on.unwrap();
 
         // number of the column of drag starting point and the current cell that we are trying to select
         let drag_start_num = drag_start.1 as i32;
-        let ongoing_column_num = column_name.clone() as i32;
+        let ongoing_column_num = *column_name as i32;
 
         let mut new_column_set = HashSet::new();
 
@@ -365,13 +363,13 @@ impl UserTableData {
         //
         // No active row removal if ctrl is being pressed!
         if is_ctrl_pressed {
-            self.active_columns.insert(column_name.clone());
+            self.active_columns.insert(*column_name);
         } else if ongoing_column_num == drag_start_num {
             new_column_set.insert(ColumnName::from_num(drag_start_num));
             self.active_columns = new_column_set;
         } else {
             while ongoing_val.is_some() {
-                let col = ongoing_val.clone().unwrap();
+                let col = ongoing_val.unwrap();
 
                 let next_column = if get_previous {
                     col.get_next()
@@ -412,7 +410,7 @@ impl UserTableData {
             && self.last_active_row.is_some()
             && self.last_active_column.is_some()
         {
-            let last_active_column = self.last_active_column.clone().unwrap();
+            let last_active_column = self.last_active_column.unwrap();
 
             // Remove the last column selection from the current row where the mouse is if
             // the previous row and the current one matches
@@ -435,7 +433,7 @@ impl UserTableData {
             // If on the same row as the last row, then unselect the column from all other select row
             if user_id == last_row.id {
                 if last_active_column != *column_name {
-                    self.last_active_column = Some(column_name.clone());
+                    self.last_active_column = Some(*column_name);
                 }
             } else {
                 no_checking = true;
@@ -445,7 +443,7 @@ impl UserTableData {
         } else {
             // We are in a new row which we have not selected before
             self.last_active_row = Some(user_id);
-            self.last_active_column = Some(column_name.clone());
+            self.last_active_column = Some(*column_name);
             current_row
                 .selected_columns
                 .clone_from(&self.active_columns);
@@ -572,7 +570,7 @@ impl UserTableData {
         let mut all_rows = Vec::new();
 
         while current_column != ColumnName::Name {
-            all_columns.push(current_column.clone());
+            all_columns.push(current_column);
             current_column = current_column.get_next();
         }
 
@@ -784,8 +782,7 @@ impl MainWindow {
                 if key_l_pressed {
                     self.table.date_nav.go_next();
                 }
-            } 
-
+            }
         }
 
         // recreate the rows if either of dates have changed
@@ -798,94 +795,44 @@ impl MainWindow {
         ScrollArea::horizontal()
             .drag_to_scroll(false)
             .show(ui, |ui| {
-                let table = TableBuilder::new(ui)
+                let total_header = 11;
+                let mut clip_added = 0;
+                let mut current_column = ColumnName::Name;
+
+                let mut table = TableBuilder::new(ui)
                     .striped(true)
                     .resizable(true)
                     .cell_layout(Layout::left_to_right(Align::Center))
-                    .column(Column::initial(100.0).clip(true))
-                    .column(Column::initial(100.0).clip(true))
-                    .column(Column::initial(100.0))
-                    .column(Column::initial(100.0))
-                    .column(Column::initial(100.0))
-                    .column(Column::initial(100.0))
-                    .column(Column::initial(100.0))
-                    .column(Column::initial(100.0))
-                    .column(Column::initial(100.0))
-                    .column(Column::initial(100.0))
-                    .column(Column::initial(100.0))
                     .drag_to_scroll(false)
                     .auto_shrink([false; 2])
                     .min_scrolled_height(0.0);
 
+                for _ in 0..total_header {
+                    let mut column = Column::initial(100.0);
+                    if clip_added < 2 {
+                        column = column.clip(true);
+                        clip_added += 1;
+                    }
+                    table = table.column(column);
+                }
+
                 table
                     .header(20.0, |mut header| {
-                        header.col(|ui| {
-                            self.create_header(ColumnName::Name, ui);
-                        });
-                        header.col(|ui| {
-                            self.create_header(ColumnName::Username, ui);
-                        });
-                        header.col(|ui| {
-                            self.create_header(ColumnName::UserID, ui);
-                        });
-                        header.col(|ui| {
-                            self.create_header(ColumnName::TotalMessage, ui);
-                        });
-                        header.col(|ui| {
-                            self.create_header(ColumnName::TotalWord, ui);
-                        });
-                        header.col(|ui| {
-                            self.create_header(ColumnName::TotalChar, ui);
-                        });
-                        header.col(|ui| {
-                            self.create_header(ColumnName::AverageWord, ui);
-                        });
-                        header.col(|ui| {
-                            self.create_header(ColumnName::AverageChar, ui);
-                        });
-                        header.col(|ui| {
-                            self.create_header(ColumnName::FirstMessageSeen, ui);
-                        });
-                        header.col(|ui| {
-                            self.create_header(ColumnName::LastMessageSeen, ui);
-                        });
-                        header.col(|ui| {
-                            self.create_header(ColumnName::Whitelisted, ui);
-                        });
+                        for _ in 0..total_header {
+                            header.col(|ui| {
+                                self.create_header(current_column, ui);
+                            });
+                            current_column = current_column.get_next();
+                        }
                     })
                     .body(|body| {
                         let table_rows = self.table.rows();
                         body.rows(25.0, table_rows.len(), |mut row| {
                             let row_data = &table_rows[row.index()];
-                            row.col(|ui| self.create_table_row(&ColumnName::Name, row_data, ui));
-                            row.col(|ui| {
-                                self.create_table_row(&ColumnName::Username, row_data, ui);
-                            });
-                            row.col(|ui| self.create_table_row(&ColumnName::UserID, row_data, ui));
-                            row.col(|ui| {
-                                self.create_table_row(&ColumnName::TotalMessage, row_data, ui);
-                            });
-                            row.col(|ui| {
-                                self.create_table_row(&ColumnName::TotalWord, row_data, ui);
-                            });
-                            row.col(|ui| {
-                                self.create_table_row(&ColumnName::TotalChar, row_data, ui);
-                            });
-                            row.col(|ui| {
-                                self.create_table_row(&ColumnName::AverageWord, row_data, ui);
-                            });
-                            row.col(|ui| {
-                                self.create_table_row(&ColumnName::AverageChar, row_data, ui);
-                            });
-                            row.col(|ui| {
-                                self.create_table_row(&ColumnName::FirstMessageSeen, row_data, ui);
-                            });
-                            row.col(|ui| {
-                                self.create_table_row(&ColumnName::LastMessageSeen, row_data, ui);
-                            });
-                            row.col(|ui| {
-                                self.create_table_row(&ColumnName::Whitelisted, row_data, ui);
-                            });
+                            for _ in 0..total_header {
+                                row.col(|ui| self.create_table_row(&current_column, row_data, ui));
+                                current_column = current_column.get_next();
+                            }
                         });
                     });
             });
@@ -949,7 +896,7 @@ impl MainWindow {
             {
                 self.table.unselected_all();
             }
-            self.table.drag_started_on = Some((row_data.id, column_name.clone()));
+            self.table.drag_started_on = Some((row_data.id, *column_name));
         }
         if label.drag_stopped() {
             self.table.last_active_row = None;
