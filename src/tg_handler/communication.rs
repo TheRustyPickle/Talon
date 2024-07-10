@@ -30,6 +30,7 @@ pub enum ProcessError {
     InvalidPassword,
     NotSignedUp,
     InvalidPhoneOrAPI,
+    InvalidAPIKeys,
     FailedLatestMessage,
     UnknownError(InvocationError),
 }
