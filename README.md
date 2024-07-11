@@ -8,7 +8,7 @@
 
 Talon is a tool to generate on-demand data insights from public Telegram chats. Powered by Rust, grammers, and egui, it offers a straightforward interface that leverages the Telegram account API. Talon operates entirely on-demand and does not rely on local data storage or databases.
 
-![Screenshot](https://github.com/TheRustyPickle/Talon/assets/35862475/68b5f14f-d717-4911-b42d-9f15088a48ac)
+![Screenshot](https://github.com/TheRustyPickle/Talon/assets/35862475/56b834d8-992b-413c-81e7-aaf023e00047)
 
 ## Features
 
