@@ -535,7 +535,7 @@ impl MainWindow {
 
                     ui.separator();
 
-                    let previous_hover = format!("Go back by 1 {} from the current date. Shortcut Key:CTRL + H", chart.date_nav.nav_name());
+                    let previous_hover = format!("Go back by 1 {} from the current date. Shortcut Key: CTRL + H", chart.date_nav.nav_name());
                     let next_hover = format!("Go next by 1 {} from the current date. Shortcut Key: CTRL + L", chart.date_nav.nav_name());
 
                     if ui.button(format!("Previous {}", chart.date_nav.nav_name())).on_hover_text(previous_hover).clicked() {
