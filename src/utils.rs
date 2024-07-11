@@ -222,7 +222,7 @@ pub fn get_font_data() -> Option<(Vec<u8>, Vec<u8>)> {
 }
 
 /// Convenient function to format `NaiveDateTime` to string. Used for the Chart UI
-pub fn time_to_string(time: &NaiveDateTime, timing: &ChartTiming) -> String {
+pub fn time_to_string(time: &NaiveDateTime, timing: ChartTiming) -> String {
     match timing {
         ChartTiming::Hourly => time.to_string(),
         _ => time.format("%Y-%m-%d").to_string(),

@@ -1,6 +1,6 @@
 use chrono::NaiveDate;
 
-/// Handler for the DatePicker in the UI for data changes
+/// Handler for the `DatePicker` in the UI for data changes
 #[derive(Default)]
 pub struct DatePickerHandler {
     /// The From Date currently selected in the UI

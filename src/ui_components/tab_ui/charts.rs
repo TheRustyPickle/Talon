@@ -325,6 +325,15 @@ impl ChartsData {
         self.hourly_labels.clear();
         self.daily_labels.clear();
     }
+
+    /// Whether total message and whitelist message are added to the chart
+    fn message_whitelist_added(&self, row_len: usize) -> (bool, bool) {
+        // If there is no whitelisted users, this will be considered as not-shown. Adds extra bars
+        // to the ui => consume more power.
+        let whitelist = self.added_to_chart.contains("Show whitelisted data") && row_len > 0;
+
+        (self.added_to_chart.contains("Show total data"), whitelist)
+    }
 }
 
 impl MainWindow {
@@ -403,7 +412,7 @@ impl MainWindow {
                                 .contains(&self.chart.dropdown_user)
                         {
                             ui.add_enabled(false, add_button);
-                        } else if ui.add(add_button).clicked() {
+                        } else if ui.add(add_button).on_hover_text("Add the selected user to the chart. If the UI is lagging, removing a few values will help").clicked() {
                             self.chart.add_to_chart();
                         };
 
@@ -526,8 +535,8 @@ impl MainWindow {
 
                     ui.separator();
 
-                    let previous_hover = format!("Go back by 1 {} from the current date. Shortcut Key: H", chart.date_nav.nav_name());
-                    let next_hover = format!("Go next by 1 {} from the current date. Shortcut Key: L", chart.date_nav.nav_name());
+                    let previous_hover = format!("Go back by 1 {} from the current date. Shortcut Key: CTRL + H", chart.date_nav.nav_name());
+                    let next_hover = format!("Go next by 1 {} from the current date. Shortcut Key: CTRL + L", chart.date_nav.nav_name());
 
                     if ui.button(format!("Previous {}", chart.date_nav.nav_name())).on_hover_text(previous_hover).clicked() {
                         chart.date_nav.go_previous();
@@ -541,13 +550,14 @@ impl MainWindow {
 
             // Monitor for H and L key presses
             if date_enabled {
+                let is_ctrl_pressed = ui.ctx().input(|i| i.modifiers.ctrl);
                 let key_h_pressed = ui.ctx().input(|i| i.key_pressed(Key::H));
 
-                if key_h_pressed {
+                if key_h_pressed && is_ctrl_pressed {
                     self.chart.date_nav.go_previous();
                 } else {
                     let key_l_pressed = ui.ctx().input(|i| i.key_pressed(Key::L));
-                    if key_l_pressed {
+                    if key_l_pressed && is_ctrl_pressed {
                         self.chart.date_nav.go_next();
                     }
                 }
@@ -556,7 +566,7 @@ impl MainWindow {
             // Set pre-saved hourly and daily bars to None if date selection changes so they can be
             // rendered again and saved with the latest data
             if date_enabled && self.chart.date_nav.handler().check_date_change() {
-                self.chart.reset_saved_bars()
+                self.chart.reset_saved_bars();
             }
 
             ui.separator();
@@ -608,15 +618,8 @@ impl MainWindow {
         let mut bar_list = BTreeMap::new();
         let mut point_dates = HashMap::new();
 
-        let to_iter = match self.chart.chart_timing {
-            ChartTiming::Hourly => self.chart.hourly_message.iter().enumerate(),
-            ChartTiming::Daily => self.chart.daily_message.iter().enumerate(),
-            ChartTiming::Weekly => self.chart.weekly_message.iter().enumerate(),
-            ChartTiming::Monthly => self.chart.monthly_message.iter().enumerate(),
-        };
-
-        let show_total_message = self.chart.added_to_chart.contains("Show total data");
-        let show_whitelisted_message = self.chart.added_to_chart.contains("Show whitelisted data");
+        let (show_total_message, show_whitelisted_message) =
+            self.chart.message_whitelist_added(self.whitelist.row_len());
 
         if self.chart.chart_timing == ChartTiming::Hourly && self.chart.hourly_bars.is_some() {
             self.display_chart(
@@ -637,6 +640,13 @@ impl MainWindow {
             );
             return;
         }
+
+        let to_iter = match self.chart.chart_timing {
+            ChartTiming::Hourly => self.chart.hourly_message.iter().enumerate(),
+            ChartTiming::Daily => self.chart.daily_message.iter().enumerate(),
+            ChartTiming::Weekly => self.chart.weekly_message.iter().enumerate(),
+            ChartTiming::Monthly => self.chart.monthly_message.iter().enumerate(),
+        };
 
         // Key = The common time where one or more message may have been sent
         // user = All users that sent messages to this common time + the amount of message
@@ -667,7 +677,7 @@ impl MainWindow {
                 if !user.contains_key(i) && i != "Show total data" && i != "Show whitelisted data" {
                     let bar = Bar::new(arg, 0.0).name(format!(
                         "{} {i}",
-                        time_to_string(key, &self.chart.chart_timing)
+                        time_to_string(key, self.chart.chart_timing)
                     ));
                     let bar_value = bar_list.entry(i.to_owned()).or_insert(Vec::new());
 
@@ -696,7 +706,7 @@ impl MainWindow {
                 if user_in_chart {
                     let user_bar = Bar::new(arg, num.to_owned() as f64).name(format!(
                         "{} {user_name}",
-                        time_to_string(key, &self.chart.chart_timing)
+                        time_to_string(key, self.chart.chart_timing)
                     ));
                     let bar_value = bar_list.entry(user_name.to_owned()).or_insert(Vec::new());
                     bar_value.push(user_bar);
@@ -706,7 +716,7 @@ impl MainWindow {
             if show_total_message {
                 let bar = Bar::new(arg, total_message as f64).name(format!(
                     "{} Total message",
-                    time_to_string(key, &self.chart.chart_timing)
+                    time_to_string(key, self.chart.chart_timing)
                 ));
                 let bar_value = bar_list
                     .entry("Show total data".to_owned())
@@ -717,7 +727,7 @@ impl MainWindow {
             if show_whitelisted_message {
                 let bar = Bar::new(arg, whitelisted_message as f64).name(format!(
                     "{} Whitelisted message",
-                    time_to_string(key, &self.chart.chart_timing)
+                    time_to_string(key, self.chart.chart_timing)
                 ));
                 let bar_value = bar_list
                     .entry("Show whitelisted data".to_owned())
@@ -752,8 +762,8 @@ impl MainWindow {
             ChartTiming::Monthly => self.chart.monthly_message.iter().enumerate(),
         };
 
-        let show_total_message = self.chart.added_to_chart.contains("Show total data");
-        let show_whitelisted_message = self.chart.added_to_chart.contains("Show whitelisted data");
+        let (show_total_message, show_whitelisted_message) =
+            self.chart.message_whitelist_added(self.whitelist.row_len());
 
         if self.chart.chart_timing == ChartTiming::Hourly && self.chart.hourly_bars.is_some() {
             self.display_chart(
@@ -813,7 +823,7 @@ impl MainWindow {
             if show_total_message {
                 let bar = Bar::new(arg, total_user as f64).name(format!(
                     "{} Total user",
-                    time_to_string(key, &self.chart.chart_timing)
+                    time_to_string(key, self.chart.chart_timing)
                 ));
                 let bar_value = bar_list
                     .entry("Show total data".to_owned())
@@ -824,7 +834,7 @@ impl MainWindow {
             if show_whitelisted_message {
                 let bar = Bar::new(arg, f64::from(whitelisted_user)).name(format!(
                     "{} Whitelisted user",
-                    time_to_string(key, &self.chart.chart_timing)
+                    time_to_string(key, self.chart.chart_timing)
                 ));
                 let bar_value = bar_list
                     .entry("Show whitelisted data".to_owned())
@@ -858,8 +868,8 @@ impl MainWindow {
 
         let to_iter = self.chart.weekday_message.iter().enumerate();
 
-        let show_total_message = self.chart.added_to_chart.contains("Show total data");
-        let show_whitelisted_message = self.chart.added_to_chart.contains("Show whitelisted data");
+        let (show_total_message, show_whitelisted_message) =
+            self.chart.message_whitelist_added(self.whitelist.row_len());
 
         // Key = week day num
         // user = All users that sent messages to this common time + the amount of message
@@ -919,8 +929,8 @@ impl MainWindow {
 
         let to_iter = self.chart.weekday_message.iter().enumerate();
 
-        let show_total_message = self.chart.added_to_chart.contains("Show total data");
-        let show_whitelisted_message = self.chart.added_to_chart.contains("Show whitelisted data");
+        let (show_total_message, show_whitelisted_message) =
+            self.chart.message_whitelist_added(self.whitelist.row_len());
 
         // Key = week day num
         // user = All users that sent messages to this common time + the amount of message
@@ -1014,7 +1024,7 @@ impl MainWindow {
                     };
                 }
                 all_charts.push(whitelist_chart);
-            };
+            }
         } else if show_total_message {
             if let Some(total_message_bars) = bar_list.remove("Show total data") {
                 let total_message_chart = BarChart::new(total_message_bars)
@@ -1026,6 +1036,8 @@ impl MainWindow {
 
         // User data stacking only happens on Message chart
         if self.chart.chart_type == ChartType::Message {
+            // Only triggered when Something other than total and whitelisted message is added to
+            // the chart
             // All charts must be stacked by all the previous charts
             // Chart 3 will be stacked by chart 1 and 2
             // The target is the bottom chart is total message => whitelist => the rest of the users
@@ -1073,15 +1085,15 @@ impl MainWindow {
                     ChartType::Message | ChartType::ActiveUser => {
                         match timing {
                             ChartTiming::Hourly | ChartTiming::Daily => {
-                                date_label = date.to_string()
+                                date_label = date.to_string();
                             }
                             ChartTiming::Weekly => {
                                 let other_date = date.checked_add_days(Days::new(7)).unwrap();
-                                date_label = format!("{} - {}", date, other_date)
+                                date_label = format!("{date} - {other_date}");
                             }
                             ChartTiming::Monthly => {
                                 let other_date = date.checked_add_months(Months::new(1)).unwrap();
-                                date_label = format!("{} - {}", date, other_date)
+                                date_label = format!("{date} - {other_date}");
                             }
                         };
                     }

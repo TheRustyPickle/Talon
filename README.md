@@ -6,39 +6,20 @@
 <a href="https://crates.io/crates/talon-gui"><img src="https://img.shields.io/crates/d/talon-gui?style=flat-square" alt="Downloads"/></a>
 </div>
 
-Talon is a tool to generate on-demand data insights from public Telegram chats. Powered by Rust, grammers, and egui, it offers a straightforward interface that leverages the Telegram account API.
+Talon is a tool to generate on-demand data insights from public Telegram chats. Powered by Rust, grammers, and egui, it offers a straightforward interface that leverages the Telegram account API. Talon operates entirely on-demand and does not rely on local data storage or databases.
 
-![Screenshot](https://github.com/TheRustyPickle/Talon/assets/35862475/68b5f14f-d717-4911-b42d-9f15088a48ac)
+![Screenshot](https://github.com/TheRustyPickle/Talon/assets/35862475/56b834d8-992b-413c-81e7-aaf023e00047)
 
 ## Features
 
-**Counter:**
-
-- Checks Telegram messages from a given message link (and an optional ending point).
-- Able to utilize multiple sessions, dramatically increasing checking speed. Tested with up to 8 sessions and 300k messages
-- Displays the number of unique users found, the total messages counted, and others.
-- Utilizes gathered data to visualize additional analytics.
-
-**User Table:**
-
-- Utilizes the counted data to generate a comprehensive user table.
-- View user details, including name, username, ID, total messages, total words, total characters, and more.
-- Allows interaction with the table, such as selecting cells and copying data in an organized manner.
-
-**Session Creation:**
-
-- Takes relevant input to log in to a Telegram account and create a new session.
-- Choose between a temporary session (logs out on app close) or a non-temporary session (creates a file for persistent login).
-
-**Whitelist:**
-
-- Allows grouping specific users and enabling viewing their data separately.
-- Easily add or remove users from the whitelist as necessary.
-
-**Charts:**
-
-- Visualize message counts or active users on an hourly, daily, weekly, or monthly basis.
-- Explore chat activity based on the day of the week.
+- **User and Message Metrics:** Displays the number of unique users, total messages counted, and other info.
+- **Detailed User Insights:** View comprehensive user details including name, username, ID, total messages, total words, total characters, and more.
+- **Interactive Data Table:** Select cells, interact with the table and allows copying cells in an organized manner.
+- **Visual Analytics:** Visualize message counts and active users on an hourly, daily, weekly, monthly and by the day of the week basis.
+- **Date Range and Navigation:** Easily navigate and view table and chart data within a specific date range with buttons to cycle by day, week, month, or year.
+- **Session Management:** Options to choose between temporary sessions (logs out on app close) or non-temporary sessions (creates a file for persistent login).
+- **User Grouping:** Group specific users by whitelisting to view their data separately and analyze their activity.
+- **Multi-Session Capability:** Utilize multiple sessions to dramatically increase checking speed, tested with up to 12 sessions and 300k messages.
 
 ## Important Note
 
