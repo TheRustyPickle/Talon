@@ -1,6 +1,6 @@
 use chrono::{NaiveDate, NaiveDateTime};
 use eframe::egui::{
-    Align, Event, Key, Layout, Response, RichText, ScrollArea, SelectableLabel, Sense, Ui,
+    Align, Event, Key, Label, Layout, Response, RichText, ScrollArea, SelectableLabel, Sense, Ui,
 };
 use egui_extras::{Column, DatePickerButton, TableBuilder};
 use grammers_client::types::{Chat, Message};
@@ -808,7 +808,8 @@ impl MainWindow {
                     .cell_layout(Layout::left_to_right(Align::Center))
                     .drag_to_scroll(false)
                     .auto_shrink([false; 2])
-                    .min_scrolled_height(0.0);
+                    .min_scrolled_height(0.0)
+                    .column(Column::initial(25.0).clip(true));
 
                 for _ in 0..total_header {
                     let mut column = Column::initial(100.0);
@@ -821,6 +822,9 @@ impl MainWindow {
 
                 table
                     .header(20.0, |mut header| {
+                        header.col(|ui| {
+                            ui.add_sized(ui.available_size(), Label::new("Num"));
+                        });
                         for _ in 0..total_header {
                             header.col(|ui| {
                                 self.create_header(current_column, ui);
@@ -831,7 +835,14 @@ impl MainWindow {
                     .body(|body| {
                         let table_rows = self.table.rows();
                         body.rows(25.0, table_rows.len(), |mut row| {
-                            let row_data = &table_rows[row.index()];
+                            let index = row.index();
+                            let row_data = &table_rows[index];
+                            row.col(|ui| {
+                                ui.add_sized(
+                                    ui.available_size(),
+                                    Label::new(format!("{}", index + 1)),
+                                );
+                            });
                             for _ in 0..total_header {
                                 row.col(|ui| self.create_table_row(current_column, row_data, ui));
                                 current_column = current_column.get_next();
