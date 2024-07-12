@@ -6,7 +6,7 @@
 <a href="https://crates.io/crates/talon-gui"><img src="https://img.shields.io/crates/d/talon-gui?style=flat-square" alt="Downloads"/></a>
 </div>
 
-Talon is a tool to generate on-demand data insights from public Telegram chats. Powered by Rust, grammers, and egui, it offers a straightforward interface that leverages the Telegram account API. Talon operates entirely on-demand and does not rely on local data storage or databases.
+Talon is a tool to generate on-demand data insights from public Telegram chats. Powered by Rust, grammers, and egui, it offers a straightforward interface that leverages the Telegram account API.
 
 ![Screenshot](https://github.com/TheRustyPickle/Talon/assets/35862475/56b834d8-992b-413c-81e7-aaf023e00047)
 
@@ -45,6 +45,10 @@ Talon uses the [grammers library](https://github.com/lonami/grammers) for Telegr
 ## App Data Location
 
 See [here](https://docs.rs/dirs/latest/dirs/fn.data_local_dir.html) for location info where app data is saved which is determined based on the OS. Files can be added, deleted, or modified here to reflect in the application.
+
+## Disclaimer
+
+Talon is designed to work only with public Telegram chats and does not support private groups. The app operates entirely on-demand, without saving any data or analyzing messages beyond counting them and checking the timestamp. Users are responsible for ensuring their use of this tool complies with Telegram’s Terms of Service and relevant laws.
 
 ## Feedback and Contributions
 
