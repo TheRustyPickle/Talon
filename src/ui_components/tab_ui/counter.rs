@@ -1,35 +1,69 @@
-use arboard::Clipboard;
-use eframe::egui::{vec2, Align, Button, ComboBox, Grid, Label, Layout, ProgressBar, TextEdit, Ui};
+use eframe::egui::{
+    vec2, Align, Button, ComboBox, Grid, Label, Layout, ProgressBar, TextEdit, Ui, ViewportCommand,
+};
 use log::info;
 use std::collections::HashMap;
 use std::thread;
 
 use crate::tg_handler::ProcessStart;
-use crate::ui_components::processor::ProcessState;
+use crate::ui_components::processor::{CounterCounts, ParsedChat, ProcessState};
 use crate::ui_components::MainWindow;
-use crate::utils::parse_tg_chat;
+use crate::utils::{chat_to_text, parse_chat_details};
 
 const LIMIT_SELECTION: [&str; 6] = ["20", "30", "40", "50", "80", "100"];
 
-#[derive(Default, Clone)]
+#[derive(Clone)]
 pub struct CounterData {
     session_index: usize,
     start_from: String,
     end_at: String,
-    total_message: i32,
-    whitelisted_message: i32,
-    total_user: i32,
-    whitelisted_user: i32,
-    deleted_message: i32,
+    pub counts: Vec<CounterCounts>,
     bar_percentage: f32,
     use_all_sessions: bool,
     counting: bool,
     session_count: usize,
     session_percentage: HashMap<String, f32>,
     comm_limit: usize,
+    parsed_chat_list: HashMap<String, ParsedChat>,
+    chat_list: Vec<String>,
+    ongoing_chat: usize,
+    detected_chat: String,
+    retain_data: bool,
+}
+
+impl Default for CounterData {
+    fn default() -> Self {
+        Self {
+            session_index: usize::default(),
+            start_from: String::default(),
+            end_at: String::default(),
+            counts: vec![CounterCounts::default()],
+            bar_percentage: f32::default(),
+            use_all_sessions: true,
+            counting: bool::default(),
+            session_count: usize::default(),
+            session_percentage: HashMap::default(),
+            comm_limit: usize::default(),
+            parsed_chat_list: HashMap::default(),
+            chat_list: Vec::default(),
+            ongoing_chat: usize::default(),
+            detected_chat: String::default(),
+            retain_data: true,
+        }
+    }
 }
 
 impl CounterData {
+    pub fn reset(&mut self) {
+        self.counts = vec![CounterCounts::default()];
+        self.chat_list = Vec::new();
+        self.ongoing_chat = 0;
+        self.session_percentage = HashMap::new();
+    }
+    pub fn ongoing_chat(&self) -> usize {
+        self.ongoing_chat
+    }
+
     pub fn add_session(&mut self, to_add: String) {
         self.session_percentage.entry(to_add).or_default();
     }
@@ -57,22 +91,29 @@ impl CounterData {
         self.session_count -= 1;
     }
 
-    fn get_start_from(&self) -> String {
+    fn get_start_from(&mut self) -> String {
+        let new_string = self
+            .start_from
+            .split_inclusive(|c: char| c.is_whitespace())
+            .map(|s| s.replace('\n', " "))
+            .collect::<String>();
+        self.start_from = new_string;
         self.start_from.clone()
     }
 
-    fn get_end_at(&self) -> String {
+    fn get_end_at(&mut self) -> String {
+        let new_string = self
+            .end_at
+            .split_inclusive(|c: char| c.is_whitespace())
+            .map(|s| s.replace('\n', " "))
+            .collect::<String>();
+        self.end_at = new_string;
         self.end_at.clone()
     }
 
     fn counting_started(&mut self) {
         self.counting = true;
         self.bar_percentage = 0.0;
-        self.total_user = 0;
-        self.total_message = 0;
-        self.whitelisted_message = 0;
-        self.whitelisted_user = 0;
-        self.deleted_message = 0;
         self.session_count = 0;
         self.session_percentage.clear();
     }
@@ -88,22 +129,75 @@ impl CounterData {
         self.bar_percentage = percentage;
     }
 
-    pub fn set_total_user(&mut self, total_user: i32) {
-        self.total_user = total_user;
+    pub fn get_comm_limit(&self) -> usize {
+        LIMIT_SELECTION[self.comm_limit].parse().unwrap()
     }
 
-    pub fn add_one_total_message(&mut self) {
-        self.total_message += 1;
+    pub fn total_parsed_chats(&self) -> usize {
+        self.parsed_chat_list.len()
     }
 
-    pub fn add_deleted_message(&mut self, to_add: i32) {
-        if to_add > 0 {
-            self.deleted_message += to_add;
+    pub fn total_chats(&self) -> usize {
+        self.chat_list.len()
+    }
+
+    fn set_parsed_chat(&mut self, chat_list: HashMap<String, ParsedChat>) {
+        self.parsed_chat_list = chat_list;
+    }
+
+    fn get_parsed_chat(&mut self) -> Option<ParsedChat> {
+        if self.total_parsed_chats() > 0 {
+            let mut first_key = String::new();
+            for key in self.parsed_chat_list.keys() {
+                first_key = key.to_string();
+            }
+            let data = self.parsed_chat_list.remove(&first_key).unwrap();
+            Some(data)
+        } else {
+            None
         }
     }
 
-    pub fn get_comm_limit(&self) -> usize {
-        LIMIT_SELECTION[self.comm_limit].parse().unwrap()
+    pub fn counting(&self) -> bool {
+        self.counting
+    }
+
+    pub fn add_to_chat(&mut self, name: String) {
+        self.chat_list.push(name);
+    }
+
+    pub fn set_ongoing_chat(&mut self, index: usize) {
+        self.ongoing_chat = index;
+    }
+
+    pub fn increment_ongoing(&mut self) {
+        self.ongoing_chat += 1;
+    }
+
+    pub fn get_chat_list(&self) -> Vec<String> {
+        self.chat_list.clone()
+    }
+
+    pub fn contains_chat(&self, chat: &String) -> bool {
+        self.chat_list.contains(chat)
+    }
+
+    pub fn chat_index(&self, chat: &String) -> usize {
+        for (index, ch) in self.chat_list.iter().enumerate() {
+            if ch == chat {
+                return index;
+            }
+        }
+        unreachable!()
+    }
+
+    pub fn remove_chat(&mut self, index: usize) {
+        self.chat_list.remove(index);
+        self.counts.remove(index);
+    }
+
+    pub fn selected_chat_name(&self, index: usize) -> String {
+        self.chat_list[index].clone()
     }
 }
 
@@ -115,6 +209,8 @@ impl MainWindow {
             .show(ui, |ui| self.show_grid_data(ui));
 
         ui.add_space(10.0);
+        ui.label(self.counter.detected_chat.to_owned());
+        ui.add_space(5.0);
         ui.horizontal(|ui| {
             Grid::new("Main")
                 .num_columns(2)
@@ -124,7 +220,7 @@ impl MainWindow {
                         ui.label("Messages Checked:")
                     });
                     ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
-                        ui.label(format!("{}", &mut self.counter.total_message));
+                        ui.label(format!("{}", &mut self.count().total_message));
                     });
 
                     ui.end_row();
@@ -133,7 +229,7 @@ impl MainWindow {
                         ui.label("Whitelisted Messages:")
                     });
                     ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
-                        ui.label(format!("{}", &mut self.counter.whitelisted_message));
+                        ui.label(format!("{}", &mut self.count().whitelisted_message));
                     });
 
                     ui.end_row();
@@ -142,7 +238,7 @@ impl MainWindow {
                         ui.label("Users Found:")
                     });
                     ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
-                        ui.label(format!("{}", &mut self.counter.total_user));
+                        ui.label(format!("{}", &mut self.count().total_user));
                     });
 
                     ui.end_row();
@@ -151,7 +247,7 @@ impl MainWindow {
                         ui.label("Whitelisted Users:")
                     });
                     ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
-                        ui.label(format!("{}", &mut self.counter.whitelisted_user));
+                        ui.label(format!("{}", &mut self.count().whitelisted_user));
                     });
 
                     ui.end_row();
@@ -160,7 +256,7 @@ impl MainWindow {
                         ui.label("Deleted Message:")
                     });
                     ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
-                        ui.label(format!("{}", &mut self.counter.deleted_message));
+                        ui.label(format!("{}", &mut self.count().deleted_message));
                     });
 
                     ui.end_row();
@@ -184,9 +280,38 @@ impl MainWindow {
                 .animate(self.counter.counting);
             ui.add(progress_bar);
         });
+
+        self.counter.detected_chat =
+            chat_to_text(self.counter.get_start_from(), self.counter.get_end_at());
     }
 
     fn show_grid_data(&mut self, ui: &mut Ui) {
+        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+            ui.add(Label::new("Selected Chat:"));
+        });
+        ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
+            let (values, len) = {
+                let names = self.counter.get_chat_list();
+
+                if names.is_empty() {
+                    (vec!["No chat available".to_string()], 0)
+                } else {
+                    let total_val = names.len();
+                    (names, total_val)
+                }
+            };
+            ComboBox::from_id_source("Chat Box").show_index(
+                ui,
+                &mut self.counter_chat_index,
+                len,
+                |i| &values[i],
+            );
+            ui.separator();
+            ui.checkbox(&mut self.counter.retain_data, "Retain previous data")
+                .on_hover_text("Whether to retain all previous data on a new counting session");
+        });
+        ui.end_row();
+
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
             ui.add(Label::new("Selected Session:"));
         });
@@ -251,37 +376,36 @@ Info: Each session can count about 3000 messages before flood wait is triggered.
                     .on_hover_text("Clear text box content")
             };
 
-            if clear_paste_button.clicked() {
-                if self.counter.start_from.is_empty() {
-                    if let Ok(mut clipboard) = Clipboard::new() {
-                        if let Ok(copied_content) = clipboard.get_text() {
-                            self.counter.start_from = copied_content;
-                        }
-                    }
-                } else {
-                    self.counter.start_from = String::new();
-                }
-            }
-            ui.add_sized(
-                ui.available_size(),
-                TextEdit::singleline(&mut self.counter.start_from)
-                    .hint_text("https://t.me/chat_name/1234"),
-            )
-            .on_hover_text(
-                "The message link from where message counting should start.
+            let target_textbox = ui
+                .add_sized(
+                    ui.available_size(),
+                    TextEdit::singleline(&mut self.counter.start_from)
+                        .hint_text("https://t.me/chat_name/1234"),
+                )
+                .on_hover_text(
+                    "The message link from where message counting should start. 
+Multiple points can be inserted separated by a space
 
 Multiple input format is supported:
 
 (message number optional)
-1. https://t.me/chat_name/1234
-2. t.me/chat_name/1234
-3. @chat_name/1234
-4. chat_name/1234
+1. https://t.me/chat_name/1234 https://t.me/chat_name_2/1234
+2. t.me/chat_name/1234 t.me/chat_name_2/1234
+3. @chat_name/1234 @chat_name_2/1234
+4. chat_name/1234 chat_name_2/1234
 
 If message number is not specified, starts from the latest message.
 Starting message number will always be bigger than the ending message.
 To count all messages in a chat, paste the latest message link.",
-            );
+                );
+            if clear_paste_button.clicked() {
+                if self.counter.start_from.is_empty() {
+                    target_textbox.request_focus();
+                    ui.ctx().send_viewport_cmd(ViewportCommand::RequestPaste);
+                } else {
+                    self.counter.start_from = String::new();
+                }
+            }
         });
 
         ui.end_row();
@@ -298,37 +422,36 @@ To count all messages in a chat, paste the latest message link.",
                     .on_hover_text("Clear text box content")
             };
 
-            if clear_paste_button.clicked() {
-                if self.counter.end_at.is_empty() {
-                    if let Ok(mut clipboard) = Clipboard::new() {
-                        if let Ok(copied_content) = clipboard.get_text() {
-                            self.counter.end_at = copied_content;
-                        }
-                    }
-                } else {
-                    self.counter.end_at = String::new();
-                }
-            }
-            ui.add_sized(
-                ui.available_size(),
-                TextEdit::singleline(&mut self.counter.end_at)
-                    .hint_text("(Optional) https://t.me/chat_name/1234"),
-            )
-            .on_hover_text(
-                "Optional message link where counting will stop after including it.
+            let target_textbox = ui
+                .add_sized(
+                    ui.available_size(),
+                    TextEdit::singleline(&mut self.counter.end_at)
+                        .hint_text("(Optional) https://t.me/chat_name/1234"),
+                )
+                .on_hover_text(
+                    "Optional message link where counting will stop after including it. 
+Multiple points can be inserted separated by a space
 
 Multiple input format is supported:
 
 (message number optional)
-1. https://t.me/chat_name/1234
-2. t.me/chat_name/1234
-3. @chat_name/1234
-4. chat_name/1234
+1. https://t.me/chat_name/1234 https://t.me/chat_name_2/1234
+2. t.me/chat_name/1234 t.me/chat_name_2/1234
+3. @chat_name/1234 @chat_name_2/1234
+4. chat_name/1234 chat_name_2/1234
 
 If message number is not specified or is empty, counts all messages.
 Ending message number will always be smaller than the starting message.
 To count all messages in a chat, paste the very first message link or keep it empty.",
-            );
+                );
+            if clear_paste_button.clicked() {
+                if self.counter.end_at.is_empty() {
+                    target_textbox.request_focus();
+                    ui.ctx().send_viewport_cmd(ViewportCommand::RequestPaste);
+                } else {
+                    self.counter.end_at = String::new();
+                }
+            }
         });
         ui.end_row();
     }
@@ -344,49 +467,70 @@ To count all messages in a chat, paste the very first message link or keep it em
         let start_from = self.counter.get_start_from();
         let end_at = self.counter.get_end_at();
 
-        let (start_chat, start_num) = parse_tg_chat(start_from);
-        let (end_chat, end_num) = parse_tg_chat(end_at);
+        let parsed_chat_data = parse_chat_details(start_from, end_at);
 
-        if start_chat.is_none() {
+        if parsed_chat_data.is_empty() {
             self.process_state = ProcessState::InvalidStartChat;
             return;
         }
 
-        let start_chat = start_chat.unwrap();
+        let total_parsed = parsed_chat_data.len();
 
-        if let Some(end_chat) = end_chat {
-            if end_chat != start_chat {
-                self.process_state = ProcessState::UnmatchedChat;
-                return;
-            }
+        if self.counter.retain_data {
+            self.clear_overlap(&parsed_chat_data);
         }
 
-        if let (Some(start_num), Some(end_num)) = (start_num, end_num) {
-            if start_num < end_num {
-                self.process_state = ProcessState::SmallerStartNumber;
-                return;
-            }
-        }
+        self.counter.set_parsed_chat(parsed_chat_data);
 
-        info!("Starting counting");
-        self.table.clear_row_data();
-        self.chart.reset_chart();
+        if !self.counter.retain_data {
+            self.reset_counts();
+            self.reset_table();
+            self.reset_chart();
+        }
+        self.initial_chart_reset();
+        self.append_structs(total_parsed, self.counter.total_chats());
+        self.process_next_count();
+    }
+
+    pub fn process_next_count(&mut self) {
+        let target_chat = self.counter.get_parsed_chat();
+
+        let Some(chat) = target_chat else {
+            info!("No other chat to process.");
+            self.stop_process();
+            self.process_state = ProcessState::Idle;
+            return;
+        };
+
+        self.counter.add_to_chat(chat.name());
+        let ongoing_index = self.counter.total_chats() - 1;
+
+        self.counter.set_ongoing_chat(ongoing_index);
+
+        info!("Starting counting for {}", chat.name());
+
+        let selected_client = self.get_selected_session();
+
         self.process_state = ProcessState::Counting(0);
         self.counter.counting_started();
         self.is_processing = true;
+
+        let chat_name = chat.name();
+        let start_num = chat.start_point();
+        let end_num = chat.end_point();
 
         let client = self.tg_clients.get(&selected_client).unwrap().clone();
 
         if self.counter.use_all_sessions && self.tg_clients.len() > 1 {
             thread::spawn(move || {
                 client.start_process(ProcessStart::CheckChatExistence(
-                    start_chat, start_num, end_num,
+                    chat_name, start_num, end_num,
                 ));
             });
         } else {
             thread::spawn(move || {
                 client.start_process(ProcessStart::StartCount(
-                    start_chat, start_num, end_num, false,
+                    chat_name, start_num, end_num, false,
                 ));
             });
         }

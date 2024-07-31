@@ -1,3 +1,4 @@
+mod blacklist;
 mod communication;
 mod counter;
 mod handler;
