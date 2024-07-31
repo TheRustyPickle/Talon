@@ -38,9 +38,12 @@ pub fn check_version(version_body: Arc<Mutex<Option<String>>>) {
 
     let caller: Result<GithubRelease, Error> = response.json();
 
-    let Ok(release_data) = caller else {
-        error!("Failed to deserialize release data");
-        return;
+    let release_data = match caller {
+        Ok(data) => data,
+        Err(e) => {
+            error!("Failed to deserialize release data. Reason: {e:?}");
+            return;
+        }
     };
 
     let github_version = Version::parse(&release_data.name.replace('v', "")).unwrap();

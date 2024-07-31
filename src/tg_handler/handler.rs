@@ -54,6 +54,10 @@ impl TGClient {
                 runtime.block_on(self.load_whitelisted_users(hex_data))
             }
             ProcessStart::NewWhitelistUser(name) => runtime.block_on(self.new_whitelist(name)),
+            ProcessStart::LoadBlacklistedUsers(hex_data) => {
+                runtime.block_on(self.load_blacklisted_users(hex_data))
+            }
+            ProcessStart::NewBlacklistUser(name) => runtime.block_on(self.new_blacklist(name)),
             ProcessStart::CheckChatExistence(name, start, end) => {
                 runtime.block_on(self.check_chat_status(name, start, end))
             }
@@ -130,6 +134,7 @@ impl TGClient {
     /// Logs out of the client
     pub async fn logout(&self) -> Result<(), ProcessError> {
         let _ = self.client().sign_out().await;
+        info!("Logged out of client {}", self.name());
         Ok(())
     }
 }

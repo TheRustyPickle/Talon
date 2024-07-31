@@ -5,6 +5,7 @@ use std::thread;
 use crate::tg_handler::{ProcessError, ProcessResult, ProcessStart};
 use crate::ui_components::processor::ProcessState;
 use crate::ui_components::MainWindow;
+use crate::utils::to_chart_name;
 
 impl MainWindow {
     /// Checks if there are any new message from the async side
@@ -30,11 +31,12 @@ impl MainWindow {
                     self.process_state =
                         ProcessState::InitialClientConnectionSuccessful(status_text);
                     self.load_whitelisted_users();
+                    self.load_blacklisted_users();
                 }
                 ProcessResult::InvalidChat(chat_name) => {
                     info!("Invalid chat name found: {}", chat_name);
                     self.process_state = ProcessState::NonExistingChat(chat_name);
-                    self.stop_process();
+                    self.go_next_or_stop();
                 }
                 ProcessResult::UnauthorizedClient(client_name) => {
                     info!("{} is not authorized.", client_name);
@@ -47,7 +49,7 @@ impl MainWindow {
                     // 101 and 100 is missing so count them as deleted
                     if last_number != end_at {
                         let total_deleted = last_number - end_at;
-                        self.counter.add_deleted_message(total_deleted);
+                        self.t_count().add_deleted_message(total_deleted);
                     }
 
                     info!("Counting ended for a session");
@@ -55,8 +57,7 @@ impl MainWindow {
                     // Stop process sets the progress bar to 100
                     // Progress only if 1 session is remaining to be completed or it was 0 (0 in normal counting)
                     if self.counter.session_remaining() <= 1 {
-                        self.stop_process();
-                        self.process_state = ProcessState::Idle;
+                        self.go_next_or_stop();
                     } else {
                         self.counter.reduce_session();
                     }
@@ -76,37 +77,37 @@ impl MainWindow {
                         Local.from_utc_datetime(&message_sent_at).naive_local();
 
                     let sender = message.sender();
-                    let (user_id, full_name, user_name) = self.table.add_user(
+
+                    let user_id = if let Some(c) = &sender { c.id() } else { 0 };
+
+                    let blacklisted = self.blacklist.is_user_blacklisted(user_id);
+
+                    let (user_id, full_name, user_name) = self.t_table().add_user(
                         sender,
                         local_time_date,
                         local_time_datetime,
                         count_data.name(),
+                        blacklisted,
                     );
 
-                    if user_id != 0 && self.whitelist.is_user_whitelisted(user_id) {
-                        self.table.set_as_whitelisted(user_id);
+                    let chart_user = to_chart_name(user_name, full_name, user_id);
+
+                    if !blacklisted {
+                        self.t_chart().add_user(chart_user.clone(), user_id);
+                        self.t_table().count_user_message(
+                            user_id,
+                            message,
+                            local_time_date,
+                            local_time_datetime,
+                        );
                     }
 
-                    let chart_user = {
-                        if user_name != "Empty" {
-                            user_name
-                        } else if full_name == "Deleted Account" {
-                            user_id.to_string()
-                        } else {
-                            format!("{full_name} {user_id}")
-                        }
-                    };
+                    if user_id != 0 && self.whitelist.is_user_whitelisted(user_id) && !blacklisted {
+                        self.t_table().set_as_whitelisted(vec![user_id]);
+                    }
 
-                    self.chart.add_user(chart_user.clone(), user_id);
-                    self.table.count_user_message(
-                        user_id,
-                        message,
-                        local_time_date,
-                        local_time_datetime,
-                    );
-
-                    let total_user = self.table.get_total_user();
-                    self.counter.set_total_user(total_user);
+                    let total_user = self.t_table().get_total_user();
+                    self.t_count().set_total_user(total_user);
 
                     let total_to_iter = start_from - end_at;
                     let message_value = 100.0 / total_to_iter as f32;
@@ -122,7 +123,7 @@ impl MainWindow {
                         0
                     };
 
-                    self.counter.add_deleted_message(total_deleted);
+                    self.t_count().add_deleted_message(total_deleted);
 
                     let total_processed = start_from - current_message_number;
                     let processed_percentage = if total_processed != 0 {
@@ -130,7 +131,7 @@ impl MainWindow {
                     } else {
                         message_value
                     };
-                    self.counter.add_one_total_message();
+                    self.t_count().add_one_total_message();
 
                     // In single session set the progress by explicitly by counting it on the go
                     // On multi session add whatever percentage there is + new value for this session
@@ -144,15 +145,16 @@ impl MainWindow {
                             .set_bar_percentage(processed_percentage / 100.0);
                     }
 
-                    self.chart.add_message(
-                        local_time_datetime,
-                        local_time_date,
-                        chart_user,
-                        &count_data.name(),
-                    );
+                    if !blacklisted {
+                        self.t_chart().add_message(
+                            local_time_datetime,
+                            local_time_date,
+                            chart_user,
+                            &count_data.name(),
+                        );
+                    }
                 }
                 ProcessResult::ProcessFailed(err) => {
-                    self.stop_process();
                     match err {
                         ProcessError::AuthorizationError => {
                             error!("Error acquired while trying to connect to the client");
@@ -171,7 +173,7 @@ impl MainWindow {
                             self.process_state = ProcessState::NotSignedUp;
                         }
                         ProcessError::UnknownError(e) => {
-                            error!("Unknown error encountered while trying to login. {e}");
+                            error!("Unknown error encountered while trying to complete the process. {e}");
                             self.process_state = ProcessState::UnknownError;
                         }
                         ProcessError::InvalidPassword => {
@@ -185,13 +187,13 @@ impl MainWindow {
                         ProcessError::InvalidAPIKeys => {
                             error!("Invalid API keys were given");
                             self.process_state = ProcessState::InvalidAPIKeys;
-                            self.stop_process();
                         }
                         ProcessError::FailedLatestMessage => {
                             error!("Failed to get the latest message ID");
                             self.process_state = ProcessState::LatestMessageLoadingFailed;
                         }
                     }
+                    self.go_next_or_stop();
                 }
                 ProcessResult::LoginCodeSent(token, client) => {
                     info!("Login code sent to the client");
@@ -219,7 +221,7 @@ impl MainWindow {
                     info!("Flood wait triggered");
                     self.process_state = ProcessState::FloodWait;
                 }
-                ProcessResult::UnpackedChats(chats, failed_chats) => {
+                ProcessResult::UnpackedWhitelist(chats, failed_chats) => {
                     for chat in chats {
                         let username = if let Some(name) = chat.user_chat.username() {
                             name.to_string()
@@ -243,6 +245,47 @@ impl MainWindow {
                     self.process_state =
                         ProcessState::LoadedWhitelistedUsers(total_chat, failed_chat_num);
                 }
+                ProcessResult::UnpackedBlacklist(chats, failed_chats) => {
+                    let mut names = Vec::new();
+                    let mut user_ids = Vec::new();
+
+                    for chat in chats {
+                        let username = if let Some(name) = chat.user_chat.username() {
+                            name.to_string()
+                        } else {
+                            String::from("Empty")
+                        };
+                        let full_name = chat.user_chat.name().to_string();
+                        let user_id = chat.user_chat.id();
+
+                        names.push(to_chart_name(username.clone(), full_name.clone(), user_id));
+                        user_ids.push(user_id);
+
+                        self.blacklist.add_to_blacklist(
+                            full_name,
+                            username,
+                            user_id,
+                            chat.user_chat,
+                            chat.seen_by,
+                        );
+                    }
+                    self.is_processing = false;
+
+                    self.blacklist.increase_failed_by(failed_chats);
+                    let total_chat = self.blacklist.row_len();
+                    let failed_chat_num = self.blacklist.failed_blacklist_num();
+
+                    for chart in self.chart_all() {
+                        chart.clear_blacklisted(names.clone());
+                    }
+
+                    for table in self.table_all() {
+                        table.remove_blacklisted_rows(user_ids.clone());
+                    }
+
+                    self.process_state =
+                        ProcessState::LoadedBlacklistedUsers(total_chat, failed_chat_num);
+                }
                 ProcessResult::WhiteListUser(chat) => {
                     self.stop_process();
                     let user_id = chat.user_chat.id();
@@ -262,9 +305,43 @@ impl MainWindow {
                         chat.seen_by,
                     );
                     self.whitelist.clear_text_box();
-                    self.table.set_as_whitelisted(user_id);
-                    self.chart.reset_saved_bars();
+                    self.table().set_as_whitelisted(vec![user_id]);
+                    self.chart().reset_saved_bars();
+                    self.whitelist.save_whitelisted_users(false);
                     self.process_state = ProcessState::AddedToWhitelist;
+                }
+                ProcessResult::BlackListUser(chat) => {
+                    self.stop_process();
+                    let user_id = chat.user_chat.id();
+
+                    info!("Adding {user_id} to blacklist");
+
+                    let username = if let Some(name) = chat.user_chat.username() {
+                        name.to_string()
+                    } else {
+                        String::from("Empty")
+                    };
+                    let full_name = chat.user_chat.name().to_string();
+                    let chart_name = to_chart_name(username.clone(), full_name.clone(), user_id);
+
+                    for chart in self.chart_all() {
+                        chart.clear_blacklisted(vec![chart_name.clone()]);
+                    }
+
+                    for table in self.table_all() {
+                        table.remove_blacklisted_rows(vec![user_id]);
+                    }
+
+                    self.blacklist.add_to_blacklist(
+                        full_name,
+                        username,
+                        user_id,
+                        chat.user_chat,
+                        chat.seen_by,
+                    );
+                    self.blacklist.clear_text_box();
+                    self.blacklist.save_blacklisted_users(false);
+                    self.process_state = ProcessState::AddedToBlacklist;
                 }
                 ProcessResult::ChatExists(chat_name, start_at, end_at) => {
                     // Because we count both the start and ending message ID
@@ -327,8 +404,17 @@ impl MainWindow {
         }
     }
 
-    fn stop_process(&mut self) {
+    pub fn stop_process(&mut self) {
         self.is_processing = false;
         self.counter.counting_ended();
+    }
+
+    fn go_next_or_stop(&mut self) {
+        if self.counter.counting() {
+            self.counter.increment_ongoing();
+            self.process_next_count()
+        } else {
+            self.stop_process();
+        }
     }
 }

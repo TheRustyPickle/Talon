@@ -16,6 +16,7 @@ pub enum TabState {
     UserTable,
     Charts,
     Whitelist,
+    Blacklist,
     Session,
 }
 
@@ -24,8 +25,6 @@ pub enum ProcessState {
     InitialClientConnectionSuccessful(String),
     Counting(u8),
     InvalidStartChat,
-    UnmatchedChat,
-    SmallerStartNumber,
     DataCopied(i32),
     AuthorizationError,
     FileCreationFailed,
@@ -46,11 +45,17 @@ pub enum ProcessState {
     PasswordRequired,
     FloodWait,
     UsersWhitelisted(usize),
+    UsersBlacklisted(usize),
     LoadedWhitelistedUsers(usize, i32),
+    LoadedBlacklistedUsers(usize, i32),
     FailedLoadWhitelistedUsers,
+    FailedLoadBlacklistedUsers,
     WhitelistedUserRemoved(usize),
+    BlacklistedUserRemoved(usize),
     AllWhitelistRemoved,
+    AllBlacklistRemoved,
     AddedToWhitelist,
+    AddedToBlacklist,
     LatestMessageLoadingFailed,
     DataExported(String),
 }
@@ -81,12 +86,7 @@ impl Display for ProcessState {
                 }
                 Ok(())
             }
-            ProcessState::InvalidStartChat => write!(f, "Status: Could not detect chat name"),
-            ProcessState::UnmatchedChat => write!(f, "Status: Start and end chat names must match"),
-            ProcessState::SmallerStartNumber => write!(
-                f,
-                "Status: Start message number must be greater than the ending message number"
-            ),
+            ProcessState::InvalidStartChat => write!(f, "Status: Could not detect any valid chat details"),
             ProcessState::DataCopied(num) => {
                 write!(f, "Status: Table data copied. Total cells: {num}",)
             }
@@ -119,13 +119,19 @@ impl Display for ProcessState {
             ProcessState::PasswordRequired => write!(f, "Status: Account requires a password authentication"),
             ProcessState::FloodWait => write!(f, "Status: Flood wait triggered. Will resume again soon"),
             ProcessState::UsersWhitelisted(num) => write!(f, "Status: Whitelisted {num} users"),
+            ProcessState::UsersBlacklisted(num) => write!(f, "Status: Blacklisted {num} users"),
             ProcessState::LoadedWhitelistedUsers(success, failed) => write!(f, "Status: Loaded {success} whitelisted users. Failed to load {failed} users"),
+            ProcessState::LoadedBlacklistedUsers(success, failed) => write!(f, "Status: Loaded {success} blacklisted users. Failed to load {failed} users"),
             ProcessState::FailedLoadWhitelistedUsers => write!(f, "Status: Failed to load whitelisted users due to invalid saved data. Old data has been removed"),
+            ProcessState::FailedLoadBlacklistedUsers => write!(f, "Status: Failed to load blacklisted users due to invalid saved data. Old data has been removed"),
             ProcessState::WhitelistedUserRemoved(num) => write!(f, "Status: {num} whitelisted users removed"),
+            ProcessState::BlacklistedUserRemoved(num) => write!(f, "Status: {num} blacklisted users removed"),
             ProcessState::AllWhitelistRemoved => write!(f, "Status: All whitelisted users removed"),
+            ProcessState::AllBlacklistRemoved => write!(f, "Status: All blacklisted users removed"),
             ProcessState::AddedToWhitelist => write!(f, "Status: User added to whitelist"),
+            ProcessState::AddedToBlacklist => write!(f, "Status: User added to blacklist"),
             ProcessState::LatestMessageLoadingFailed => write!(f, "Status: Failed to get the latest message"),
-            ProcessState::DataExported(location) => write!(f, "Status: Chart data exported to {location}")
+            ProcessState::DataExported(location) => write!(f, "Status: Data exported to {location}"),
         }
     }
 }
@@ -151,6 +157,25 @@ pub enum ColumnName {
     FirstMessageSeen,
     LastMessageSeen,
     Whitelisted,
+}
+
+impl fmt::Display for ColumnName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let name = match self {
+            ColumnName::Name => "Name",
+            ColumnName::Username => "Username",
+            ColumnName::UserID => "User ID",
+            ColumnName::TotalMessage => "Total Message",
+            ColumnName::TotalWord => "Total Word",
+            ColumnName::TotalChar => "Total Char",
+            ColumnName::AverageWord => "Average Word",
+            ColumnName::AverageChar => "Average Char",
+            ColumnName::FirstMessageSeen => "First Message Seen",
+            ColumnName::LastMessageSeen => "Last Message Seen",
+            ColumnName::Whitelisted => "Whitelisted",
+        };
+        write!(f, "{}", name)
+    }
 }
 
 impl ColumnName {
@@ -252,7 +277,7 @@ pub struct PackedWhitelistedUser {
 
 impl PackedWhitelistedUser {
     pub fn new(hex_value: String, seen_by: String) -> Self {
-        PackedWhitelistedUser { hex_value, seen_by }
+        Self { hex_value, seen_by }
     }
 }
 
@@ -263,10 +288,32 @@ pub struct UnpackedWhitelistedUser {
 
 impl UnpackedWhitelistedUser {
     pub fn new(user_chat: Chat, seen_by: String) -> Self {
-        UnpackedWhitelistedUser { user_chat, seen_by }
+        Self { user_chat, seen_by }
     }
 }
 
+#[derive(Deserialize, Serialize, PartialEq, Eq, Hash)]
+pub struct PackedBlacklistedUser {
+    pub hex_value: String,
+    pub seen_by: String,
+}
+
+impl PackedBlacklistedUser {
+    pub fn new(hex_value: String, seen_by: String) -> Self {
+        Self { hex_value, seen_by }
+    }
+}
+
+pub struct UnpackedBlacklistedUser {
+    pub user_chat: Chat,
+    pub seen_by: String,
+}
+
+impl UnpackedBlacklistedUser {
+    pub fn new(user_chat: Chat, seen_by: String) -> Self {
+        Self { user_chat, seen_by }
+    }
+}
 #[derive(Default, PartialEq)]
 pub enum NavigationType {
     #[default]

@@ -1,20 +1,25 @@
 use chrono::{NaiveDate, NaiveDateTime};
 use eframe::egui::{
-    Align, Event, Key, Label, Layout, Response, RichText, ScrollArea, SelectableLabel, Sense, Ui,
+    Align, Button, ComboBox, Event, Key, Label, Layout, Response, RichText, ScrollArea,
+    SelectableLabel, Sense, Ui,
 };
 use egui_extras::{Column, DatePickerButton, TableBuilder};
 use grammers_client::types::{Chat, Message};
+use log::info;
 use rayon::prelude::*;
+use serde::Serialize;
 use std::collections::{HashMap, HashSet};
+use std::env::current_dir;
 
 use crate::ui_components::processor::{
-    ColumnName, DateNavigator, NavigationType, PackedWhitelistedUser, ProcessState, SortOrder,
+    ColumnName, DateNavigator, NavigationType, PackedBlacklistedUser, PackedWhitelistedUser,
+    ProcessState, SortOrder,
 };
 use crate::ui_components::widgets::RowLabel;
 use crate::ui_components::MainWindow;
-use crate::utils::{entry_insert_user, save_whitelisted_users};
+use crate::utils::{entry_insert_user, export_table_data, to_chart_name};
 
-#[derive(Clone)]
+#[derive(Clone, Serialize)]
 pub struct UserRowData {
     name: String,
     username: String,
@@ -27,8 +32,11 @@ pub struct UserRowData {
     first_seen: NaiveDateTime,
     last_seen: NaiveDateTime,
     whitelisted: bool,
+    #[serde(skip_serializing)]
     selected_columns: HashSet<ColumnName>,
+    #[serde(skip_serializing)]
     belongs_to: Option<Chat>,
+    #[serde(skip_serializing)]
     seen_by: String,
 }
 
@@ -148,11 +156,6 @@ pub struct UserTableData {
 }
 
 impl UserTableData {
-    /// Clear all the rows
-    pub fn clear_row_data(&mut self) {
-        *self = UserTableData::default();
-    }
-
     /// Add a user to the table
     pub fn add_user(
         &mut self,
@@ -160,6 +163,7 @@ impl UserTableData {
         date: NaiveDate,
         datetime: NaiveDateTime,
         seen_by: String,
+        blacklisted: bool,
     ) -> (i64, String, String) {
         let mut user_id = 0;
         let full_name;
@@ -202,12 +206,15 @@ impl UserTableData {
             username = "Empty".to_string();
         }
 
-        let user_row = UserRowData::new(
-            &full_name, &username, user_id, false, chat, datetime, seen_by,
-        );
+        if !blacklisted {
+            let user_row = UserRowData::new(
+                &full_name, &username, user_id, false, chat, datetime, seen_by,
+            );
 
-        entry_insert_user(&mut self.user_data, &mut self.rows, user_row, user_id, date);
-        self.formatted_rows.clear();
+            entry_insert_user(&mut self.user_data, &mut self.rows, user_row, user_id, date);
+
+            self.formatted_rows.clear();
+        }
 
         (user_id, full_name, username)
     }
@@ -609,19 +616,43 @@ impl UserTableData {
     }
 
     /// Mark a row as whitelisted if exists
-    pub fn set_as_whitelisted(&mut self, user_id: i64) {
-        if let Some(row) = self.rows.get_mut(&user_id) {
-            row.whitelisted = true;
+    pub fn set_as_whitelisted(&mut self, user_id: Vec<i64>) {
+        for (_d, row_data) in self.user_data.iter_mut() {
+            row_data.iter_mut().for_each(|(id, row)| {
+                for u_id in &user_id {
+                    if id == u_id {
+                        row.whitelisted = true;
+                    }
+                }
+            });
         }
         self.formatted_rows.clear();
+        self.create_rows();
+    }
+
+    pub fn remove_blacklisted_rows(&mut self, user_id: Vec<i64>) {
+        for (_d, row_data) in self.user_data.iter_mut() {
+            for id in &user_id {
+                row_data.remove(id);
+            }
+        }
+        self.formatted_rows.clear();
+        self.create_rows();
     }
 
     /// Remove whitelist status from a row if exists
-    pub fn remove_whitelist(&mut self, user_id: i64) {
-        if let Some(row) = self.rows.get_mut(&user_id) {
-            row.whitelisted = false;
+    pub fn remove_whitelist(&mut self, user_id: Vec<i64>) {
+        for (_d, row_data) in self.user_data.iter_mut() {
+            row_data.iter_mut().for_each(|(id, row)| {
+                for u_id in &user_id {
+                    if id == u_id {
+                        row.whitelisted = false;
+                    }
+                }
+            });
         }
         self.formatted_rows.clear();
+        self.create_rows();
     }
 
     /// Sorts row data based on the current sort order
@@ -713,6 +744,12 @@ impl UserTableData {
 
         row_data
     }
+
+    fn export_data(&mut self, chat_name: String) {
+        info!("Starting exporting table data");
+        let rows = self.rows();
+        export_table_data(rows, chat_name);
+    }
 }
 
 impl MainWindow {
@@ -720,20 +757,52 @@ impl MainWindow {
         let is_ctrl_pressed = ui.ctx().input(|i| i.modifiers.ctrl);
         let key_a_pressed = ui.ctx().input(|i| i.key_pressed(Key::A));
         let copy_initiated = ui.ctx().input(|i| i.events.contains(&Event::Copy));
+        let date_enabled = !self.is_processing && !self.table_i().user_data.is_empty();
 
         if copy_initiated {
             self.copy_selected_cells(ui);
         }
         if is_ctrl_pressed && key_a_pressed {
-            self.table.select_all();
+            self.table().select_all();
         }
 
-        // Date section remains disabled while data processing is ongoing or the table is empty
-        let date_enabled = !self.is_processing && !self.table.user_data.is_empty();
+        let (values, len) = {
+            let names = self.counter.get_chat_list();
 
+            if names.is_empty() {
+                (vec!["No chat available".to_string()], 0)
+            } else {
+                let total_val = names.len();
+                (names, total_val)
+            }
+        };
+        ui.horizontal(|ui| {
+            ui.label("Selected chat:");
+            ComboBox::from_id_source("Table Box").show_index(
+                ui,
+                &mut self.table_chat_index,
+                len,
+                |i| &values[i],
+            );
+            ui.separator();
+            let button = Button::new("Export Table Data");
+            if ui
+                .add_enabled(date_enabled, button)
+                .on_hover_text("Export Table data in CSV format")
+                .clicked()
+            {
+                let chat_name = self.counter.selected_chat_name(self.table_chat_index);
+                self.table().export_data(chat_name);
+                self.process_state =
+                    ProcessState::DataExported(current_dir().unwrap().to_string_lossy().into());
+            };
+        });
+        ui.separator();
+
+        // Date section remains disabled while data processing is ongoing or the table is empty
         ui.add_enabled_ui(date_enabled, |ui| {
             ui.horizontal(|ui| {
-                let table = &mut self.table;
+                let table = self.table();
 
                 ui.label("From:");
                 ui.add(
@@ -779,18 +848,18 @@ impl MainWindow {
             let key_h_pressed = ui.ctx().input(|i| i.key_pressed(Key::H));
 
             if key_h_pressed && is_ctrl_pressed {
-                self.table.date_nav.go_previous();
+                self.table().date_nav.go_previous();
             } else {
                 let key_l_pressed = ui.ctx().input(|i| i.key_pressed(Key::L));
                 if key_l_pressed && is_ctrl_pressed {
-                    self.table.date_nav.go_next();
+                    self.table().date_nav.go_next();
                 }
             }
         }
 
         // recreate the rows if either of dates have changed
-        if date_enabled && self.table.date_nav.handler().check_date_change() {
-            self.table.create_rows();
+        if date_enabled && self.table().date_nav.handler().check_date_change() {
+            self.table().create_rows();
         }
 
         ui.add_space(5.0);
@@ -823,7 +892,7 @@ impl MainWindow {
                 table
                     .header(20.0, |mut header| {
                         header.col(|ui| {
-                            ui.add_sized(ui.available_size(), Label::new("Num"));
+                            ui.add_sized(ui.available_size(), Label::new(""));
                         });
                         for _ in 0..total_header {
                             header.col(|ui| {
@@ -833,7 +902,7 @@ impl MainWindow {
                         }
                     })
                     .body(|body| {
-                        let table_rows = self.table.rows();
+                        let table_rows = self.table().rows();
                         body.rows(25.0, table_rows.len(), |mut row| {
                             let index = row.index();
                             let row_data = &table_rows[index];
@@ -897,8 +966,13 @@ impl MainWindow {
                 self.copy_selected_cells(ui);
                 ui.close_menu();
             };
-            if ui.button("whitelist selected rows").clicked() {
+            if ui.button("Whitelist selected rows").clicked() {
                 self.whitelist_selected_rows();
+                ui.close_menu();
+            };
+
+            if ui.button("Blacklist selected rows").clicked() {
+                self.blacklist_selected_rows();
                 ui.close_menu();
             };
         });
@@ -908,15 +982,15 @@ impl MainWindow {
             if !ui.ctx().input(|i| i.modifiers.ctrl)
                 && !ui.ctx().input(|i| i.pointer.secondary_clicked())
             {
-                self.table.unselected_all();
+                self.table().unselected_all();
             }
-            self.table.drag_started_on = Some((row_data.id, column_name));
+            self.table().drag_started_on = Some((row_data.id, column_name));
         }
         if label.drag_stopped() {
-            self.table.last_active_row = None;
-            self.table.last_active_column = None;
-            self.table.drag_started_on = None;
-            self.table.beyond_drag_point = false;
+            self.table().last_active_row = None;
+            self.table().last_active_column = None;
+            self.table().drag_started_on = None;
+            self.table().beyond_drag_point = false;
         }
 
         // Drag part handling has ended, need to handle click event from here.
@@ -928,21 +1002,22 @@ impl MainWindow {
             if !ui.ctx().input(|i| i.modifiers.ctrl)
                 && !ui.ctx().input(|i| i.pointer.secondary_clicked())
             {
-                self.table.unselected_all();
+                self.table().unselected_all();
             }
-            self.table.select_single_row_cell(row_data.id, column_name);
+            self.table()
+                .select_single_row_cell(row_data.id, column_name);
         }
 
-        if ui.ui_contains_pointer() && self.table.drag_started_on.is_some() {
-            if let Some(drag_start) = &self.table.drag_started_on {
+        if ui.ui_contains_pointer() && self.table_i().drag_started_on.is_some() {
+            if let Some(drag_start) = self.table_i().drag_started_on {
                 // Only call drag either when not on the starting drag row/column or went beyond the
                 // drag point at least once. Otherwise normal click would be considered as drag
                 if drag_start.0 != row_data.id
                     || drag_start.1 != column_name
-                    || self.table.beyond_drag_point
+                    || self.table_i().beyond_drag_point
                 {
                     let is_ctrl_pressed = ui.ctx().input(|i| i.modifiers.ctrl);
-                    self.table
+                    self.table()
                         .select_dragged_row_cell(row_data.id, column_name, is_ctrl_pressed);
                 }
             }
@@ -951,7 +1026,7 @@ impl MainWindow {
 
     /// Create a header column
     fn create_header(&mut self, column_name: ColumnName, ui: &mut Ui) {
-        let is_selected = self.table.sorted_by == column_name;
+        let is_selected = self.table_i().sorted_by == column_name;
         let (label_text, hover_text) = self.get_header_text(column_name);
 
         let response = ui
@@ -973,64 +1048,53 @@ impl MainWindow {
     ) {
         if response.clicked() {
             if is_selected {
-                self.table.change_sort_order();
+                self.table().change_sort_order();
             } else {
-                self.table.change_sorted_by(sort_type);
+                self.table().change_sorted_by(sort_type);
             }
         }
     }
 
     fn get_header_text(&mut self, header_type: ColumnName) -> (RichText, String) {
-        let (mut text, hover_text) = match header_type {
-            ColumnName::Name => (
-                "Name".to_string(),
-                "Telegram name of the user. Click to sort by name".to_string(),
-            ),
-            ColumnName::Username => (
-                "Username".to_string(),
-                "Telegram username of the user. Click to sort by username".to_string(),
-            ),
-            ColumnName::UserID => (
-                "User ID".to_string(),
-                "Telegram User ID of the user. Click to sort by user ID".to_string(),
-            ),
-            ColumnName::TotalMessage => (
-                "Total Messages".to_string(),
-                "Total messages sent by the user. Click to sort by total message".to_string(),
-            ),
-            ColumnName::TotalWord => (
-                "Total Word".to_string(),
-                "Total words in the messages. Click to sort by total words".to_string(),
-            ),
-            ColumnName::TotalChar => (
-                "Total Char".to_string(),
-                "Total character in the messages. Click to sort by total character".to_string(),
-            ),
-            ColumnName::AverageWord => (
-                "Average Word".to_string(),
-                "Average number of words per message. Click to sort by average words".to_string(),
-            ),
-            ColumnName::AverageChar => (
-                "Average Char".to_string(),
+        let mut text = header_type.to_string();
+        let hover_text = match header_type {
+            ColumnName::Name => "Telegram name of the user. Click to sort by name".to_string(),
+            ColumnName::Username => {
+                "Telegram username of the user. Click to sort by username".to_string()
+            }
+            ColumnName::UserID => {
+                "Telegram User ID of the user. Click to sort by user ID".to_string()
+            }
+            ColumnName::TotalMessage => {
+                "Total messages sent by the user. Click to sort by total message".to_string()
+            }
+            ColumnName::TotalWord => {
+                "Total words in the messages. Click to sort by total words".to_string()
+            }
+            ColumnName::TotalChar => {
+                "Total character in the messages. Click to sort by total character".to_string()
+            }
+            ColumnName::AverageWord => {
+                "Average number of words per message. Click to sort by average words".to_string()
+            }
+            ColumnName::AverageChar => {
                 "Average number of characters per message. Click to sort by average characters"
-                    .to_string(),
-            ),
-            ColumnName::FirstMessageSeen => (
-                "First Message Seen".to_string(),
-                "The day the first message that was sent by this user was observed".to_string(),
-            ),
-            ColumnName::LastMessageSeen => (
-                "Last Message Seen".to_string(),
-                "The day the last message that was sent by this user was observed".to_string(),
-            ),
-            ColumnName::Whitelisted => (
-                "Whitelisted".to_string(),
-                "Whether this user is whitelisted. Click to sort by whitelist".to_string(),
-            ),
+                    .to_string()
+            }
+
+            ColumnName::FirstMessageSeen => {
+                "The day the first message that was sent by this user was observed".to_string()
+            }
+            ColumnName::LastMessageSeen => {
+                "The day the last message that was sent by this user was observed".to_string()
+            }
+            ColumnName::Whitelisted => {
+                "Whether this user is whitelisted. Click to sort by whitelist".to_string()
+            }
         };
 
-        if header_type == self.table.sorted_by {
-            match self.table.sort_order {
+        if header_type == self.table_i().sorted_by {
+            match self.table_i().sort_order {
                 SortOrder::Ascending => text.push('🔽'),
                 SortOrder::Descending => text.push('🔼'),
             };
@@ -1040,7 +1104,7 @@ impl MainWindow {
 
     /// Copy the selected rows in an organized manner
     fn copy_selected_cells(&mut self, ui: &mut Ui) {
-        let all_rows = self.table.rows();
+        let all_rows = self.table().rows();
         let mut selected_rows = Vec::new();
 
         let mut column_max_length = HashMap::new();
@@ -1049,7 +1113,7 @@ impl MainWindow {
         // Keep track of the biggest length of a value of a column
         for row in all_rows {
             if !row.selected_columns.is_empty() {
-                for column in &self.table.active_columns {
+                for column in &self.table_i().active_columns {
                     if row.selected_columns.contains(column) {
                         let field_length = row.get_column_length(*column);
                         let entry = column_max_length.entry(column).or_insert(0);
@@ -1073,7 +1137,7 @@ impl MainWindow {
             let mut ongoing_column = ColumnName::Name;
             let mut row_text = String::new();
             loop {
-                if self.table.active_columns.contains(&ongoing_column)
+                if self.table_i().active_columns.contains(&ongoing_column)
                     && row.selected_columns.contains(&ongoing_column)
                 {
                     total_cells += 1;
@@ -1083,7 +1147,7 @@ impl MainWindow {
                         column_text,
                         width = column_max_length[&ongoing_column] + 1
                     );
-                } else if self.table.active_columns.contains(&ongoing_column)
+                } else if self.table_i().active_columns.contains(&ongoing_column)
                     && !row.selected_columns.contains(&ongoing_column)
                 {
                     row_text += &format!(
@@ -1107,8 +1171,9 @@ impl MainWindow {
     }
 
     /// Marks all the rows with at least 1 column selected as whitelisted
+    /// TODO: Make use of active rows
     fn whitelist_selected_rows(&mut self) {
-        let all_rows = self.table.rows();
+        let all_rows = self.table().rows();
         let mut selected_rows = Vec::new();
 
         for row in all_rows {
@@ -1116,12 +1181,14 @@ impl MainWindow {
                 selected_rows.push(row);
             }
         }
+
         let total_to_whitelist = selected_rows.len();
         let mut packed_chats = Vec::new();
 
+        let mut all_ids = Vec::new();
         for row in selected_rows {
             let cloned_row = row.clone();
-            self.table.set_as_whitelisted(row.id);
+            all_ids.push(row.id);
             self.whitelist.add_to_whitelist(
                 row.name,
                 row.username,
@@ -1132,9 +1199,57 @@ impl MainWindow {
             let hex_value = cloned_row.belongs_to.unwrap().pack().to_hex();
             packed_chats.push(PackedWhitelistedUser::new(hex_value, cloned_row.seen_by));
         }
-        self.chart.reset_saved_bars();
+        self.table().set_as_whitelisted(all_ids);
+        self.chart().reset_saved_bars();
 
-        save_whitelisted_users(packed_chats, false);
+        self.whitelist.save_whitelisted_users(false);
         self.process_state = ProcessState::UsersWhitelisted(total_to_whitelist);
+    }
+
+    /// Marks all the rows with at least 1 column selected as blacklisted
+    /// TODO: Make use of active rows
+    fn blacklist_selected_rows(&mut self) {
+        let all_rows = self.table().rows();
+        let mut selected_rows = Vec::new();
+
+        for row in all_rows {
+            if !row.selected_columns.is_empty() && row.name != "Anonymous/Unknown" {
+                selected_rows.push(row);
+            }
+        }
+
+        let total_to_blacklist = selected_rows.len();
+        let mut packed_chats = Vec::new();
+
+        let mut all_ids = Vec::new();
+        let mut names = Vec::new();
+        for row in selected_rows {
+            let chart_name = to_chart_name(row.username.clone(), row.name.clone(), row.id);
+            names.push(chart_name);
+
+            let cloned_row = row.clone();
+            all_ids.push(row.id);
+
+            self.blacklist.add_to_blacklist(
+                row.name,
+                row.username,
+                row.id,
+                row.belongs_to.clone().unwrap(),
+                row.seen_by,
+            );
+            let hex_value = cloned_row.belongs_to.unwrap().pack().to_hex();
+            packed_chats.push(PackedBlacklistedUser::new(hex_value, cloned_row.seen_by));
+        }
+
+        for chart in self.chart_all() {
+            chart.clear_blacklisted(names.clone());
+        }
+
+        for table in self.table_all() {
+            table.remove_blacklisted_rows(all_ids.clone());
+        }
+
+        self.blacklist.save_blacklisted_users(false);
+        self.process_state = ProcessState::UsersBlacklisted(total_to_blacklist);
     }
 }

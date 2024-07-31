@@ -4,7 +4,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use crate::tg_handler::{TGClient, TGCountData};
-use crate::ui_components::processor::UnpackedWhitelistedUser;
+use crate::ui_components::processor::{UnpackedBlacklistedUser, UnpackedWhitelistedUser};
 
 pub enum ProcessResult {
     InitialSessionSuccess((Vec<TGClient>, Vec<String>, Vec<String>)),
@@ -16,9 +16,11 @@ pub enum ProcessResult {
     LoginCodeSent(LoginToken, TGClient),
     PasswordRequired(Box<PasswordToken>),
     LoggedIn(String),
-    UnpackedChats(Vec<UnpackedWhitelistedUser>, i32),
+    UnpackedWhitelist(Vec<UnpackedWhitelistedUser>, i32),
+    UnpackedBlacklist(Vec<UnpackedBlacklistedUser>, i32),
     FloodWait,
     WhiteListUser(UnpackedWhitelistedUser),
+    BlackListUser(UnpackedBlacklistedUser),
     ChatExists(String, i32, i32),
 }
 
@@ -37,12 +39,16 @@ pub enum ProcessError {
 
 /// Used by `TGClient` struct to handle operations
 pub enum ProcessStart {
+    /// Start chat, start num, end num, multi_session
     StartCount(String, Option<i32>, Option<i32>, bool),
     SignInCode(Arc<Mutex<LoginToken>>, String),
     SignInPasswords(Arc<Mutex<PasswordToken>>, String),
     SessionLogout,
     LoadWhitelistedUsers(Vec<String>),
+    LoadBlacklistedUsers(Vec<String>),
     NewWhitelistUser(String),
+    NewBlacklistUser(String),
+    /// Start chat, start num, end num
     CheckChatExistence(String, Option<i32>, Option<i32>),
 }
 

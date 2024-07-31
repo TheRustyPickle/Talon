@@ -9,8 +9,14 @@ pub struct DateNavigator {
 }
 
 impl DateNavigator {
+    /// Handler and mutable
     pub fn handler(&mut self) -> &mut DatePickerHandler {
         &mut self.handler
+    }
+
+    /// Handler and not mutable
+    pub fn handler_i(&self) -> &DatePickerHandler {
+        &self.handler
     }
 
     pub fn nav_type(&mut self) -> &mut NavigationType {

@@ -6,17 +6,18 @@ use egui::{
 use egui_extras::{Size, StripBuilder};
 use egui_modal::Modal;
 use log::info;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
+use std::slice::IterMut;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread;
 
 use crate::tg_handler::{start_process, NewProcess, ProcessResult, ProcessStart, TGClient};
 use crate::ui_components::processor::{
-    check_version, download_font, AppState, ProcessState, TabState,
+    check_version, download_font, AppState, CounterCounts, ParsedChat, ProcessState, TabState,
 };
 use crate::ui_components::tab_ui::{
-    ChartsData, CounterData, SessionData, UserTableData, WhitelistData,
+    BlacklistData, ChartsData, CounterData, SessionData, UserTableData, WhitelistData,
 };
 use crate::ui_components::TGKeys;
 use crate::utils::{find_session_files, get_api_keys, get_font_data, get_theme_emoji};
@@ -25,10 +26,11 @@ pub struct MainWindow {
     pub app_state: AppState,
     pub tg_keys: TGKeys,
     pub counter: CounterData,
-    pub table: UserTableData,
-    pub chart: ChartsData,
+    table: Vec<UserTableData>,
+    chart: Vec<ChartsData>,
     pub session: SessionData,
     pub whitelist: WhitelistData,
+    pub blacklist: BlacklistData,
     tab_state: TabState,
     pub process_state: ProcessState,
     pub tg_sender: Sender<ProcessResult>,
@@ -39,6 +41,10 @@ pub struct MainWindow {
     is_light_theme: bool,
     pub is_processing: bool,
     new_version_body: Arc<Mutex<Option<String>>>,
+    pub counter_chat_index: usize,
+    pub table_chat_index: usize,
+    pub chart_chat_index: usize,
+    pub initial_chart_reset: bool,
 }
 
 impl Default for MainWindow {
@@ -48,9 +54,11 @@ impl Default for MainWindow {
             app_state: AppState::default(),
             tg_keys: TGKeys::default(),
             counter: CounterData::default(),
-            table: UserTableData::default(),
-            chart: ChartsData::default(),
+            // default value with an existing one with default
+            table: vec![UserTableData::default()],
+            chart: vec![ChartsData::default()],
             whitelist: WhitelistData::default(),
+            blacklist: BlacklistData::default(),
             session: SessionData::default(),
             tab_state: TabState::Counter,
             process_state: ProcessState::Idle,
@@ -62,6 +70,10 @@ impl Default for MainWindow {
             is_light_theme: true,
             is_processing: false,
             new_version_body: Arc::new(Mutex::new(None)),
+            counter_chat_index: 0,
+            table_chat_index: 0,
+            chart_chat_index: 0,
+            initial_chart_reset: false,
         }
     }
 }
@@ -129,24 +141,33 @@ impl App for MainWindow {
                             "Whitelist",
                         );
                         ui.separator();
+                        let blacklist_tab = ui.selectable_value(
+                            &mut self.tab_state,
+                            TabState::Blacklist,
+                            "Blacklist",
+                        );
+                        ui.separator();
                         let session_tab =
                             ui.selectable_value(&mut self.tab_state, TabState::Session, "Session");
 
                         // Set window size on tab switch
                         if counter_tab.clicked() {
-                            ctx.send_viewport_cmd(ViewportCommand::InnerSize(vec2(550.0, 350.0)));
+                            ctx.send_viewport_cmd(ViewportCommand::InnerSize(vec2(550.0, 400.0)));
                         }
                         if user_table_tab.clicked() {
                             ctx.send_viewport_cmd(ViewportCommand::InnerSize(vec2(1250.0, 700.0)));
                         }
-                        if session_tab.clicked() {
-                            ctx.send_viewport_cmd(ViewportCommand::InnerSize(vec2(500.0, 320.0)));
-                        }
-                        if whitelist_tab.clicked() {
-                            ctx.send_viewport_cmd(ViewportCommand::InnerSize(vec2(500.0, 600.0)));
-                        }
                         if chart_tab.clicked() {
                             ctx.send_viewport_cmd(ViewportCommand::InnerSize(vec2(1000.0, 700.0)));
+                        }
+                        if whitelist_tab.clicked() {
+                            ctx.send_viewport_cmd(ViewportCommand::InnerSize(vec2(550.0, 600.0)));
+                        }
+                        if blacklist_tab.clicked() {
+                            ctx.send_viewport_cmd(ViewportCommand::InnerSize(vec2(550.0, 600.0)));
+                        }
+                        if session_tab.clicked() {
+                            ctx.send_viewport_cmd(ViewportCommand::InnerSize(vec2(550.0, 320.0)));
                         }
                     });
                     ui.separator();
@@ -162,6 +183,7 @@ impl App for MainWindow {
                                 TabState::UserTable => self.show_user_table_ui(ui),
                                 TabState::Charts => self.show_charts_ui(ui),
                                 TabState::Whitelist => self.show_whitelist_ui(ui),
+                                TabState::Blacklist => self.show_blacklist_ui(ui),
                                 TabState::Session => self.show_session_ui(ui),
                             });
                             strip.cell(|ui| {
@@ -240,6 +262,60 @@ impl App for MainWindow {
 }
 
 impl MainWindow {
+    pub fn clear_overlap(&mut self, parsed: &HashMap<String, ParsedChat>) {
+        self.counter_chat_index = 0;
+        self.table_chat_index = 0;
+        self.chart_chat_index = 0;
+        for key in parsed.keys() {
+            if self.counter.contains_chat(key) {
+                let target_index = self.counter.chat_index(key);
+                self.counter.remove_chat(target_index);
+                self.table.remove(target_index);
+                self.chart.remove(target_index);
+            }
+        }
+    }
+    pub fn reset_table(&mut self) {
+        self.table = vec![UserTableData::default()];
+    }
+
+    pub fn reset_counts(&mut self) {
+        self.counter.reset();
+    }
+
+    pub fn reset_chart(&mut self) {
+        let mut chart = ChartsData::default();
+        chart.reset_chart();
+
+        self.chart = vec![chart];
+    }
+
+    /// Only called once after the Start button is pressed for the first time
+    pub fn initial_chart_reset(&mut self) {
+        if !self.initial_chart_reset {
+            self.initial_chart_reset = true;
+            let chart = &mut self.chart[0];
+            chart.reset_chart();
+        }
+    }
+
+    pub fn append_structs(&mut self, amount: usize, previous_amount: usize) {
+        let amount = amount + previous_amount;
+        while self.table.len() != amount {
+            self.table.push(UserTableData::default())
+        }
+
+        while self.chart.len() != amount {
+            let mut chart = ChartsData::default();
+            chart.reset_chart();
+            self.chart.push(chart)
+        }
+
+        while self.counter.counts.len() != amount {
+            self.counter.counts.push(CounterCounts::default())
+        }
+    }
+
     /// Switch to light or dark mode
     fn switch_theme(&mut self, ctx: &Context) {
         if self.is_light_theme {
@@ -288,5 +364,76 @@ impl MainWindow {
                 download_font(ctx_clone);
             });
         }
+    }
+
+    /// Return the currently selected table data as mutable
+    pub fn table(&mut self) -> &mut UserTableData {
+        if self.counter.total_chats() > 1 {
+            &mut self.table[self.table_chat_index]
+        } else {
+            &mut self.table[0]
+        }
+    }
+
+    /// Return the currently selected table data as reference
+    pub fn table_i(&self) -> &UserTableData {
+        if self.counter.total_chats() > 1 {
+            &self.table[self.table_chat_index]
+        } else {
+            &self.table[0]
+        }
+    }
+
+    /// Returns the target table where new data should be added as mutable
+    pub fn t_table(&mut self) -> &mut UserTableData {
+        let ongoing = self.counter.ongoing_chat();
+        &mut self.table[ongoing]
+    }
+
+    /// Return the currently selected chart data as mutable
+    pub fn chart(&mut self) -> &mut ChartsData {
+        if self.counter.total_chats() > 1 {
+            &mut self.chart[self.chart_chat_index]
+        } else {
+            &mut self.chart[0]
+        }
+    }
+
+    /// Return the currently selected chart data as reference
+    pub fn chart_i(&self) -> &ChartsData {
+        if self.counter.total_chats() > 1 {
+            &self.chart[self.chart_chat_index]
+        } else {
+            &self.chart[0]
+        }
+    }
+
+    /// Returns the target chart where new data should be added as mutable
+    pub fn t_chart(&mut self) -> &mut ChartsData {
+        let ongoing = self.counter.ongoing_chat();
+        &mut self.chart[ongoing]
+    }
+
+    /// Return the currently selected chart data as mutable
+    pub fn count(&mut self) -> &mut CounterCounts {
+        if self.counter.total_chats() > 1 {
+            &mut self.counter.counts[self.counter_chat_index]
+        } else {
+            &mut self.counter.counts[0]
+        }
+    }
+
+    /// Returns the target chart where new data should be added as mutable
+    pub fn t_count(&mut self) -> &mut CounterCounts {
+        let ongoing = self.counter.ongoing_chat();
+        &mut self.counter.counts[ongoing]
+    }
+
+    pub fn chart_all(&mut self) -> IterMut<ChartsData> {
+        self.chart.iter_mut()
+    }
+
+    pub fn table_all(&mut self) -> IterMut<UserTableData> {
+        self.table.iter_mut()
     }
 }

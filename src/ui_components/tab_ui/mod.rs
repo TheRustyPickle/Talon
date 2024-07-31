@@ -1,9 +1,11 @@
+mod blacklist;
 mod charts;
 mod counter;
 mod session;
 mod user_table;
 mod whitelist;
 
+pub use blacklist::*;
 pub use charts::*;
 pub use counter::*;
 pub use session::*;

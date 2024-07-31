@@ -40,7 +40,7 @@ fn main() {
         info!("Starting app");
         let viewport = ViewportBuilder::default()
             .with_title("Talon")
-            .with_inner_size(vec2(550.0, 380.0))
+            .with_inner_size(vec2(600.0, 400.0))
             .with_resizable(true)
             .with_minimize_button(false);
         let native_options = eframe::NativeOptions {
@@ -51,7 +51,7 @@ fn main() {
         eframe::run_native(
             "Talon",
             native_options,
-            Box::new(|_cc| Box::<MainWindow>::default()),
+            Box::new(|_cc| Ok(Box::<MainWindow>::default())),
         )
         .unwrap();
     } else {

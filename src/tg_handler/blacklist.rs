@@ -2,11 +2,11 @@ use grammers_client::types::PackedChat;
 use log::{error, info};
 
 use crate::tg_handler::{ProcessError, ProcessResult, TGClient};
-use crate::ui_components::processor::UnpackedWhitelistedUser;
+use crate::ui_components::processor::UnpackedBlacklistedUser;
 
 impl TGClient {
     /// Unpacks existing `PackedChat` hex string and sends it to the GUI
-    pub async fn load_whitelisted_users(&self, hex_data: Vec<String>) -> Result<(), ProcessError> {
+    pub async fn load_blacklisted_users(&self, hex_data: Vec<String>) -> Result<(), ProcessError> {
         info!("Starting unpacking chat by {}", self.name());
         let mut chat_list = Vec::new();
         let mut failed_chat_num = 0;
@@ -17,7 +17,7 @@ impl TGClient {
             if let Ok(packed_chat) = packed_chat_result {
                 let chat = self.client().unpack_chat(packed_chat).await;
                 match chat {
-                    Ok(chat) => chat_list.push(UnpackedWhitelistedUser::new(chat, self.name())),
+                    Ok(chat) => chat_list.push(UnpackedBlacklistedUser::new(chat, self.name())),
                     Err(e) => {
                         error!("Failed to unpack a chat. Error: {e}");
                         failed_chat_num += 1;
@@ -29,12 +29,12 @@ impl TGClient {
             }
         }
 
-        self.send(ProcessResult::UnpackedWhitelist(chat_list, failed_chat_num));
+        self.send(ProcessResult::UnpackedBlacklist(chat_list, failed_chat_num));
         Ok(())
     }
 
     /// Tries to get a Telegram chat with the given chat name
-    pub async fn new_whitelist(&self, chat_name: String) -> Result<(), ProcessError> {
+    pub async fn new_blacklist(&self, chat_name: String) -> Result<(), ProcessError> {
         if !self.check_authorization().await? {
             return Ok(());
         }
@@ -48,7 +48,7 @@ impl TGClient {
                 return Ok(());
             }
         };
-        self.send(ProcessResult::WhiteListUser(UnpackedWhitelistedUser::new(
+        self.send(ProcessResult::BlackListUser(UnpackedBlacklistedUser::new(
             tg_chat,
             self.name(),
         )));
