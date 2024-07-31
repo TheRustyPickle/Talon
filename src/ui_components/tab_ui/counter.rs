@@ -247,7 +247,7 @@ impl MainWindow {
                         ui.label("Whitelisted Users:")
                     });
                     ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
-                        ui.label(format!("{}", &mut self.count().whitelisted_user));
+                        ui.label(format!("{}", &mut self.count().total_whitelisted()));
                     });
 
                     ui.end_row();
@@ -435,10 +435,10 @@ Multiple points can be inserted separated by a space
 Multiple input format is supported:
 
 (message number optional)
-1. https://t.me/chat_name/1234 https://t.me/chat_name_2/1234
-2. t.me/chat_name/1234 t.me/chat_name_2/1234
-3. @chat_name/1234 @chat_name_2/1234
-4. chat_name/1234 chat_name_2/1234
+1. https://t.me/chat_name/1234
+2. t.me/chat_name/1234
+3. @chat_name/1234
+4. chat_name/1234
 
 If message number is not specified or is empty, counts all messages.
 Ending message number will always be smaller than the starting message.

@@ -102,7 +102,9 @@ impl MainWindow {
                         );
                     }
 
-                    if user_id != 0 && self.whitelist.is_user_whitelisted(user_id) && !blacklisted {
+                    let whitelisted = self.whitelist.is_user_whitelisted(user_id);
+
+                    if user_id != 0 && whitelisted && !blacklisted {
                         self.t_table().set_as_whitelisted(vec![user_id]);
                     }
 
@@ -131,7 +133,12 @@ impl MainWindow {
                     } else {
                         message_value
                     };
+
                     self.t_count().add_one_total_message();
+                    if whitelisted {
+                        self.t_count().add_one_whitelisted_message();
+                        self.t_count().add_whitelisted_user(user_id);
+                    }
 
                     // In single session set the progress by explicitly by counting it on the go
                     // On multi session add whatever percentage there is + new value for this session
