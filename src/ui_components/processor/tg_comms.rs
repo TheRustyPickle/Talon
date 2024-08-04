@@ -1,5 +1,6 @@
 use chrono::{Local, TimeZone};
 use log::{error, info};
+use std::sync::atomic::Ordering;
 use std::thread;
 
 use crate::tg_handler::{ProcessError, ProcessResult, ProcessStart};
@@ -364,8 +365,9 @@ impl MainWindow {
                     let mut ongoing_end_at = start_at - per_session_value;
 
                     let mut negative_added = false;
-
+                    self.cancel_count.store(false, Ordering::Relaxed);
                     for (index, client) in self.tg_clients.values().enumerate() {
+                        let cancel = self.cancel_count.clone();
                         self.counter.add_session(client.name());
 
                         let client = client.clone();
@@ -385,6 +387,7 @@ impl MainWindow {
                                 Some(ongoing_start_at),
                                 Some(ongoing_end_at),
                                 true,
+                                cancel,
                             ));
                         });
                         ongoing_start_at -= per_session_value;
