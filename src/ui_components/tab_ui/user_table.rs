@@ -153,6 +153,9 @@ pub struct UserTableData {
     beyond_drag_point: bool,
     indexed_user_ids: HashMap<i64, usize>,
     date_nav: DateNavigator,
+    total_whitelisted_user: u32,
+    total_message: u32,
+    total_whitelisted_message: u32,
 }
 
 impl UserTableData {
@@ -287,6 +290,10 @@ impl UserTableData {
     fn create_rows(&mut self) {
         let mut row_data = HashMap::new();
 
+        let mut total_message = 0;
+        let mut whitelisted_user = HashSet::new();
+        let mut whitelisted_message = 0;
+
         // Go by all the data that are within the range and join them together
         for (date, data) in &self.user_data {
             if !self.date_nav.handler().within_range(*date) {
@@ -294,6 +301,12 @@ impl UserTableData {
             }
 
             for (id, row) in data {
+                total_message += row.total_message;
+                if row.whitelisted {
+                    whitelisted_user.insert(row.id);
+                    whitelisted_message += row.total_message;
+                }
+
                 if row_data.contains_key(id) {
                     let user_row_data: &mut UserRowData = row_data.get_mut(id).unwrap();
                     if user_row_data.first_seen > row.first_seen {
@@ -317,6 +330,9 @@ impl UserTableData {
             }
         }
         self.rows = row_data;
+        self.total_whitelisted_message = whitelisted_message;
+        self.total_message = total_message;
+        self.total_whitelisted_user = whitelisted_user.len() as u32;
     }
 
     /// Marks a single column of a row as selected
@@ -796,6 +812,23 @@ impl MainWindow {
                 self.process_state =
                     ProcessState::DataExported(current_dir().unwrap().to_string_lossy().into());
             };
+        });
+        ui.separator();
+
+        ui.horizontal(|ui| {
+            ui.label(format!("Total User: {}", self.table_i().get_total_user()));
+            ui.separator();
+            ui.label(format!("Total Message: {}", self.table_i().total_message));
+            ui.separator();
+            ui.label(format!(
+                "Whitelisted User: {}",
+                self.table_i().total_whitelisted_user
+            ));
+            ui.separator();
+            ui.label(format!(
+                "Whitelisted Message: {}",
+                self.table_i().total_whitelisted_message
+            ));
         });
         ui.separator();
 

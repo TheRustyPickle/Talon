@@ -79,16 +79,16 @@ impl DateNavigator {
         let from_date = self.handler().from;
         let mut to_date = self.handler().to;
 
-        let target_date = to_date.checked_sub_days(Days::new(7)).unwrap();
+        let target_date = to_date.checked_sub_days(Days::new(6)).unwrap();
 
         if from_date != target_date {
             *self.handler().from() = target_date;
             return;
         }
 
-        to_date = to_date.checked_add_days(Days::new(7)).unwrap();
+        to_date = to_date.checked_add_days(Days::new(6)).unwrap();
 
-        *self.handler().from() = to_date.checked_sub_days(Days::new(7)).unwrap();
+        *self.handler().from() = to_date.checked_sub_days(Days::new(6)).unwrap();
         *self.handler().to() = to_date;
     }
 
@@ -96,17 +96,17 @@ impl DateNavigator {
         let mut from_date = self.handler().from;
         let to_date = self.handler().to;
 
-        let target_date = from_date.checked_add_days(Days::new(7)).unwrap();
+        let target_date = from_date.checked_add_days(Days::new(6)).unwrap();
 
         if to_date != target_date {
             *self.handler().to() = target_date;
             return;
         }
 
-        from_date = from_date.checked_sub_days(Days::new(7)).unwrap();
+        from_date = from_date.checked_sub_days(Days::new(6)).unwrap();
 
         *self.handler().from() = from_date;
-        *self.handler().to() = from_date.checked_add_days(Days::new(7)).unwrap();
+        *self.handler().to() = from_date.checked_add_days(Days::new(6)).unwrap();
     }
 
     fn next_month(&mut self) {
