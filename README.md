@@ -19,7 +19,9 @@ Talon is a tool to generate on-demand data insights from public Telegram chats. 
 - **Date Range and Navigation:** Easily navigate and view table and chart data within a specific date range with buttons to cycle by day, week, month, or year.
 - **Session Management:** Options to choose between temporary sessions (logs out on app close) or non-temporary sessions (creates a file for persistent login).
 - **User Grouping:** Group specific users by whitelisting to view their data separately and analyze their activity.
+- **Blacklisting:**: Exclude specific users from data analysis to prevent their data from appearing in the results.
 - **Multi-Session Capability:** Utilize multiple sessions to dramatically increase checking speed, tested with up to 12 sessions and 300k messages.
+- **Multi-Chat Capability:** Analyze multiple chats simultaneously and view data from each chat separately.
 
 ## Important Note
 
