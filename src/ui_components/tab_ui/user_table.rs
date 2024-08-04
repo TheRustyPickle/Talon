@@ -214,7 +214,7 @@ impl UserTableData {
                 &full_name, &username, user_id, false, chat, datetime, seen_by,
             );
 
-            entry_insert_user(&mut self.user_data, &mut self.rows, user_row, user_id, date);
+            entry_insert_user(&mut self.user_data, user_row, user_id, date);
 
             self.formatted_rows.clear();
         }
@@ -232,29 +232,17 @@ impl UserTableData {
     ) {
         // If a user sends multiple messages in a day, that specific day data needs to be updated
         let target_data = self.user_data.get_mut(&date).unwrap();
-        let user_row_data_1 = target_data.get_mut(&user_id).unwrap();
-
-        // This is for the initial load where the UI will contain every single data.
-        // Update accordingly so it has the correct data
-        let user_row_data_2 = self.rows.get_mut(&user_id).unwrap();
+        let user_row_data = target_data.get_mut(&user_id).unwrap();
 
         let message_text = message.text();
 
         // Update last and first seen in this date for this user
-        if user_row_data_1.first_seen > datetime {
-            user_row_data_1.set_first_seen(datetime);
+        if user_row_data.first_seen > datetime {
+            user_row_data.set_first_seen(datetime);
         }
 
-        if user_row_data_1.last_seen < datetime {
-            user_row_data_1.set_last_seen(datetime);
-        }
-
-        if user_row_data_2.first_seen > datetime {
-            user_row_data_2.set_first_seen(datetime);
-        }
-
-        if user_row_data_2.last_seen < datetime {
-            user_row_data_2.set_last_seen(datetime);
+        if user_row_data.last_seen < datetime {
+            user_row_data.set_last_seen(datetime);
         }
 
         self.date_nav.handler().update_dates(date);
@@ -262,12 +250,9 @@ impl UserTableData {
         let total_char = message_text.len() as u32;
         let total_word = message_text.split_whitespace().count() as u32;
 
-        user_row_data_1.increment_total_message();
-        user_row_data_1.increment_total_word(total_word);
-        user_row_data_1.increment_total_char(total_char);
-        user_row_data_2.increment_total_message();
-        user_row_data_2.increment_total_word(total_word);
-        user_row_data_2.increment_total_char(total_char);
+        user_row_data.increment_total_message();
+        user_row_data.increment_total_word(total_word);
+        user_row_data.increment_total_char(total_char);
         self.formatted_rows.clear();
     }
 
@@ -287,7 +272,7 @@ impl UserTableData {
     }
 
     /// Recreate the rows that will be shown in the UI. Used only when date picker date is updated
-    fn create_rows(&mut self) {
+    pub fn create_rows(&mut self) {
         let mut row_data = HashMap::new();
 
         let mut total_message = 0;
