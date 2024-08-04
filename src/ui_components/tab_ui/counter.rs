@@ -3,6 +3,7 @@ use eframe::egui::{
 };
 use log::info;
 use std::collections::HashMap;
+use std::sync::atomic::Ordering;
 use std::thread;
 
 use crate::tg_handler::ProcessStart;
@@ -209,7 +210,7 @@ impl MainWindow {
             .show(ui, |ui| self.show_grid_data(ui));
 
         ui.add_space(10.0);
-        ui.label(self.counter.detected_chat.to_owned());
+        ui.label(self.counter.detected_chat.clone());
         ui.add_space(5.0);
         ui.horizontal(|ui| {
             Grid::new("Main")
@@ -263,7 +264,13 @@ impl MainWindow {
                 });
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 ui.add_space(80.0);
-                if self.is_processing {
+
+                if self.is_processing && self.counter.counting() {
+                    let cancel_button = ui.add_sized([80.0, 40.0], Button::new("Cancel"));
+                    if cancel_button.clicked() {
+                        self.cancel_count();
+                    }
+                } else if self.is_processing {
                     ui.add_enabled(false, Button::new("Start").min_size(vec2(80.0, 40.0)));
                 } else {
                     let start_button = ui.add_sized([80.0, 40.0], Button::new("Start"));
@@ -282,7 +289,7 @@ impl MainWindow {
         });
 
         self.counter.detected_chat =
-            chat_to_text(self.counter.get_start_from(), self.counter.get_end_at());
+            chat_to_text(&self.counter.get_start_from(), &self.counter.get_end_at());
     }
 
     fn show_grid_data(&mut self, ui: &mut Ui) {
@@ -467,7 +474,7 @@ To count all messages in a chat, paste the very first message link or keep it em
         let start_from = self.counter.get_start_from();
         let end_at = self.counter.get_end_at();
 
-        let parsed_chat_data = parse_chat_details(start_from, end_at);
+        let parsed_chat_data = parse_chat_details(&start_from, &end_at);
 
         if parsed_chat_data.is_empty() {
             self.process_state = ProcessState::InvalidStartChat;
@@ -528,9 +535,10 @@ To count all messages in a chat, paste the very first message link or keep it em
                 ));
             });
         } else {
+            let cancel = self.cancel_count.clone();
             thread::spawn(move || {
                 client.start_process(ProcessStart::StartCount(
-                    chat_name, start_num, end_num, false,
+                    chat_name, start_num, end_num, false, cancel,
                 ));
             });
         }
@@ -545,5 +553,9 @@ To count all messages in a chat, paste the very first message link or keep it em
         } else {
             String::new()
         }
+    }
+
+    fn cancel_count(&mut self) {
+        self.cancel_count.store(true, Ordering::Release);
     }
 }

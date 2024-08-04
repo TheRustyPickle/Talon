@@ -40,8 +40,14 @@ impl TGClient {
         let runtime = get_runtime();
 
         let result = match process_type {
-            ProcessStart::StartCount(start_chat, start_num, end_num, multi_session) => {
-                runtime.block_on(self.start_count(start_chat, start_num, end_num, multi_session))
+            ProcessStart::StartCount(start_chat, start_num, end_num, multi_session, cancel) => {
+                runtime.block_on(self.start_count(
+                    start_chat,
+                    start_num,
+                    end_num,
+                    multi_session,
+                    cancel,
+                ))
             }
             ProcessStart::SignInCode(token, code) => {
                 runtime.block_on(self.sign_in_code(token, code))

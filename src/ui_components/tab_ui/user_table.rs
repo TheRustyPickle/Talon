@@ -632,23 +632,23 @@ impl UserTableData {
     }
 
     /// Mark a row as whitelisted if exists
-    pub fn set_as_whitelisted(&mut self, user_id: Vec<i64>) {
+    pub fn set_as_whitelisted(&mut self, user_id: &[i64]) {
         for (_d, row_data) in self.user_data.iter_mut() {
-            row_data.iter_mut().for_each(|(id, row)| {
-                for u_id in &user_id {
+            for (id, row) in row_data.iter_mut() {
+                for u_id in user_id {
                     if id == u_id {
                         row.whitelisted = true;
                     }
                 }
-            });
+            }
         }
         self.formatted_rows.clear();
         self.create_rows();
     }
 
-    pub fn remove_blacklisted_rows(&mut self, user_id: Vec<i64>) {
+    pub fn remove_blacklisted_rows(&mut self, user_id: &[i64]) {
         for (_d, row_data) in self.user_data.iter_mut() {
-            for id in &user_id {
+            for id in user_id {
                 row_data.remove(id);
             }
         }
@@ -657,15 +657,15 @@ impl UserTableData {
     }
 
     /// Remove whitelist status from a row if exists
-    pub fn remove_whitelist(&mut self, user_id: Vec<i64>) {
+    pub fn remove_whitelist(&mut self, user_id: &[i64]) {
         for (_d, row_data) in self.user_data.iter_mut() {
-            row_data.iter_mut().for_each(|(id, row)| {
-                for u_id in &user_id {
+            for (id, row) in row_data.iter_mut() {
+                for u_id in user_id {
                     if id == u_id {
                         row.whitelisted = false;
                     }
                 }
-            });
+            }
         }
         self.formatted_rows.clear();
         self.create_rows();
@@ -761,7 +761,7 @@ impl UserTableData {
         row_data
     }
 
-    fn export_data(&mut self, chat_name: String) {
+    fn export_data(&mut self, chat_name: &str) {
         info!("Starting exporting table data");
         let rows = self.rows();
         export_table_data(rows, chat_name);
@@ -808,7 +808,7 @@ impl MainWindow {
                 .clicked()
             {
                 let chat_name = self.counter.selected_chat_name(self.table_chat_index);
-                self.table().export_data(chat_name);
+                self.table().export_data(&chat_name);
                 self.process_state =
                     ProcessState::DataExported(current_dir().unwrap().to_string_lossy().into());
             };
@@ -1232,7 +1232,7 @@ impl MainWindow {
             let hex_value = cloned_row.belongs_to.unwrap().pack().to_hex();
             packed_chats.push(PackedWhitelistedUser::new(hex_value, cloned_row.seen_by));
         }
-        self.table().set_as_whitelisted(all_ids);
+        self.table().set_as_whitelisted(&all_ids);
         self.chart().reset_saved_bars();
 
         self.whitelist.save_whitelisted_users(false);
@@ -1257,7 +1257,7 @@ impl MainWindow {
         let mut all_ids = Vec::new();
         let mut names = Vec::new();
         for row in selected_rows {
-            let chart_name = to_chart_name(row.username.clone(), row.name.clone(), row.id);
+            let chart_name = to_chart_name(row.username.clone(), &row.name, row.id);
             names.push(chart_name);
 
             let cloned_row = row.clone();
@@ -1275,11 +1275,11 @@ impl MainWindow {
         }
 
         for chart in self.chart_all() {
-            chart.clear_blacklisted(names.clone());
+            chart.clear_blacklisted(&names);
         }
 
         for table in self.table_all() {
-            table.remove_blacklisted_rows(all_ids.clone());
+            table.remove_blacklisted_rows(&all_ids);
         }
 
         self.blacklist.save_blacklisted_users(false);

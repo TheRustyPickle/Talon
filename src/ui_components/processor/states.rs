@@ -174,7 +174,7 @@ impl fmt::Display for ColumnName {
             ColumnName::LastMessageSeen => "Last Message Seen",
             ColumnName::Whitelisted => "Whitelisted",
         };
-        write!(f, "{}", name)
+        write!(f, "{name}")
     }
 }
 

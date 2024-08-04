@@ -1,5 +1,6 @@
 use grammers_client::types::iter_buffer::InvocationError;
 use grammers_client::types::{LoginToken, PasswordToken};
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -39,8 +40,8 @@ pub enum ProcessError {
 
 /// Used by `TGClient` struct to handle operations
 pub enum ProcessStart {
-    /// Start chat, start num, end num, multi_session
-    StartCount(String, Option<i32>, Option<i32>, bool),
+    /// Start chat, start num, end num, multi session, whether to cancel
+    StartCount(String, Option<i32>, Option<i32>, bool, Arc<AtomicBool>),
     SignInCode(Arc<Mutex<LoginToken>>, String),
     SignInPasswords(Arc<Mutex<PasswordToken>>, String),
     SessionLogout,

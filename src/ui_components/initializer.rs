@@ -8,6 +8,7 @@ use egui_modal::Modal;
 use log::info;
 use std::collections::{BTreeMap, HashMap};
 use std::slice::IterMut;
+use std::sync::atomic::AtomicBool;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -45,6 +46,7 @@ pub struct MainWindow {
     pub table_chat_index: usize,
     pub chart_chat_index: usize,
     pub initial_chart_reset: bool,
+    pub cancel_count: Arc<AtomicBool>,
 }
 
 impl Default for MainWindow {
@@ -74,6 +76,7 @@ impl Default for MainWindow {
             table_chat_index: 0,
             chart_chat_index: 0,
             initial_chart_reset: false,
+            cancel_count: Arc::new(AtomicBool::new(false)),
         }
     }
 }
@@ -302,17 +305,17 @@ impl MainWindow {
     pub fn append_structs(&mut self, amount: usize, previous_amount: usize) {
         let amount = amount + previous_amount;
         while self.table.len() != amount {
-            self.table.push(UserTableData::default())
+            self.table.push(UserTableData::default());
         }
 
         while self.chart.len() != amount {
             let mut chart = ChartsData::default();
             chart.reset_chart();
-            self.chart.push(chart)
+            self.chart.push(chart);
         }
 
         while self.counter.counts.len() != amount {
-            self.counter.counts.push(CounterCounts::default())
+            self.counter.counts.push(CounterCounts::default());
         }
     }
 

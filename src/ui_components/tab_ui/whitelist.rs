@@ -210,7 +210,7 @@ then right click on User Table to whitelist",
                 let deleted: Vec<i64> = self.whitelist.remove_selected().into_iter().collect();
                 let total_to_remove = deleted.len();
 
-                self.table().remove_whitelist(deleted);
+                self.table().remove_whitelist(&deleted);
                 self.process_state = ProcessState::WhitelistedUserRemoved(total_to_remove);
             };
             if ui
@@ -220,7 +220,7 @@ then right click on User Table to whitelist",
             {
                 let deleted = self.whitelist.remove_all();
 
-                self.table().remove_whitelist(deleted);
+                self.table().remove_whitelist(&deleted);
                 self.chart().reset_saved_bars();
                 self.process_state = ProcessState::AllWhitelistRemoved;
             };
@@ -305,9 +305,9 @@ then right click on User Table to whitelist",
         );
         row.context_menu(|ui| {
             if ui.button("Delete Selected").clicked() {
-                let deleted = self.whitelist.remove_selected().into_iter().collect();
+                let deleted: Vec<i64> = self.whitelist.remove_selected().into_iter().collect();
 
-                self.table().remove_whitelist(deleted);
+                self.table().remove_whitelist(&deleted);
                 ui.close_menu();
             }
         });

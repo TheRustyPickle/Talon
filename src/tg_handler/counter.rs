@@ -1,5 +1,6 @@
 use grammers_client::types::Message;
-use log::{debug, info};
+use log::info;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, sleep};
 use std::time::{Duration, Instant};
@@ -66,6 +67,7 @@ impl TGClient {
         start_num: Option<i32>,
         end_num: Option<i32>,
         multi_session: bool,
+        cancel: Arc<AtomicBool>,
     ) -> Result<(), ProcessError> {
         if !self.check_authorization().await? {
             return Ok(());
@@ -137,14 +139,13 @@ impl TGClient {
             .map_err(ProcessError::UnknownError)?
         {
             let message_num = message.id();
-            debug!("Got message number: {}", message_num);
             if start_at == -1 {
                 info!("Setting starting point as {message_num}");
                 start_at = message_num;
             }
 
-            if message_num < end_at {
-                debug!("Went beyond the ending point");
+            let cancelled = cancel.load(Ordering::Acquire);
+            if message_num < end_at || cancelled {
                 break;
             }
 
