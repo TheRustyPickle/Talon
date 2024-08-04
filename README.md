@@ -8,7 +8,7 @@
 
 Talon is a tool to generate on-demand data insights from public Telegram chats. Powered by Rust, grammers, and egui, it offers a straightforward interface that leverages the Telegram account API.
 
-![Screenshot](https://github.com/TheRustyPickle/Talon/assets/35862475/56b834d8-992b-413c-81e7-aaf023e00047)
+![screenshot](https://github.com/user-attachments/assets/6f8cad44-6de3-4f5b-a947-768eca531d74)
 
 ## Features
 
@@ -19,7 +19,7 @@ Talon is a tool to generate on-demand data insights from public Telegram chats. 
 - **Date Range and Navigation:** Easily navigate and view table and chart data within a specific date range with buttons to cycle by day, week, month, or year.
 - **Session Management:** Options to choose between temporary sessions (logs out on app close) or non-temporary sessions (creates a file for persistent login).
 - **User Grouping:** Group specific users by whitelisting to view their data separately and analyze their activity.
-- **Blacklisting:**: Exclude specific users from data analysis to prevent their data from appearing in the results.
+- **Blacklisting:** Exclude specific users from data analysis to prevent their data from appearing in the results.
 - **Multi-Session Capability:** Utilize multiple sessions to dramatically increase checking speed, tested with up to 12 sessions and 300k messages.
 - **Multi-Chat Capability:** Analyze multiple chats simultaneously and view data from each chat separately.
 

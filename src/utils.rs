@@ -412,14 +412,12 @@ pub fn separate_blacklist_by_seen(
 /// Checks for a value in the `HashMap` of a `HashMap`
 pub fn entry_insert_user(
     user_data: &mut HashMap<NaiveDate, HashMap<i64, UserRowData>>,
-    row_data: &mut HashMap<i64, UserRowData>,
     user_row_data: UserRowData,
     id: i64,
     date: NaiveDate,
 ) {
     let entry = user_data.entry(date).or_default();
     entry.entry(id).or_insert(user_row_data.clone());
-    row_data.entry(id).or_insert(user_row_data);
 }
 
 pub fn to_chart_name(user_name: String, full_name: &str, user_id: i64) -> String {

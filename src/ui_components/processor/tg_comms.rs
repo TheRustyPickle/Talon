@@ -57,7 +57,9 @@ impl MainWindow {
 
                     // Stop process sets the progress bar to 100
                     // Progress only if 1 session is remaining to be completed or it was 0 (0 in normal counting)
+                    // Also recreate table data after counting session ends for a chat
                     if self.counter.session_remaining() <= 1 {
+                        self.t_table().create_rows();
                         self.go_next_or_stop();
                     } else {
                         self.counter.reduce_session();
