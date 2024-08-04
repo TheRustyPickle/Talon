@@ -334,8 +334,8 @@ impl ChartsData {
         (self.added_to_chart.contains("Show total data"), whitelist)
     }
 
-    pub fn clear_blacklisted(&mut self, names: Vec<String>) {
-        for n in &names {
+    pub fn clear_blacklisted(&mut self, names: &[String]) {
+        for n in names {
             self.available_users.remove(n);
             self.added_to_chart.remove(n);
             self.hourly_message.iter_mut().for_each(|(_d, data)| {

@@ -40,7 +40,7 @@ pub enum ProcessError {
 
 /// Used by `TGClient` struct to handle operations
 pub enum ProcessStart {
-    /// Start chat, start num, end num, multi_session, whether to cancel
+    /// Start chat, start num, end num, multi session, whether to cancel
     StartCount(String, Option<i32>, Option<i32>, bool, Arc<AtomicBool>),
     SignInCode(Arc<Mutex<LoginToken>>, String),
     SignInPasswords(Arc<Mutex<PasswordToken>>, String),

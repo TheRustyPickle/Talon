@@ -210,7 +210,7 @@ impl MainWindow {
             .show(ui, |ui| self.show_grid_data(ui));
 
         ui.add_space(10.0);
-        ui.label(self.counter.detected_chat.to_owned());
+        ui.label(self.counter.detected_chat.clone());
         ui.add_space(5.0);
         ui.horizontal(|ui| {
             Grid::new("Main")
@@ -289,7 +289,7 @@ impl MainWindow {
         });
 
         self.counter.detected_chat =
-            chat_to_text(self.counter.get_start_from(), self.counter.get_end_at());
+            chat_to_text(&self.counter.get_start_from(), &self.counter.get_end_at());
     }
 
     fn show_grid_data(&mut self, ui: &mut Ui) {
@@ -474,7 +474,7 @@ To count all messages in a chat, paste the very first message link or keep it em
         let start_from = self.counter.get_start_from();
         let end_at = self.counter.get_end_at();
 
-        let parsed_chat_data = parse_chat_details(start_from, end_at);
+        let parsed_chat_data = parse_chat_details(&start_from, &end_at);
 
         if parsed_chat_data.is_empty() {
             self.process_state = ProcessState::InvalidStartChat;

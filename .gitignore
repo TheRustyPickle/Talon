@@ -13,3 +13,4 @@ target/
 *.pdb
 *.json
 *.session
+typos.toml

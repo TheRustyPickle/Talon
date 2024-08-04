@@ -30,7 +30,7 @@ pub fn find_session_files() -> Vec<String> {
 }
 
 /// Convert inserted chat points into textual representation
-pub fn chat_to_text(start: String, end: String) -> String {
+pub fn chat_to_text(start: &str, end: &str) -> String {
     let chat_data: BTreeMap<String, ParsedChat> =
         parse_chat_details(start, end).into_iter().collect();
 
@@ -45,22 +45,22 @@ pub fn chat_to_text(start: String, end: String) -> String {
             if let Some(start_point) = parsed.start_point() {
                 chat_text += &format!("{start_point}");
             } else {
-                chat_text += "∞"
+                chat_text += "∞";
             }
         } else if let Some(start_point) = parsed.start_point() {
             chat_text += ": 1 - ";
             chat_text += &format!("{start_point}");
         } else {
-            chat_text += ": ∞"
+            chat_text += ": ∞";
         }
-        text_data += &format!(" {chat_text}")
+        text_data += &format!(" {chat_text}");
     }
 
     text_data
 }
 
 /// Parse start and end point strings as parsed chat points
-pub fn parse_chat_details(start: String, end: String) -> HashMap<String, ParsedChat> {
+pub fn parse_chat_details(start: &str, end: &str) -> HashMap<String, ParsedChat> {
     let start_chat_list: Vec<&str> = start.split_whitespace().collect();
     let end_chat_list: Vec<&str> = end.split_whitespace().collect();
 
@@ -364,7 +364,7 @@ pub fn create_export_file(export_data: &str, file_name: String) {
     file.write_all(export_data.as_bytes()).unwrap();
 }
 
-pub fn export_table_data(rows: Vec<UserRowData>, name: String) {
+pub fn export_table_data(rows: Vec<UserRowData>, name: &str) {
     let mut export_file_location = PathBuf::from(".");
     let current_time = Local::now();
     let formatted_time = current_time.format("%Y-%m-%d %H-%M-%S").to_string();
@@ -422,7 +422,7 @@ pub fn entry_insert_user(
     row_data.entry(id).or_insert(user_row_data);
 }
 
-pub fn to_chart_name(user_name: String, full_name: String, user_id: i64) -> String {
+pub fn to_chart_name(user_name: String, full_name: &str, user_id: i64) -> String {
     if user_name != "Empty" {
         user_name
     } else if full_name == "Deleted Account" {

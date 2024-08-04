@@ -91,7 +91,7 @@ impl MainWindow {
                         blacklisted,
                     );
 
-                    let chart_user = to_chart_name(user_name, full_name, user_id);
+                    let chart_user = to_chart_name(user_name, &full_name, user_id);
 
                     if !blacklisted {
                         self.t_chart().add_user(chart_user.clone(), user_id);
@@ -106,7 +106,7 @@ impl MainWindow {
                     let whitelisted = self.whitelist.is_user_whitelisted(user_id);
 
                     if user_id != 0 && whitelisted && !blacklisted {
-                        self.t_table().set_as_whitelisted(vec![user_id]);
+                        self.t_table().set_as_whitelisted(&[user_id]);
                     }
 
                     let total_user = self.t_table().get_total_user();
@@ -266,7 +266,7 @@ impl MainWindow {
                         let full_name = chat.user_chat.name().to_string();
                         let user_id = chat.user_chat.id();
 
-                        names.push(to_chart_name(username.clone(), full_name.clone(), user_id));
+                        names.push(to_chart_name(username.clone(), &full_name, user_id));
                         user_ids.push(user_id);
 
                         self.blacklist.add_to_blacklist(
@@ -284,11 +284,11 @@ impl MainWindow {
                     let failed_chat_num = self.blacklist.failed_blacklist_num();
 
                     for chart in self.chart_all() {
-                        chart.clear_blacklisted(names.clone());
+                        chart.clear_blacklisted(&names);
                     }
 
                     for table in self.table_all() {
-                        table.remove_blacklisted_rows(user_ids.clone());
+                        table.remove_blacklisted_rows(&user_ids);
                     }
 
                     self.process_state =
@@ -313,7 +313,7 @@ impl MainWindow {
                         chat.seen_by,
                     );
                     self.whitelist.clear_text_box();
-                    self.table().set_as_whitelisted(vec![user_id]);
+                    self.table().set_as_whitelisted(&[user_id]);
                     self.chart().reset_saved_bars();
                     self.whitelist.save_whitelisted_users(false);
                     self.process_state = ProcessState::AddedToWhitelist;
@@ -330,14 +330,14 @@ impl MainWindow {
                         String::from("Empty")
                     };
                     let full_name = chat.user_chat.name().to_string();
-                    let chart_name = to_chart_name(username.clone(), full_name.clone(), user_id);
+                    let chart_name = to_chart_name(username.clone(), &full_name, user_id);
 
                     for chart in self.chart_all() {
-                        chart.clear_blacklisted(vec![chart_name.clone()]);
+                        chart.clear_blacklisted(&[chart_name.clone()]);
                     }
 
                     for table in self.table_all() {
-                        table.remove_blacklisted_rows(vec![user_id]);
+                        table.remove_blacklisted_rows(&[user_id]);
                     }
 
                     self.blacklist.add_to_blacklist(
@@ -422,7 +422,7 @@ impl MainWindow {
     fn go_next_or_stop(&mut self) {
         if self.counter.counting() {
             self.counter.increment_ongoing();
-            self.process_next_count()
+            self.process_next_count();
         } else {
             self.stop_process();
         }
