@@ -307,7 +307,7 @@ impl MainWindow {
                     (names, total_val)
                 }
             };
-            ComboBox::from_id_source("Chat Box").show_index(
+            ComboBox::from_id_salt("Chat Box").show_index(
                 ui,
                 &mut self.counter_chat_index,
                 len,
@@ -332,7 +332,7 @@ impl MainWindow {
                     names
                 }
             };
-            ComboBox::from_id_source("Session Box").show_index(
+            ComboBox::from_id_salt("Session Box").show_index(
                 ui,
                 &mut self.counter.session_index,
                 self.tg_clients.len(),
@@ -352,7 +352,7 @@ Login to one or more accounts multiple times with different session names!",
 
             ui.label("Limit:");
 
-            ComboBox::from_id_source("Limit Box")
+            ComboBox::from_id_salt("Limit Box")
                 .width(60.0)
                 .show_index(
                     ui,

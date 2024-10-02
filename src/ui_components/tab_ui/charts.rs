@@ -373,7 +373,7 @@ impl MainWindow {
         };
         ui.horizontal(|ui| {
             ui.label("Selected chat:");
-            ComboBox::from_id_source("Table Box").show_index(
+            ComboBox::from_id_salt("Table Box").show_index(
                 ui,
                 &mut self.chart_chat_index,
                 len,
@@ -554,13 +554,13 @@ impl MainWindow {
                     ui.label("From:");
                     ui.add(
                         DatePickerButton::new(chart.date_nav.handler().from())
-                            .id_source("1"),
+                            .id_salt("1"),
                     )
                     .on_hover_text("Show data only after this date, including the date itself");
                     ui.label("To:");
 
                     ui.add(
-                        DatePickerButton::new(chart.date_nav.handler().to()).id_source("2"),
+                        DatePickerButton::new(chart.date_nav.handler().to()).id_salt("2"),
                     )
                     .on_hover_text("Show data only before this date, incluyding the date itself");
 

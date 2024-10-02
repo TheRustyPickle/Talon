@@ -1,7 +1,7 @@
-use eframe::{egui, App, Frame};
+use eframe::{egui, App, CreationContext, Frame};
 use egui::{
     vec2, Align, Button, CentralPanel, Context, FontData, FontDefinitions, FontFamily, Layout,
-    Spinner, ViewportCommand, Visuals,
+    Spinner, ThemePreference, ViewportCommand, Visuals,
 };
 use egui_extras::{Size, StripBuilder};
 use egui_modal::Modal;
@@ -49,8 +49,10 @@ pub struct MainWindow {
     pub cancel_count: Arc<AtomicBool>,
 }
 
-impl Default for MainWindow {
-    fn default() -> Self {
+impl MainWindow {
+    pub fn new(cc: &CreationContext) -> Self {
+        cc.egui_ctx
+            .options_mut(|a| a.theme_preference = ThemePreference::Light);
         let (sender, receiver) = channel();
         Self {
             app_state: AppState::default(),
