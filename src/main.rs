@@ -4,7 +4,7 @@ mod utils;
 
 use crate::ui_components::MainWindow;
 use dirs::data_local_dir;
-use eframe::{egui, Theme};
+use eframe::{egui, NativeOptions};
 use egui::{vec2, ViewportBuilder};
 use env::set_current_dir;
 use log::{info, LevelFilter};
@@ -43,15 +43,14 @@ fn main() {
             .with_inner_size(vec2(600.0, 400.0))
             .with_resizable(true)
             .with_minimize_button(false);
-        let native_options = eframe::NativeOptions {
+        let native_options = NativeOptions {
             viewport,
-            default_theme: Theme::Light,
             ..Default::default()
         };
         eframe::run_native(
             "Talon",
             native_options,
-            Box::new(|_cc| Ok(Box::<MainWindow>::default())),
+            Box::new(|cc| Ok(Box::new(MainWindow::new(cc)))),
         )
         .unwrap();
     } else {

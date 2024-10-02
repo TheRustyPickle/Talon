@@ -779,7 +779,7 @@ impl MainWindow {
         };
         ui.horizontal(|ui| {
             ui.label("Selected chat:");
-            ComboBox::from_id_source("Table Box").show_index(
+            ComboBox::from_id_salt("Table Box").show_index(
                 ui,
                 &mut self.table_chat_index,
                 len,
@@ -824,12 +824,12 @@ impl MainWindow {
 
                 ui.label("From:");
                 ui.add(
-                    DatePickerButton::new(table.date_nav.handler().from()).id_source("1"),
+                    DatePickerButton::new(table.date_nav.handler().from()).id_salt("1"),
                 )
                 .on_hover_text("Show data only after this date, including the date itself");
 
                 ui.label("To:");
-                ui.add(DatePickerButton::new(table.date_nav.handler().to()).id_source("2"))
+                ui.add(DatePickerButton::new(table.date_nav.handler().to()).id_salt("2"))
                     .on_hover_text("Show data only before this date, including the date itself");
 
                 let reset_button = ui.button("Reset Date Selection").on_hover_text("Reset selected date to the oldest and the newest date with at least 1 data point");
