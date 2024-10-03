@@ -5,6 +5,7 @@ use egui::{
     ThemePreference, ViewportCommand, Visuals,
 };
 use egui_modal::Modal;
+use egui_theme_lerp::ThemeAnimator;
 use log::info;
 use std::collections::{BTreeMap, HashMap};
 use std::slice::IterMut;
@@ -23,7 +24,7 @@ use crate::ui_components::tab_ui::{
 };
 use crate::ui_components::widgets::AnimatedLabel;
 use crate::ui_components::TGKeys;
-use crate::utils::{find_session_files, get_api_keys, get_font_data, get_theme_emoji};
+use crate::utils::{find_session_files, get_api_keys, get_font_data, theme_hover_text};
 
 pub struct MainWindow {
     pub app_state: AppState,
@@ -49,6 +50,7 @@ pub struct MainWindow {
     pub chart_chat_index: usize,
     pub initial_chart_reset: bool,
     pub cancel_count: Arc<AtomicBool>,
+    pub theme_animator: ThemeAnimator,
 }
 
 impl MainWindow {
@@ -81,6 +83,7 @@ impl MainWindow {
             chart_chat_index: 0,
             initial_chart_reset: false,
             cancel_count: Arc::new(AtomicBool::new(false)),
+            theme_animator: ThemeAnimator::new(Visuals::light(), Visuals::dark()),
         }
     }
 }
@@ -103,7 +106,6 @@ impl App for MainWindow {
             }
         }
 
-        // CentralPanel::default().show(ctx, |ui| {
         match self.app_state {
             AppState::LoadingFontsAPI => {
                 ctx.set_pixels_per_point(1.1);
@@ -121,16 +123,33 @@ impl App for MainWindow {
                 TopBottomPanel::top("top_panel")
                     .show_separator_line(false)
                     .show(ctx, |ui| {
+                        if self.theme_animator.anim_id.is_none() {
+                            self.theme_animator.create_id(ui)
+                        } else {
+                            self.theme_animator.animate(ctx);
+                        }
+
                         ui.add_space(4.0);
                         ui.horizontal(|ui| {
-                            let (theme_emoji, hover_text) = get_theme_emoji(self.is_light_theme);
+                            let hover_text = theme_hover_text(self.is_light_theme);
+                            let theme_emoji = if !self.theme_animator.animation_done {
+                                if self.theme_animator.theme_1_to_2 {
+                                    "☀"
+                                } else {
+                                    "🌙"
+                                }
+                            } else if self.theme_animator.theme_1_to_2 {
+                                "🌙"
+                            } else {
+                                "☀"
+                            };
 
                             if ui
                                 .add(Button::new(theme_emoji).frame(false))
                                 .on_hover_text(hover_text)
                                 .clicked()
                             {
-                                self.switch_theme(ctx);
+                                self.theme_animator.start()
                             };
 
                             let hover_position = ui.make_persistent_id("tab_hover");
@@ -300,17 +319,6 @@ impl MainWindow {
 
         while self.counter.counts.len() != amount {
             self.counter.counts.push(CounterCounts::default());
-        }
-    }
-
-    /// Switch to light or dark mode
-    fn switch_theme(&mut self, ctx: &Context) {
-        if self.is_light_theme {
-            ctx.set_visuals(Visuals::dark());
-            self.is_light_theme = false;
-        } else {
-            ctx.set_visuals(Visuals::light());
-            self.is_light_theme = true;
         }
     }
 

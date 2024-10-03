@@ -162,11 +162,11 @@ fn split_tg_link(text: &str) -> (Option<String>, Option<i32>) {
 }
 
 /// Returns the proper emoji based on light or dark value
-pub fn get_theme_emoji(is_light_theme: bool) -> (String, String) {
+pub fn theme_hover_text(is_light_theme: bool) -> String {
     if is_light_theme {
-        ("🌙".to_string(), "Switch to dark theme".to_string())
+        "Switch to dark theme".to_string()
     } else {
-        ("☀".to_string(), "Switch to light theme".to_string())
+        "Switch to light theme".to_string()
     }
 }
 
