@@ -1,6 +1,8 @@
+use eframe::egui::{vec2, Vec2};
 use grammers_client::types::Chat;
 use serde::{Deserialize, Serialize};
 use std::fmt::{self, Display};
+use strum_macros::{Display as sDisplay, EnumIter};
 
 #[derive(Default)]
 pub enum AppState {
@@ -10,14 +12,32 @@ pub enum AppState {
     InitializedUI,
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, EnumIter, sDisplay)]
 pub enum TabState {
     Counter,
+    #[strum(to_string = "User Table")]
     UserTable,
     Charts,
     Whitelist,
     Blacklist,
     Session,
+}
+
+impl TabState {
+    pub fn first_value() -> Self {
+        TabState::Counter
+    }
+
+    pub fn window_size(&self) -> Vec2 {
+        match self {
+            TabState::Counter => vec2(550.0, 400.0),
+            TabState::UserTable => vec2(1250.0, 700.0),
+            TabState::Charts => vec2(1000.0, 700.0),
+            TabState::Whitelist => vec2(550.0, 600.0),
+            TabState::Blacklist => vec2(550.0, 600.0),
+            TabState::Session => vec2(550.0, 320.0),
+        }
+    }
 }
 
 pub enum ProcessState {

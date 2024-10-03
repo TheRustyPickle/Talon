@@ -1,8 +1,8 @@
-use eframe::egui::TopBottomPanel;
+use eframe::egui::{Rounding, TopBottomPanel};
 use eframe::{egui, App, CreationContext, Frame};
 use egui::{
-    vec2, Align, Button, CentralPanel, Context, FontData, FontDefinitions, FontFamily, Layout,
-    Spinner, ThemePreference, ViewportCommand, Visuals,
+    Align, Button, CentralPanel, Context, FontData, FontDefinitions, FontFamily, Layout, Spinner,
+    ThemePreference, ViewportCommand, Visuals,
 };
 use egui_modal::Modal;
 use log::info;
@@ -12,6 +12,7 @@ use std::sync::atomic::AtomicBool;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread;
+use strum::IntoEnumIterator;
 
 use crate::tg_handler::{start_process, NewProcess, ProcessResult, ProcessStart, TGClient};
 use crate::ui_components::processor::{
@@ -20,6 +21,7 @@ use crate::ui_components::processor::{
 use crate::ui_components::tab_ui::{
     BlacklistData, ChartsData, CounterData, SessionData, UserTableData, WhitelistData,
 };
+use crate::ui_components::widgets::AnimatedLabel;
 use crate::ui_components::TGKeys;
 use crate::utils::{find_session_files, get_api_keys, get_font_data, get_theme_emoji};
 
@@ -131,73 +133,29 @@ impl App for MainWindow {
                                 self.switch_theme(ctx);
                             };
 
-                            ui.separator();
-                            let counter_tab = ui.selectable_value(
-                                &mut self.tab_state,
-                                TabState::Counter,
-                                "Counter",
-                            );
-                            ui.separator();
-                            let user_table_tab = ui.selectable_value(
-                                &mut self.tab_state,
-                                TabState::UserTable,
-                                "User Table",
-                            );
-                            ui.separator();
-                            let chart_tab = ui.selectable_value(
-                                &mut self.tab_state,
-                                TabState::Charts,
-                                "Charts",
-                            );
-                            ui.separator();
-                            let whitelist_tab = ui.selectable_value(
-                                &mut self.tab_state,
-                                TabState::Whitelist,
-                                "Whitelist",
-                            );
-                            ui.separator();
-                            let blacklist_tab = ui.selectable_value(
-                                &mut self.tab_state,
-                                TabState::Blacklist,
-                                "Blacklist",
-                            );
-                            ui.separator();
-                            let session_tab = ui.selectable_value(
-                                &mut self.tab_state,
-                                TabState::Session,
-                                "Session",
-                            );
+                            let hover_position = ui.make_persistent_id("tab_hover");
+                            let selected_position = ui.make_persistent_id("tab_selected");
 
-                            // Set window size on tab switch
-                            if counter_tab.clicked() {
-                                ctx.send_viewport_cmd(ViewportCommand::InnerSize(vec2(
-                                    550.0, 400.0,
-                                )));
-                            }
-                            if user_table_tab.clicked() {
-                                ctx.send_viewport_cmd(ViewportCommand::InnerSize(vec2(
-                                    1250.0, 700.0,
-                                )));
-                            }
-                            if chart_tab.clicked() {
-                                ctx.send_viewport_cmd(ViewportCommand::InnerSize(vec2(
-                                    1000.0, 700.0,
-                                )));
-                            }
-                            if whitelist_tab.clicked() {
-                                ctx.send_viewport_cmd(ViewportCommand::InnerSize(vec2(
-                                    550.0, 600.0,
-                                )));
-                            }
-                            if blacklist_tab.clicked() {
-                                ctx.send_viewport_cmd(ViewportCommand::InnerSize(vec2(
-                                    550.0, 600.0,
-                                )));
-                            }
-                            if session_tab.clicked() {
-                                ctx.send_viewport_cmd(ViewportCommand::InnerSize(vec2(
-                                    550.0, 320.0,
-                                )));
+                            for val in TabState::iter() {
+                                let selected = self.tab_state == val;
+                                let first_val = val == TabState::first_value();
+
+                                let resp = ui.add(AnimatedLabel::new(
+                                    selected,
+                                    val.to_string(),
+                                    selected_position,
+                                    hover_position,
+                                    60.0,
+                                    15.5,
+                                    Some(Rounding::ZERO),
+                                    (first_val, true),
+                                ));
+
+                                if resp.clicked() {
+                                    let window_size = val.window_size();
+                                    ctx.send_viewport_cmd(ViewportCommand::InnerSize(window_size));
+                                    self.tab_state = val
+                                }
                             }
                         });
                         ui.add_space(0.5);
