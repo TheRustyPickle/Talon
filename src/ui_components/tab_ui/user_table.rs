@@ -10,6 +10,7 @@ use rayon::prelude::*;
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
 use std::env::current_dir;
+use strum::IntoEnumIterator;
 
 use crate::ui_components::processor::{
     ColumnName, DateNavigator, NavigationType, PackedBlacklistedUser, PackedWhitelistedUser,
@@ -885,9 +886,7 @@ impl MainWindow {
         ScrollArea::horizontal()
             .drag_to_scroll(false)
             .show(ui, |ui| {
-                let total_header = 11;
                 let mut clip_added = 0;
-                let mut current_column = ColumnName::Name;
 
                 let mut table = TableBuilder::new(ui)
                     .striped(true)
@@ -898,7 +897,7 @@ impl MainWindow {
                     .min_scrolled_height(0.0)
                     .column(Column::initial(25.0).clip(true));
 
-                for _ in 0..total_header {
+                for _ in ColumnName::iter() {
                     let mut column = Column::initial(100.0);
                     if clip_added < 2 {
                         column = column.clip(true);
@@ -912,11 +911,10 @@ impl MainWindow {
                         header.col(|ui| {
                             ui.add_sized(ui.available_size(), Label::new(""));
                         });
-                        for _ in 0..total_header {
+                        for val in ColumnName::iter() {
                             header.col(|ui| {
-                                self.create_header(current_column, ui);
+                                self.create_header(val, ui);
                             });
-                            current_column = current_column.get_next();
                         }
                     })
                     .body(|body| {
@@ -930,9 +928,8 @@ impl MainWindow {
                                     Label::new(format!("{}", index + 1)),
                                 );
                             });
-                            for _ in 0..total_header {
-                                row.col(|ui| self.create_table_row(current_column, row_data, ui));
-                                current_column = current_column.get_next();
+                            for val in ColumnName::iter() {
+                                row.col(|ui| self.create_table_row(val, row_data, ui));
                             }
                         });
                     });

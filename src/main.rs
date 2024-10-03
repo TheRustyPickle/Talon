@@ -40,9 +40,9 @@ fn main() {
         info!("Starting app");
         let viewport = ViewportBuilder::default()
             .with_title("Talon")
-            .with_inner_size(vec2(600.0, 400.0))
+            .with_inner_size(vec2(600.0, 450.0))
             .with_resizable(true)
-            .with_minimize_button(false);
+            .with_maximize_button(false);
         let native_options = NativeOptions {
             viewport,
             ..Default::default()
