@@ -1064,6 +1064,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "egui-theme-lerp"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a633e262b05f1d12665476e252fc3348fdfbba2a05355f536b8eb8ff060216cc"
+dependencies = [
+ "egui",
+]
+
+[[package]]
 name = "egui-wgpu"
 version = "0.29.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3716,6 +3725,7 @@ dependencies = [
  "eframe",
  "egui-dropdown",
  "egui-modal",
+ "egui-theme-lerp",
  "egui_extras",
  "egui_plot",
  "grammers-client",

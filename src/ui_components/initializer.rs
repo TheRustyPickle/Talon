@@ -1,9 +1,9 @@
+use eframe::egui::TopBottomPanel;
 use eframe::{egui, App, CreationContext, Frame};
 use egui::{
     vec2, Align, Button, CentralPanel, Context, FontData, FontDefinitions, FontFamily, Layout,
     Spinner, ThemePreference, ViewportCommand, Visuals,
 };
-use egui_extras::{Size, StripBuilder};
 use egui_modal::Modal;
 use log::info;
 use std::collections::{BTreeMap, HashMap};
@@ -101,112 +101,132 @@ impl App for MainWindow {
             }
         }
 
-        CentralPanel::default().show(ctx, |ui| {
-            match self.app_state {
-                AppState::LoadingFontsAPI => {
-                    ctx.set_pixels_per_point(1.1);
-                    self.set_fonts(ctx);
+        // CentralPanel::default().show(ctx, |ui| {
+        match self.app_state {
+            AppState::LoadingFontsAPI => {
+                ctx.set_pixels_per_point(1.1);
+                self.set_fonts(ctx);
 
-                    // If API keys are found, start the main UI otherwise show the UI to input the api keys
-                    if get_api_keys().is_some() {
-                        self.app_state = AppState::InitializedUI;
-                    } else {
-                        self.app_state = AppState::InputAPIKeys;
-                    }
+                // If API keys are found, start the main UI otherwise show the UI to input the api keys
+                if get_api_keys().is_some() {
+                    self.app_state = AppState::InitializedUI;
+                } else {
+                    self.app_state = AppState::InputAPIKeys;
                 }
-                AppState::InputAPIKeys => self.show_tg_keys_ui(ui),
-                AppState::InitializedUI => {
-                    ui.horizontal(|ui| {
-                        let (theme_emoji, hover_text) = get_theme_emoji(self.is_light_theme);
+            }
+            AppState::InputAPIKeys => self.show_tg_keys_ui(ctx),
+            AppState::InitializedUI => {
+                TopBottomPanel::top("top_panel")
+                    .show_separator_line(false)
+                    .show(ctx, |ui| {
+                        ui.add_space(4.0);
+                        ui.horizontal(|ui| {
+                            let (theme_emoji, hover_text) = get_theme_emoji(self.is_light_theme);
 
-                        if ui
-                            .add(Button::new(theme_emoji).frame(false))
-                            .on_hover_text(hover_text)
-                            .clicked()
-                        {
-                            self.switch_theme(ctx);
-                        };
+                            if ui
+                                .add(Button::new(theme_emoji).frame(false))
+                                .on_hover_text(hover_text)
+                                .clicked()
+                            {
+                                self.switch_theme(ctx);
+                            };
 
-                        ui.separator();
-                        let counter_tab =
-                            ui.selectable_value(&mut self.tab_state, TabState::Counter, "Counter");
-                        ui.separator();
-                        let user_table_tab = ui.selectable_value(
-                            &mut self.tab_state,
-                            TabState::UserTable,
-                            "User Table",
-                        );
-                        ui.separator();
-                        let chart_tab =
-                            ui.selectable_value(&mut self.tab_state, TabState::Charts, "Charts");
-                        ui.separator();
-                        let whitelist_tab = ui.selectable_value(
-                            &mut self.tab_state,
-                            TabState::Whitelist,
-                            "Whitelist",
-                        );
-                        ui.separator();
-                        let blacklist_tab = ui.selectable_value(
-                            &mut self.tab_state,
-                            TabState::Blacklist,
-                            "Blacklist",
-                        );
-                        ui.separator();
-                        let session_tab =
-                            ui.selectable_value(&mut self.tab_state, TabState::Session, "Session");
+                            ui.separator();
+                            let counter_tab = ui.selectable_value(
+                                &mut self.tab_state,
+                                TabState::Counter,
+                                "Counter",
+                            );
+                            ui.separator();
+                            let user_table_tab = ui.selectable_value(
+                                &mut self.tab_state,
+                                TabState::UserTable,
+                                "User Table",
+                            );
+                            ui.separator();
+                            let chart_tab = ui.selectable_value(
+                                &mut self.tab_state,
+                                TabState::Charts,
+                                "Charts",
+                            );
+                            ui.separator();
+                            let whitelist_tab = ui.selectable_value(
+                                &mut self.tab_state,
+                                TabState::Whitelist,
+                                "Whitelist",
+                            );
+                            ui.separator();
+                            let blacklist_tab = ui.selectable_value(
+                                &mut self.tab_state,
+                                TabState::Blacklist,
+                                "Blacklist",
+                            );
+                            ui.separator();
+                            let session_tab = ui.selectable_value(
+                                &mut self.tab_state,
+                                TabState::Session,
+                                "Session",
+                            );
 
-                        // Set window size on tab switch
-                        if counter_tab.clicked() {
-                            ctx.send_viewport_cmd(ViewportCommand::InnerSize(vec2(550.0, 400.0)));
-                        }
-                        if user_table_tab.clicked() {
-                            ctx.send_viewport_cmd(ViewportCommand::InnerSize(vec2(1250.0, 700.0)));
-                        }
-                        if chart_tab.clicked() {
-                            ctx.send_viewport_cmd(ViewportCommand::InnerSize(vec2(1000.0, 700.0)));
-                        }
-                        if whitelist_tab.clicked() {
-                            ctx.send_viewport_cmd(ViewportCommand::InnerSize(vec2(550.0, 600.0)));
-                        }
-                        if blacklist_tab.clicked() {
-                            ctx.send_viewport_cmd(ViewportCommand::InnerSize(vec2(550.0, 600.0)));
-                        }
-                        if session_tab.clicked() {
-                            ctx.send_viewport_cmd(ViewportCommand::InnerSize(vec2(550.0, 320.0)));
-                        }
-                    });
-                    ui.separator();
-
-                    // Split the UI in 2 parts. First part takes all the remaining space to show the main UI
-                    // The second part takes a small amount of space to show the status text
-                    StripBuilder::new(ui)
-                        .size(Size::remainder().at_least(100.0))
-                        .size(Size::exact(20.0))
-                        .vertical(|mut strip| {
-                            strip.cell(|ui| match self.tab_state {
-                                TabState::Counter => self.show_counter_ui(ui),
-                                TabState::UserTable => self.show_user_table_ui(ui),
-                                TabState::Charts => self.show_charts_ui(ui),
-                                TabState::Whitelist => self.show_whitelist_ui(ui),
-                                TabState::Blacklist => self.show_blacklist_ui(ui),
-                                TabState::Session => self.show_session_ui(ui),
-                            });
-                            strip.cell(|ui| {
-                                ui.separator();
-                                let status_text = self.process_state.to_string();
-                                ui.horizontal(|ui| {
-                                    ui.label(status_text);
-                                    if self.is_processing {
-                                        ui.with_layout(
-                                            Layout::right_to_left(Align::Center),
-                                            |ui| {
-                                                ui.add(Spinner::new());
-                                            },
-                                        );
-                                    };
-                                });
-                            });
+                            // Set window size on tab switch
+                            if counter_tab.clicked() {
+                                ctx.send_viewport_cmd(ViewportCommand::InnerSize(vec2(
+                                    550.0, 400.0,
+                                )));
+                            }
+                            if user_table_tab.clicked() {
+                                ctx.send_viewport_cmd(ViewportCommand::InnerSize(vec2(
+                                    1250.0, 700.0,
+                                )));
+                            }
+                            if chart_tab.clicked() {
+                                ctx.send_viewport_cmd(ViewportCommand::InnerSize(vec2(
+                                    1000.0, 700.0,
+                                )));
+                            }
+                            if whitelist_tab.clicked() {
+                                ctx.send_viewport_cmd(ViewportCommand::InnerSize(vec2(
+                                    550.0, 600.0,
+                                )));
+                            }
+                            if blacklist_tab.clicked() {
+                                ctx.send_viewport_cmd(ViewportCommand::InnerSize(vec2(
+                                    550.0, 600.0,
+                                )));
+                            }
+                            if session_tab.clicked() {
+                                ctx.send_viewport_cmd(ViewportCommand::InnerSize(vec2(
+                                    550.0, 320.0,
+                                )));
+                            }
                         });
+                        ui.add_space(0.5);
+                    });
+                TopBottomPanel::bottom("bottom_panel")
+                    .show_separator_line(false)
+                    .show(ctx, |ui| {
+                        ui.add_space(4.0);
+                        let status_text = self.process_state.to_string();
+                        ui.horizontal(|ui| {
+                            ui.label(status_text);
+                            if self.is_processing {
+                                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                                    ui.add(Spinner::new());
+                                });
+                            };
+                        });
+                        ui.add_space(0.5);
+                    });
+                CentralPanel::default().show(ctx, |ui| {
+                    match self.tab_state {
+                        TabState::Counter => self.show_counter_ui(ui),
+                        TabState::UserTable => self.show_user_table_ui(ui),
+                        TabState::Charts => self.show_charts_ui(ui),
+                        TabState::Whitelist => self.show_whitelist_ui(ui),
+                        TabState::Blacklist => self.show_blacklist_ui(ui),
+                        TabState::Session => self.show_session_ui(ui),
+                    }
+
                     if !self.existing_sessions_checked {
                         self.existing_sessions_checked = true;
                         let existing_sessions = find_session_files();
@@ -264,9 +284,9 @@ impl App for MainWindow {
                         });
                         modal.open();
                     }
-                }
+                });
             }
-        });
+        }
     }
 }
 
