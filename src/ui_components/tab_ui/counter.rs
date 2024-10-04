@@ -11,7 +11,7 @@ use crate::ui_components::processor::{CounterCounts, ParsedChat, ProcessState};
 use crate::ui_components::MainWindow;
 use crate::utils::{chat_to_text, parse_chat_details};
 
-const LIMIT_SELECTION: [&str; 7] = ["30", "40", "50", "80", "100", "150", "200"];
+const LIMIT_SELECTION: [&str; 5] = ["30", "40", "50", "80", "100"];
 
 #[derive(Clone)]
 pub struct CounterData {
