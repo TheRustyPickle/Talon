@@ -231,10 +231,6 @@ impl App for MainWindow {
                                 break;
                             }
                         }
-                        // Add some gap between recreating the table data
-                        if self.is_processing && self.counter.counting() {
-                            self.t_table().create_rows();
-                        }
                     }
 
                     if self.new_version_body.lock().unwrap().is_some() {

@@ -11,7 +11,7 @@ use crate::ui_components::processor::{CounterCounts, ParsedChat, ProcessState};
 use crate::ui_components::MainWindow;
 use crate::utils::{chat_to_text, parse_chat_details};
 
-const LIMIT_SELECTION: [&str; 6] = ["20", "30", "40", "50", "80", "100"];
+const LIMIT_SELECTION: [&str; 7] = ["30", "40", "50", "80", "100", "150", "200"];
 
 #[derive(Clone)]
 pub struct CounterData {
@@ -44,7 +44,7 @@ impl Default for CounterData {
             counting: bool::default(),
             session_count: usize::default(),
             session_percentage: HashMap::default(),
-            comm_limit: usize::default(),
+            comm_limit: 4,
             parsed_chat_list: HashMap::default(),
             chat_list: Vec::default(),
             ongoing_chat: usize::default(),

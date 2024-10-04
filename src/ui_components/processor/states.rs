@@ -247,6 +247,10 @@ impl ColumnName {
             _ => unreachable!("Invalid enum variant for number {}", num),
         }
     }
+
+    pub fn get_last() -> Self {
+        ColumnName::Whitelisted
+    }
 }
 
 #[derive(Default, PartialEq, Clone, Copy)]
