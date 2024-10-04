@@ -1,7 +1,7 @@
 use chrono::{NaiveDate, NaiveDateTime};
 use eframe::egui::{
-    Align, Button, ComboBox, Event, Key, Label, Layout, Response, RichText, ScrollArea,
-    SelectableLabel, Sense, Ui,
+    Align, Button, ComboBox, Event, Key, Label, Layout, Response, RichText, SelectableLabel, Sense,
+    Ui,
 };
 use egui_extras::{Column, DatePickerButton, TableBuilder};
 use grammers_client::types::{Chat, Message};
@@ -342,6 +342,8 @@ impl UserTableData {
         self.total_message = total_message;
         self.total_whitelisted_user = whitelisted_user.len() as u32;
         self.formatted_rows.clear();
+        self.active_rows.clear();
+        self.active_columns.clear();
     }
 
     /// Marks a single column of a row as selected
@@ -588,7 +590,7 @@ impl UserTableData {
         let all_columns: Vec<ColumnName> = ColumnName::iter().collect();
         let mut all_rows = Vec::new();
 
-        for (_, row) in self.rows.iter_mut() {
+        for row in self.formatted_rows.iter_mut() {
             row.selected_columns.extend(&all_columns);
             all_rows.push(row.id);
         }
@@ -597,7 +599,6 @@ impl UserTableData {
         self.active_rows.extend(all_rows);
         self.last_active_row = None;
         self.last_active_column = None;
-        self.formatted_rows.clear();
     }
 
     /// Change the value it is currently sorted by. Called on header column click
@@ -606,7 +607,6 @@ impl UserTableData {
         self.sorted_by = sort_by;
         self.sort_order = SortOrder::default();
         self.indexed_user_ids.clear();
-        self.formatted_rows.clear();
     }
 
     /// Change the order of row sorting. Called on header column click
@@ -618,7 +618,6 @@ impl UserTableData {
             self.sort_order = SortOrder::Ascending;
         }
         self.indexed_user_ids.clear();
-        self.formatted_rows.clear();
     }
 
     /// Mark a row as whitelisted if exists
@@ -632,7 +631,6 @@ impl UserTableData {
                 }
             }
         }
-        self.formatted_rows.clear();
         self.create_rows();
     }
 
@@ -642,7 +640,6 @@ impl UserTableData {
                 row_data.remove(id);
             }
         }
-        self.formatted_rows.clear();
         self.create_rows();
     }
 
@@ -657,7 +654,6 @@ impl UserTableData {
                 }
             }
         }
-        self.formatted_rows.clear();
         self.create_rows();
     }
 
@@ -884,91 +880,97 @@ impl MainWindow {
 
         ui.add_space(5.0);
 
-        ScrollArea::horizontal()
+        let mut clip_added = 0;
+        let pointer_location = ui.input(|i| i.pointer.hover_pos());
+        let max_rec = ui.max_rect();
+        let ctx = ui.ctx().clone();
+
+        let mut table = TableBuilder::new(ui)
+            .striped(true)
+            .resizable(true)
+            .cell_layout(Layout::left_to_right(Align::Center))
             .drag_to_scroll(false)
-            .show(ui, |ui| {
-                let mut clip_added = 0;
-                let pointer_location = ui.input(|i| i.pointer.hover_pos());
-                let max_rec = ui.max_rect();
-                let ctx = ui.ctx().clone();
+            .auto_shrink([false; 2])
+            .min_scrolled_height(0.0)
+            .column(Column::initial(25.0).clip(true));
 
-                let mut table = TableBuilder::new(ui)
-                    .striped(true)
-                    .resizable(true)
-                    .cell_layout(Layout::left_to_right(Align::Center))
-                    .drag_to_scroll(false)
-                    .auto_shrink([false; 2])
-                    .min_scrolled_height(0.0)
-                    .column(Column::initial(25.0).clip(true));
+        for _ in ColumnName::iter() {
+            let mut column = Column::initial(100.0);
+            if clip_added < 2 {
+                column = column.clip(true);
+                clip_added += 1;
+            }
+            table = table.column(column);
+        }
 
-                for _ in ColumnName::iter() {
-                    let mut column = Column::initial(100.0);
-                    if clip_added < 2 {
-                        column = column.clip(true);
-                        clip_added += 1;
+        if self.table().drag_started_on.is_some() {
+            if let Some(loc) = pointer_location {
+                let pointer_y = loc.y;
+
+                // Min gets a bit more space as the header is along the way
+                let min_y = max_rec.min.y + 200.0;
+                let max_y = max_rec.max.y - 120.0;
+
+                // Whether the mouse is within the space where the vertical scrolling should not happen
+                let within_y = pointer_y >= min_y && pointer_y <= max_y;
+
+                // Whether the mouse is above the minimum y point
+                let above_y = pointer_y < min_y;
+                // Whether the mouse is below the maximum y point
+                let below_y = pointer_y > max_y;
+
+                let max_distance = 100.0;
+                let max_speed = 30.0;
+
+                if !within_y {
+                    let speed_factor: f32;
+
+                    if above_y {
+                        let distance = (min_y - pointer_y).abs();
+                        speed_factor = max_speed * (distance / max_distance).clamp(0.1, 1.0);
+
+                        self.table().v_offset -= speed_factor;
+                        if self.table().v_offset < 0.0 {
+                            self.table().v_offset = 0.0;
+                        }
+                    } else if below_y {
+                        let distance = (pointer_y - max_y).abs();
+                        speed_factor = max_speed * (distance / max_distance).clamp(0.1, 1.0);
+
+                        self.table().v_offset += speed_factor;
                     }
-                    table = table.column(column);
+
+                    table = table.vertical_scroll_offset(self.table().v_offset);
+                    ctx.request_repaint();
                 }
-
-                if self.table().drag_started_on.is_some() {
-                    if let Some(loc) = pointer_location {
-                        let pointer_y = loc.y;
-
-                        // Min gets a bit more space as the header is along the way
-                        let min_y = max_rec.min.y + 150.0;
-                        let max_y = max_rec.max.y - 100.0;
-
-                        // Whether the mouse is within the space where the vertical scrolling
-                        // should not happen
-                        let within_y = pointer_y >= min_y && pointer_y <= max_y;
-
-                        // Whether the mounse is above the minimum y point
-                        let above_y = pointer_y < min_y;
-                        // Whether the mounse is above the maximum y point
-                        let below_y = pointer_y > max_y;
-
-                        if !within_y {
-                            if above_y {
-                                self.table().v_offset -= 10.0;
-                                if self.table().v_offset < 0.0 {
-                                    self.table().v_offset = 0.0;
-                                }
-                            } else if below_y {
-                                self.table().v_offset += 10.0;
-                            }
-                            table = table.vertical_scroll_offset(self.table().v_offset);
-                            ctx.request_repaint();
-                        }
-                    }
-                };
-                table
-                    .header(20.0, |mut header| {
-                        header.col(|ui| {
-                            ui.add_sized(ui.available_size(), Label::new(""));
-                        });
-                        for val in ColumnName::iter() {
-                            header.col(|ui| {
-                                self.create_header(val, ui);
-                            });
-                        }
-                    })
-                    .body(|body| {
-                        let table_rows = self.table().rows();
-                        body.rows(25.0, table_rows.len(), |mut row| {
-                            let index = row.index();
-                            let row_data = &table_rows[index];
-                            row.col(|ui| {
-                                ui.add_sized(
-                                    ui.available_size(),
-                                    Label::new(format!("{}", index + 1)),
-                                );
-                            });
-                            for val in ColumnName::iter() {
-                                row.col(|ui| self.create_table_row(val, row_data, ui));
-                            }
-                        });
+            }
+        };
+        let output = table
+            .header(20.0, |mut header| {
+                header.col(|ui| {
+                    ui.add_sized(ui.available_size(), Label::new(""));
+                });
+                for val in ColumnName::iter() {
+                    header.col(|ui| {
+                        self.create_header(val, ui);
                     });
+                }
+            })
+            .body(|body| {
+                let table_rows = self.table().rows();
+                body.rows(25.0, table_rows.len(), |mut row| {
+                    let index = row.index();
+                    let row_data = &table_rows[index];
+                    row.col(|ui| {
+                        ui.add_sized(ui.available_size(), Label::new(format!("{}", index + 1)));
+                    });
+                    for val in ColumnName::iter() {
+                        row.col(|ui| self.create_table_row(val, row_data, ui));
+                    }
+                });
             });
+        let scroll_offset = output.state.offset.y;
+        self.table().v_offset = scroll_offset;
     }
 
     /// Create a table row from a column name and the row data
