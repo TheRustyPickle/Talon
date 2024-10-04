@@ -1,7 +1,7 @@
 use chrono::{NaiveDate, NaiveDateTime};
 use eframe::egui::{
-    Align, Button, ComboBox, Event, Key, Label, Layout, Response, RichText, ScrollArea,
-    SelectableLabel, Sense, Ui,
+    Align, Button, ComboBox, Event, Key, Label, Layout, Response, RichText, SelectableLabel, Sense,
+    Ui,
 };
 use egui_extras::{Column, DatePickerButton, TableBuilder};
 use grammers_client::types::{Chat, Message};
@@ -140,26 +140,50 @@ impl UserRowData {
 
 #[derive(Default)]
 pub struct UserTableData {
+    /// Key: The Date where at least one message/User was found
+    /// Value: A hashmap of the founded User with their user id as the key
+    /// Contains all data points and UI points are recreated from here
     user_data: HashMap<NaiveDate, HashMap<i64, UserRowData>>,
+    // The row data that is currently visible in the UI
     rows: HashMap<i64, UserRowData>,
+    /// Rows in the sorted order
     formatted_rows: Vec<UserRowData>,
+    /// Column that the rows are sorted by
     sorted_by: ColumnName,
+    /// Whether are sorting by Descending or Ascending
     sort_order: SortOrder,
+    /// The cell where dragging started
     drag_started_on: Option<(i64, ColumnName)>,
+    /// Columns with at least 1 selected row
     active_columns: HashSet<ColumnName>,
+    /// Rows with at least 1 selected column
     active_rows: HashSet<i64>,
+    /// The row the mouse pointer was on last frame load
     last_active_row: Option<i64>,
+    /// The column the mouse pointer was on last frame load
     last_active_column: Option<ColumnName>,
     /// To track whether the mouse pointer went beyond the drag point at least once
     beyond_drag_point: bool,
+    /// User Id to index number in `formatted_rows`
     indexed_user_ids: HashMap<i64, usize>,
     date_nav: DateNavigator,
     total_whitelisted_user: u32,
     total_message: u32,
     total_whitelisted_message: u32,
+    /// Current offset of the vertical scroll area.
+    /// Never goes below zero.
+    v_offset: f32,
+    reload_count: u8,
 }
 
 impl UserTableData {
+    pub fn reload_count(&self) -> u8 {
+        self.reload_count
+    }
+    pub fn reset_reload_count(&mut self) {
+        self.reload_count = 0;
+    }
+
     /// Add a user to the table
     pub fn add_user(
         &mut self,
@@ -216,8 +240,6 @@ impl UserTableData {
             );
 
             entry_insert_user(&mut self.user_data, user_row, user_id, date);
-
-            self.formatted_rows.clear();
         }
 
         (user_id, full_name, username)
@@ -231,6 +253,7 @@ impl UserTableData {
         date: NaiveDate,
         datetime: NaiveDateTime,
     ) {
+        self.reload_count += 1;
         // If a user sends multiple messages in a day, that specific day data needs to be updated
         let target_data = self.user_data.get_mut(&date).unwrap();
         let user_row_data = target_data.get_mut(&user_id).unwrap();
@@ -254,7 +277,6 @@ impl UserTableData {
         user_row_data.increment_total_message();
         user_row_data.increment_total_word(total_word);
         user_row_data.increment_total_char(total_char);
-        self.formatted_rows.clear();
     }
 
     pub fn get_total_user(&self) -> i32 {
@@ -319,6 +341,9 @@ impl UserTableData {
         self.total_whitelisted_message = whitelisted_message;
         self.total_message = total_message;
         self.total_whitelisted_user = whitelisted_user.len() as u32;
+        self.formatted_rows.clear();
+        self.active_rows.clear();
+        self.active_columns.clear();
     }
 
     /// Marks a single column of a row as selected
@@ -326,12 +351,13 @@ impl UserTableData {
         self.active_columns.insert(column_name);
         self.active_rows.insert(user_id);
 
-        self.rows
-            .get_mut(&user_id)
+        let target_index = self.indexed_user_ids.get(&user_id).unwrap();
+
+        self.formatted_rows
+            .get_mut(*target_index)
             .unwrap()
             .selected_columns
             .insert(column_name);
-        self.formatted_rows.clear();
     }
 
     /// Continuously called to select rows and columns when dragging has started
@@ -399,11 +425,9 @@ impl UserTableData {
             self.active_columns = new_column_set;
         }
 
-        // The rows in the current sorted format
-        let all_rows = self.rows();
-
+        let current_row_index = self.indexed_user_ids.get(&user_id).unwrap();
         // The row the mouse pointer is on
-        let current_row = self.rows.get_mut(&user_id).unwrap();
+        let current_row = self.formatted_rows.get_mut(*current_row_index).unwrap();
 
         // If this row already selects the column that we are trying to select, it means the mouse
         // moved backwards from an active column to another active column.
@@ -436,7 +460,11 @@ impl UserTableData {
             }
 
             // Get the last row where the mouse was
-            let last_row = self.rows.get_mut(&self.last_active_row.unwrap()).unwrap();
+            let current_row_index = self
+                .indexed_user_ids
+                .get(&self.last_active_row.unwrap())
+                .unwrap();
+            let last_row = self.formatted_rows.get_mut(*current_row_index).unwrap();
 
             self.last_active_row = Some(user_id);
 
@@ -452,6 +480,7 @@ impl UserTableData {
             }
         } else {
             // We are in a new row which we have not selected before
+            self.active_rows.insert(current_row.id);
             self.last_active_row = Some(user_id);
             self.last_active_column = Some(column_name);
             current_row
@@ -465,48 +494,31 @@ impl UserTableData {
         let drag_start_index = self.indexed_user_ids.get(&drag_start.0).unwrap().to_owned();
 
         if no_checking {
-            self.remove_row_selection(
-                &all_rows,
-                current_row_index,
-                drag_start_index,
-                is_ctrl_pressed,
-            );
+            self.remove_row_selection(current_row_index, drag_start_index, is_ctrl_pressed);
         } else {
             // If drag started on row 1, currently on row 5, check from row 4 to 1 and select all columns
             // else go through all rows till a row without any selected column is found. Applied both by incrementing or decrementing index.
             // In case of fast mouse movement following drag started point mitigates the risk of some rows not getting selected
-            self.check_row_selection(true, &all_rows, current_row_index, drag_start_index);
-            self.check_row_selection(false, &all_rows, current_row_index, drag_start_index);
-            self.remove_row_selection(
-                &all_rows,
-                current_row_index,
-                drag_start_index,
-                is_ctrl_pressed,
-            );
+            self.check_row_selection(true, current_row_index, drag_start_index);
+            self.check_row_selection(false, current_row_index, drag_start_index);
+            self.remove_row_selection(current_row_index, drag_start_index, is_ctrl_pressed);
         }
-        self.formatted_rows.clear();
     }
 
     /// Recursively check the rows by either increasing or decreasing the initial index
     /// till the end point or an unselected row is found. Add active columns to the rows that have at least one column selected.
-    fn check_row_selection(
-        &mut self,
-        check_previous: bool,
-        rows: &Vec<UserRowData>,
-        index: usize,
-        drag_start: usize,
-    ) {
+    fn check_row_selection(&mut self, check_previous: bool, index: usize, drag_start: usize) {
         if index == 0 && check_previous {
             return;
         }
 
-        if index + 1 == rows.len() && !check_previous {
+        if index + 1 == self.formatted_rows.len() && !check_previous {
             return;
         }
 
         let index = if check_previous { index - 1 } else { index + 1 };
 
-        let current_row = rows.get(index).unwrap();
+        let current_row = self.formatted_rows.get(index).unwrap();
         let mut unselected_row = current_row.selected_columns.is_empty();
 
         // if for example drag started on row 5 and ended on row 10 but missed drag on row 7
@@ -515,7 +527,8 @@ impl UserTableData {
             unselected_row = false;
         }
 
-        let target_row = self.rows.get_mut(&current_row.id).unwrap();
+        // let target_row = self.rows.get_mut(&current_row.id).unwrap();
+        let target_row = self.formatted_rows.get_mut(index).unwrap();
 
         if !unselected_row {
             target_row.selected_columns.clone_from(&self.active_columns);
@@ -523,10 +536,10 @@ impl UserTableData {
 
             if check_previous {
                 if index != 0 {
-                    self.check_row_selection(check_previous, rows, index, drag_start);
+                    self.check_row_selection(check_previous, index, drag_start);
                 }
-            } else if index + 1 != rows.len() {
-                self.check_row_selection(check_previous, rows, index, drag_start);
+            } else if index + 1 != self.formatted_rows.len() {
+                self.check_row_selection(check_previous, index, drag_start);
             }
         }
     }
@@ -534,7 +547,6 @@ impl UserTableData {
     /// Checks the active rows and unselects rows that are not within the given range
     fn remove_row_selection(
         &mut self,
-        rows: &[UserRowData],
         current_index: usize,
         drag_start: usize,
         is_ctrl_pressed: bool,
@@ -542,8 +554,7 @@ impl UserTableData {
         let active_ids = self.active_rows.clone();
         for id in active_ids {
             let ongoing_index = self.indexed_user_ids.get(&id).unwrap().to_owned();
-            let current_row = rows.get(ongoing_index).unwrap();
-            let target_row = self.rows.get_mut(&current_row.id).unwrap();
+            let target_row = self.formatted_rows.get_mut(ongoing_index).unwrap();
 
             if current_index > drag_start {
                 if ongoing_index >= drag_start && ongoing_index <= current_index {
@@ -563,29 +574,24 @@ impl UserTableData {
 
     /// Unselect all rows and columns
     fn unselected_all(&mut self) {
-        for (_, row) in self.rows.iter_mut() {
-            row.selected_columns.clear();
+        for id in &self.active_rows {
+            let id_index = self.indexed_user_ids.get(id).unwrap();
+            let target_row = self.formatted_rows.get_mut(*id_index).unwrap();
+            target_row.selected_columns.clear();
         }
         self.active_columns.clear();
         self.last_active_row = None;
         self.last_active_column = None;
         self.active_rows.clear();
-        self.formatted_rows.clear();
     }
 
     /// Select all rows and columns
     fn select_all(&mut self) {
-        let mut all_columns = vec![ColumnName::Name];
-        let mut current_column = ColumnName::Name.get_next();
+        let all_columns: Vec<ColumnName> = ColumnName::iter().collect();
         let mut all_rows = Vec::new();
 
-        while current_column != ColumnName::Name {
-            all_columns.push(current_column);
-            current_column = current_column.get_next();
-        }
-
-        for (_, row) in self.rows.iter_mut() {
-            row.selected_columns.extend(all_columns.clone());
+        for row in self.formatted_rows.iter_mut() {
+            row.selected_columns.extend(&all_columns);
             all_rows.push(row.id);
         }
 
@@ -593,7 +599,6 @@ impl UserTableData {
         self.active_rows.extend(all_rows);
         self.last_active_row = None;
         self.last_active_column = None;
-        self.formatted_rows.clear();
     }
 
     /// Change the value it is currently sorted by. Called on header column click
@@ -602,7 +607,6 @@ impl UserTableData {
         self.sorted_by = sort_by;
         self.sort_order = SortOrder::default();
         self.indexed_user_ids.clear();
-        self.formatted_rows.clear();
     }
 
     /// Change the order of row sorting. Called on header column click
@@ -614,7 +618,6 @@ impl UserTableData {
             self.sort_order = SortOrder::Ascending;
         }
         self.indexed_user_ids.clear();
-        self.formatted_rows.clear();
     }
 
     /// Mark a row as whitelisted if exists
@@ -628,7 +631,6 @@ impl UserTableData {
                 }
             }
         }
-        self.formatted_rows.clear();
         self.create_rows();
     }
 
@@ -638,7 +640,6 @@ impl UserTableData {
                 row_data.remove(id);
             }
         }
-        self.formatted_rows.clear();
         self.create_rows();
     }
 
@@ -653,7 +654,6 @@ impl UserTableData {
                 }
             }
         }
-        self.formatted_rows.clear();
         self.create_rows();
     }
 
@@ -733,16 +733,13 @@ impl UserTableData {
             },
         }
 
-        // Will only be empty when sorting style is changed
-        if self.indexed_user_ids.is_empty() || self.indexed_user_ids.len() != row_data.len() {
-            let indexed_data = row_data
-                .par_iter()
-                .enumerate()
-                .map(|(index, row)| (row.id, index))
-                .collect();
+        let indexed_data = row_data
+            .par_iter()
+            .enumerate()
+            .map(|(index, row)| (row.id, index))
+            .collect();
 
-            self.indexed_user_ids = indexed_data;
-        }
+        self.indexed_user_ids = indexed_data;
 
         row_data
     }
@@ -883,57 +880,97 @@ impl MainWindow {
 
         ui.add_space(5.0);
 
-        ScrollArea::horizontal()
+        let mut clip_added = 0;
+        let pointer_location = ui.input(|i| i.pointer.hover_pos());
+        let max_rec = ui.max_rect();
+        let ctx = ui.ctx().clone();
+
+        let mut table = TableBuilder::new(ui)
+            .striped(true)
+            .resizable(true)
+            .cell_layout(Layout::left_to_right(Align::Center))
             .drag_to_scroll(false)
-            .show(ui, |ui| {
-                let mut clip_added = 0;
+            .auto_shrink([false; 2])
+            .min_scrolled_height(0.0)
+            .column(Column::initial(25.0).clip(true));
 
-                let mut table = TableBuilder::new(ui)
-                    .striped(true)
-                    .resizable(true)
-                    .cell_layout(Layout::left_to_right(Align::Center))
-                    .drag_to_scroll(false)
-                    .auto_shrink([false; 2])
-                    .min_scrolled_height(0.0)
-                    .column(Column::initial(25.0).clip(true));
+        for _ in ColumnName::iter() {
+            let mut column = Column::initial(100.0);
+            if clip_added < 2 {
+                column = column.clip(true);
+                clip_added += 1;
+            }
+            table = table.column(column);
+        }
 
-                for _ in ColumnName::iter() {
-                    let mut column = Column::initial(100.0);
-                    if clip_added < 2 {
-                        column = column.clip(true);
-                        clip_added += 1;
-                    }
-                    table = table.column(column);
-                }
+        if self.table().drag_started_on.is_some() {
+            if let Some(loc) = pointer_location {
+                let pointer_y = loc.y;
 
-                table
-                    .header(20.0, |mut header| {
-                        header.col(|ui| {
-                            ui.add_sized(ui.available_size(), Label::new(""));
-                        });
-                        for val in ColumnName::iter() {
-                            header.col(|ui| {
-                                self.create_header(val, ui);
-                            });
+                // Min gets a bit more space as the header is along the way
+                let min_y = max_rec.min.y + 200.0;
+                let max_y = max_rec.max.y - 120.0;
+
+                // Whether the mouse is within the space where the vertical scrolling should not happen
+                let within_y = pointer_y >= min_y && pointer_y <= max_y;
+
+                // Whether the mouse is above the minimum y point
+                let above_y = pointer_y < min_y;
+                // Whether the mouse is below the maximum y point
+                let below_y = pointer_y > max_y;
+
+                let max_distance = 100.0;
+                let max_speed = 30.0;
+
+                if !within_y {
+                    let speed_factor: f32;
+
+                    if above_y {
+                        let distance = (min_y - pointer_y).abs();
+                        speed_factor = max_speed * (distance / max_distance).clamp(0.1, 1.0);
+
+                        self.table().v_offset -= speed_factor;
+                        if self.table().v_offset < 0.0 {
+                            self.table().v_offset = 0.0;
                         }
-                    })
-                    .body(|body| {
-                        let table_rows = self.table().rows();
-                        body.rows(25.0, table_rows.len(), |mut row| {
-                            let index = row.index();
-                            let row_data = &table_rows[index];
-                            row.col(|ui| {
-                                ui.add_sized(
-                                    ui.available_size(),
-                                    Label::new(format!("{}", index + 1)),
-                                );
-                            });
-                            for val in ColumnName::iter() {
-                                row.col(|ui| self.create_table_row(val, row_data, ui));
-                            }
-                        });
+                    } else if below_y {
+                        let distance = (pointer_y - max_y).abs();
+                        speed_factor = max_speed * (distance / max_distance).clamp(0.1, 1.0);
+
+                        self.table().v_offset += speed_factor;
+                    }
+
+                    table = table.vertical_scroll_offset(self.table().v_offset);
+                    ctx.request_repaint();
+                }
+            }
+        };
+        let output = table
+            .header(20.0, |mut header| {
+                header.col(|ui| {
+                    ui.add_sized(ui.available_size(), Label::new(""));
+                });
+                for val in ColumnName::iter() {
+                    header.col(|ui| {
+                        self.create_header(val, ui);
                     });
+                }
+            })
+            .body(|body| {
+                let table_rows = self.table().rows();
+                body.rows(25.0, table_rows.len(), |mut row| {
+                    let index = row.index();
+                    let row_data = &table_rows[index];
+                    row.col(|ui| {
+                        ui.add_sized(ui.available_size(), Label::new(format!("{}", index + 1)));
+                    });
+                    for val in ColumnName::iter() {
+                        row.col(|ui| self.create_table_row(val, row_data, ui));
+                    }
+                });
             });
+        let scroll_offset = output.state.offset.y;
+        self.table().v_offset = scroll_offset;
     }
 
     /// Create a table row from a column name and the row data
@@ -1001,16 +1038,15 @@ impl MainWindow {
             }
             self.table().drag_started_on = Some((row_data.id, column_name));
         }
-        if label.drag_stopped() {
+
+        let pointer_released = ui.input(|a| a.pointer.primary_released());
+
+        if pointer_released {
             self.table().last_active_row = None;
             self.table().last_active_column = None;
             self.table().drag_started_on = None;
             self.table().beyond_drag_point = false;
         }
-
-        // Drag part handling has ended, need to handle click event from here.
-        // For some reason if both are added at once, only the one added later responds
-        label = label.interact(Sense::click());
 
         if label.clicked() {
             // If CTRL is not pressed down and the mouse right click is not pressed, unselect all cells
@@ -1067,6 +1103,7 @@ impl MainWindow {
             } else {
                 self.table().change_sorted_by(sort_type);
             }
+            self.table().create_rows()
         }
     }
 
@@ -1119,26 +1156,26 @@ impl MainWindow {
 
     /// Copy the selected rows in an organized manner
     fn copy_selected_cells(&mut self, ui: &mut Ui) {
-        let all_rows = self.table().rows();
         let mut selected_rows = Vec::new();
 
         let mut column_max_length = HashMap::new();
 
         // Iter through all the rows and find the rows that have at least one column as selected
         // Keep track of the biggest length of a value of a column
-        for row in all_rows {
-            if !row.selected_columns.is_empty() {
-                for column in &self.table_i().active_columns {
-                    if row.selected_columns.contains(column) {
-                        let field_length = row.get_column_length(*column);
-                        let entry = column_max_length.entry(column).or_insert(0);
-                        if field_length > *entry {
-                            column_max_length.insert(column, field_length);
-                        }
+        for user_id in &self.table_i().active_rows {
+            let target_index = self.table_i().indexed_user_ids.get(user_id).unwrap();
+
+            let row = self.table_i().formatted_rows.get(*target_index).unwrap();
+            for column in &self.table_i().active_columns {
+                if row.selected_columns.contains(column) {
+                    let field_length = row.get_column_length(*column);
+                    let entry = column_max_length.entry(column).or_insert(0);
+                    if field_length > *entry {
+                        column_max_length.insert(column, field_length);
                     }
                 }
-                selected_rows.push(row);
             }
+            selected_rows.push(row);
         }
 
         let mut to_copy = String::new();
@@ -1171,8 +1208,7 @@ impl MainWindow {
                         width = column_max_length[&ongoing_column] + 1
                     );
                 }
-
-                if let ColumnName::Whitelisted = ongoing_column {
+                if ColumnName::get_last() == ongoing_column {
                     break;
                 }
                 ongoing_column = ongoing_column.get_next();
@@ -1186,14 +1222,14 @@ impl MainWindow {
     }
 
     /// Marks all the rows with at least 1 column selected as whitelisted
-    /// TODO: Make use of active rows
     fn whitelist_selected_rows(&mut self) {
-        let all_rows = self.table().rows();
         let mut selected_rows = Vec::new();
 
-        for row in all_rows {
-            if !row.selected_columns.is_empty() && row.name != "Anonymous/Unknown" {
-                selected_rows.push(row);
+        for user_id in self.table_i().active_rows.iter() {
+            let target_index = self.table_i().indexed_user_ids.get(user_id).unwrap();
+            let target_row = self.table_i().formatted_rows.get(*target_index).unwrap();
+            if target_row.name != "Anonymous/Unknown" {
+                selected_rows.push(target_row.clone());
             }
         }
 
@@ -1222,14 +1258,14 @@ impl MainWindow {
     }
 
     /// Marks all the rows with at least 1 column selected as blacklisted
-    /// TODO: Make use of active rows
     fn blacklist_selected_rows(&mut self) {
-        let all_rows = self.table().rows();
         let mut selected_rows = Vec::new();
 
-        for row in all_rows {
-            if !row.selected_columns.is_empty() && row.name != "Anonymous/Unknown" {
-                selected_rows.push(row);
+        for user_id in self.table_i().active_rows.iter() {
+            let target_index = self.table_i().indexed_user_ids.get(user_id).unwrap();
+            let target_row = self.table_i().formatted_rows.get(*target_index).unwrap();
+            if target_row.name != "Anonymous/Unknown" {
+                selected_rows.push(target_row.clone());
             }
         }
 

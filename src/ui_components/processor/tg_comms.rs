@@ -163,6 +163,10 @@ impl MainWindow {
                             &count_data.name(),
                         );
                     }
+                    if self.t_table().reload_count() > 100 {
+                        self.t_table().create_rows();
+                        self.t_table().reset_reload_count();
+                    }
                 }
                 ProcessResult::ProcessFailed(err) => {
                     match err {
