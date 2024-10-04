@@ -1101,6 +1101,7 @@ impl MainWindow {
             } else {
                 self.table().change_sorted_by(sort_type);
             }
+            self.table().create_rows()
         }
     }
 
