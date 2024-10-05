@@ -1,6 +1,6 @@
 [package]
 name = "talon-gui"
-version = "1.0.5"
+version = "1.0.6"
 edition = "2021"
 authors = ["TheRustyPickle <rusty.pickle94@gmail.com>"]
 readme = "README.md"
@@ -10,7 +10,7 @@ On-demand Telegram chat analytic generator
 homepage = "https://github.com/TheRustyPickle/Talon"
 repository = "https://github.com/TheRustyPickle/Talon"
 license = "MIT"
-keywords = ["telegram", "analytics", "gui", "data", "data-visualization"]
+keywords = ["telegram", "analytics", "gui", "data", "egui"]
 categories = ["gui"]
 exclude = ["/fonts"]
 
