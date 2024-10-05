@@ -13,11 +13,11 @@ struct GithubRelease {
     body: String,
 }
 
-pub fn check_version(version_body: Arc<Mutex<Option<String>>>) {
+pub async fn check_version(version_body: Arc<Mutex<Option<String>>>) {
     let current_version = Version::parse(env!("CARGO_PKG_VERSION")).unwrap();
     let user_agent = "Talon";
 
-    let client = reqwest::blocking::Client::builder()
+    let client = reqwest::Client::builder()
         .user_agent(user_agent)
         .timeout(Duration::from_secs(2))
         .build();
@@ -29,14 +29,15 @@ pub fn check_version(version_body: Arc<Mutex<Option<String>>>) {
 
     let response_result = client
         .get("https://api.github.com/repos/TheRustyPickle/Talon/releases/latest")
-        .send();
+        .send()
+        .await;
 
     let Ok(response) = response_result else {
         error!("Failed to get a response from github API");
         return;
     };
 
-    let caller: Result<GithubRelease, Error> = response.json();
+    let caller: Result<GithubRelease, Error> = response.json().await;
 
     let release_data = match caller {
         Ok(data) => data,

@@ -338,7 +338,7 @@ impl UnpackedBlacklistedUser {
         Self { user_chat, seen_by }
     }
 }
-#[derive(Default, PartialEq)]
+#[derive(EnumIter, Default, PartialEq, Copy, Clone)]
 pub enum NavigationType {
     #[default]
     Day,

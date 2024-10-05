@@ -55,7 +55,7 @@ pub async fn send_login_code(
     let code_token = client
         .request_login_code(&phone_number)
         .await
-        .map_err(|_| ProcessError::InvalidPhoneOrAPI)?;
+        .map_err(ProcessError::InvalidPhoneOrAPI)?;
 
     let new_client = TGClient::new(client, session_name, sender, context.clone(), is_temporary);
 

@@ -5,10 +5,12 @@ use egui_extras::DatePickerButton;
 use egui_plot::{Bar, BarChart, Legend, Plot, PlotPoint};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::env::current_dir;
+use strum::IntoEnumIterator;
 
 use crate::ui_components::processor::{
     ChartTiming, ChartType, DateNavigator, NavigationType, ProcessState,
 };
+use crate::ui_components::widgets::AnimatedLabel;
 use crate::ui_components::MainWindow;
 use crate::utils::{create_export_file, time_to_string, weekday_num_to_string};
 
@@ -572,10 +574,25 @@ impl MainWindow {
 
                     ui.separator();
 
-                    ui.selectable_value(chart.date_nav.nav_type(), NavigationType::Day, "Day");
-                    ui.selectable_value(chart.date_nav.nav_type(), NavigationType::Week, "Week");
-                    ui.selectable_value(chart.date_nav.nav_type(), NavigationType::Month, "Month");
-                    ui.selectable_value(chart.date_nav.nav_type(), NavigationType::Year, "Year");
+                    let hover_position = ui.make_persistent_id("nav_hovered_2");
+                    let selected_position = ui.make_persistent_id("nav_selected_2");
+                    for nav in NavigationType::iter() {
+                        let selected = chart.date_nav.nav_type_i() == nav;
+                        let resp = ui.add(AnimatedLabel::new(
+                            selected,
+                            nav.to_string(),
+                            selected_position,
+                            hover_position,
+                            50.0,
+                            20.0,
+                            None,
+                            (false, false),
+                        ));
+
+                        if resp.clicked() {
+                            *chart.date_nav.nav_type() = nav;
+                        }
+                    }
 
                     ui.separator();
 

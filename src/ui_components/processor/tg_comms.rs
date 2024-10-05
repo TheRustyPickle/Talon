@@ -1,7 +1,6 @@
 use chrono::{Local, TimeZone};
 use log::{error, info};
 use std::sync::atomic::Ordering;
-use std::thread;
 
 use crate::tg_handler::{ProcessError, ProcessResult, ProcessStart};
 use crate::ui_components::processor::ProcessState;
@@ -194,8 +193,10 @@ impl MainWindow {
                             error!("Invalid TG Password given for the session");
                             self.process_state = ProcessState::InvalidPassword;
                         }
-                        ProcessError::InvalidPhoneOrAPI => {
-                            error!("Possibly invalid phone number given or API keys error");
+                        ProcessError::InvalidPhoneOrAPI(e) => {
+                            error!(
+                                "Possibly invalid phone number given or API keys error. Error: {e}"
+                            );
                             self.process_state = ProcessState::InvalidPhoneOrAPI;
                         }
                         ProcessError::InvalidAPIKeys => {
@@ -387,14 +388,16 @@ impl MainWindow {
                             ongoing_start_at,
                             ongoing_end_at
                         );
-                        thread::spawn(move || {
-                            client.start_process(ProcessStart::StartCount(
-                                chat_name,
-                                Some(ongoing_start_at),
-                                Some(ongoing_end_at),
-                                true,
-                                cancel,
-                            ));
+                        self.runtime.spawn(async move {
+                            client
+                                .start_process(ProcessStart::StartCount(
+                                    chat_name,
+                                    Some(ongoing_start_at),
+                                    Some(ongoing_end_at),
+                                    true,
+                                    cancel,
+                                ))
+                                .await;
                         });
                         ongoing_start_at -= per_session_value;
                         ongoing_end_at -= per_session_value;

@@ -16,7 +16,7 @@ use crate::ui_components::processor::{
     ColumnName, DateNavigator, NavigationType, PackedBlacklistedUser, PackedWhitelistedUser,
     ProcessState, SortOrder,
 };
-use crate::ui_components::widgets::RowLabel;
+use crate::ui_components::widgets::{AnimatedLabel, RowLabel};
 use crate::ui_components::MainWindow;
 use crate::utils::{entry_insert_user, export_table_data, to_chart_name};
 
@@ -838,10 +838,26 @@ impl MainWindow {
 
                 ui.separator();
 
-                ui.selectable_value(table.date_nav.nav_type(), NavigationType::Day, "Day");
-                ui.selectable_value(table.date_nav.nav_type(), NavigationType::Week, "Week");
-                ui.selectable_value(table.date_nav.nav_type(), NavigationType::Month, "Month");
-                ui.selectable_value(table.date_nav.nav_type(), NavigationType::Year, "Year");
+                let hover_position = ui.make_persistent_id("nav_hovered_1");
+                let selected_position = ui.make_persistent_id("nav_selected_1");
+                for nav in NavigationType::iter() {
+                    let selected = table.date_nav.nav_type_i() == nav;
+                    let resp = ui.add(AnimatedLabel::new(
+                        selected,
+                        nav.to_string(),
+                        selected_position,
+                        hover_position,
+                        50.0,
+                        20.0,
+                        None,
+                        (false, false),
+                    ));
+
+
+                    if resp.clicked() {
+                        *table.date_nav.nav_type() = nav;
+                    }
+                }
 
                 ui.separator();
 
@@ -1147,8 +1163,8 @@ impl MainWindow {
 
         if header_type == self.table_i().sorted_by {
             match self.table_i().sort_order {
-                SortOrder::Ascending => text.push('🔽'),
-                SortOrder::Descending => text.push('🔼'),
+                SortOrder::Ascending => text.push('↓'),
+                SortOrder::Descending => text.push('↑'),
             };
         }
         (RichText::new(text).strong(), hover_text)

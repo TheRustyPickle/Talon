@@ -85,8 +85,8 @@ impl TGClient {
 
         info!("{} exists. Starting iterating messages", tg_chat.name());
 
-        let end_at = if let Some(num) = end_num { num } else { 1 };
-        let mut start_at = if let Some(num) = start_num { num } else { -1 };
+        let end_at = end_num.unwrap_or(1);
+        let mut start_at = start_num.unwrap_or(-1);
 
         info!(
             "Starting message num {}, ending message num {}",
@@ -202,7 +202,7 @@ impl TGClient {
             }
         };
 
-        let end_point = if let Some(num) = end_point { num } else { 1 };
+        let end_point = end_point.unwrap_or(1);
 
         let start_point = if let Some(num) = start_point {
             num

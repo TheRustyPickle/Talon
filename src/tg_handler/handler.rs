@@ -7,7 +7,6 @@ use std::sync::mpsc::Sender;
 use crate::tg_handler::{
     connect_to_session, send_login_code, NewProcess, ProcessError, ProcessResult, ProcessStart,
 };
-use crate::utils::get_runtime;
 
 #[derive(Clone)]
 pub struct TGClient {
@@ -36,36 +35,27 @@ impl TGClient {
     }
 
     /// Start an operation with a telegram client
-    pub fn start_process(self, process_type: ProcessStart) {
-        let runtime = get_runtime();
-
+    pub async fn start_process(self, process_type: ProcessStart) {
         let result = match process_type {
             ProcessStart::StartCount(start_chat, start_num, end_num, multi_session, cancel) => {
-                runtime.block_on(self.start_count(
-                    start_chat,
-                    start_num,
-                    end_num,
-                    multi_session,
-                    cancel,
-                ))
+                self.start_count(start_chat, start_num, end_num, multi_session, cancel)
+                    .await
             }
-            ProcessStart::SignInCode(token, code) => {
-                runtime.block_on(self.sign_in_code(token, code))
-            }
+            ProcessStart::SignInCode(token, code) => self.sign_in_code(token, code).await,
             ProcessStart::SignInPasswords(token, password) => {
-                runtime.block_on(self.sign_in_password(token, password))
+                self.sign_in_password(token, password).await
             }
-            ProcessStart::SessionLogout => runtime.block_on(self.logout()),
+            ProcessStart::SessionLogout => self.logout().await,
             ProcessStart::LoadWhitelistedUsers(hex_data) => {
-                runtime.block_on(self.load_whitelisted_users(hex_data))
+                self.load_whitelisted_users(hex_data).await
             }
-            ProcessStart::NewWhitelistUser(name) => runtime.block_on(self.new_whitelist(name)),
+            ProcessStart::NewWhitelistUser(name) => self.new_whitelist(name).await,
             ProcessStart::LoadBlacklistedUsers(hex_data) => {
-                runtime.block_on(self.load_blacklisted_users(hex_data))
+                self.load_blacklisted_users(hex_data).await
             }
-            ProcessStart::NewBlacklistUser(name) => runtime.block_on(self.new_blacklist(name)),
+            ProcessStart::NewBlacklistUser(name) => self.new_blacklist(name).await,
             ProcessStart::CheckChatExistence(name, start, end) => {
-                runtime.block_on(self.check_chat_status(name, start, end))
+                self.check_chat_status(name, start, end).await
             }
         };
 
@@ -146,20 +136,20 @@ impl TGClient {
 }
 
 /// Start a process that will result in the creation of a `TGClient` if successful
-pub fn start_process(process: NewProcess, sender: Sender<ProcessResult>, context: Context) {
-    let runtime = get_runtime();
+pub async fn start_process(process: NewProcess, sender: Sender<ProcessResult>, context: Context) {
     let result = match process {
         NewProcess::InitialSessionConnect(name) => {
-            runtime.block_on(connect_to_session(sender.clone(), name, &context))
+            connect_to_session(sender.clone(), name, &context).await
         }
         NewProcess::SendLoginCode(session_name, phone_number, is_temporary) => {
-            runtime.block_on(send_login_code(
+            send_login_code(
                 sender.clone(),
                 &context,
                 session_name,
                 phone_number,
                 is_temporary,
-            ))
+            )
+            .await
         }
     };
 
