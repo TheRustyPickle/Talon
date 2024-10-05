@@ -5,7 +5,6 @@ use egui_extras::{Column, TableBuilder};
 use grammers_client::types::Chat;
 use log::{error, info};
 use std::collections::{HashMap, HashSet};
-use std::thread;
 
 use crate::tg_handler::ProcessStart;
 use crate::ui_components::processor::{ColumnName, PackedBlacklistedUser, ProcessState};
@@ -360,8 +359,10 @@ then right click on User Table to blacklist",
                     ProcessState::LoadedBlacklistedUsers(success_blacklist, failed_blacklist);
                 continue;
             };
-            thread::spawn(move || {
-                tg_client.start_process(ProcessStart::LoadBlacklistedUsers(hex_data));
+            self.runtime.spawn(async {
+                tg_client
+                    .start_process(ProcessStart::LoadBlacklistedUsers(hex_data))
+                    .await;
             });
         }
     }
@@ -378,8 +379,10 @@ then right click on User Table to blacklist",
         let target_username = self.blacklist.target_username.clone().replace('@', "");
         self.is_processing = true;
 
-        thread::spawn(move || {
-            client.start_process(ProcessStart::NewBlacklistUser(target_username));
+        self.runtime.spawn(async {
+            client
+                .start_process(ProcessStart::NewBlacklistUser(target_username))
+                .await;
         });
     }
 }

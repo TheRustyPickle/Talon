@@ -1,5 +1,6 @@
 use grammers_client::types::iter_buffer::InvocationError;
 use grammers_client::types::{LoginToken, PasswordToken};
+use grammers_mtsender::AuthorizationError;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -32,7 +33,7 @@ pub enum ProcessError {
     InvalidTGCode,
     InvalidPassword,
     NotSignedUp,
-    InvalidPhoneOrAPI,
+    InvalidPhoneOrAPI(AuthorizationError),
     InvalidAPIKeys,
     FailedLatestMessage,
     UnknownError(InvocationError),

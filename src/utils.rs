@@ -172,7 +172,8 @@ pub fn theme_hover_text(is_light_theme: bool) -> String {
 
 /// Convenient tokio runtime getter
 pub fn get_runtime() -> Runtime {
-    runtime::Builder::new_current_thread()
+    runtime::Builder::new_multi_thread()
+        .worker_threads(99)
         .enable_all()
         .build()
         .unwrap()

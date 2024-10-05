@@ -1,7 +1,6 @@
 use eframe::egui::{vec2, Align, Button, Checkbox, Context, Grid, Label, Layout, TextEdit, Ui};
 use grammers_client::types::{LoginToken, PasswordToken};
 use std::sync::Arc;
-use std::thread;
 use tokio::sync::Mutex;
 
 use crate::tg_handler::{start_process, NewProcess, ProcessStart};
@@ -232,12 +231,13 @@ If yes, it will try to log out before the app is closed and no session file will
         self.is_processing = true;
         self.process_state = ProcessState::SendingTGCode;
 
-        thread::spawn(move || {
+        self.runtime.spawn(async move {
             start_process(
                 NewProcess::SendLoginCode(session_name, phone_num, is_temporary),
                 sender_clone,
                 context,
-            );
+            )
+            .await;
         });
     }
 
@@ -250,7 +250,11 @@ If yes, it will try to log out before the app is closed and no session file will
         let token = self.session.get_tg_code_token();
 
         let client = self.incomplete_tg_client.clone().unwrap();
-        thread::spawn(move || client.start_process(ProcessStart::SignInCode(token, code)));
+        self.runtime.spawn(async move {
+            client
+                .start_process(ProcessStart::SignInCode(token, code))
+                .await
+        });
     }
 
     /// Starts a thread to try to log in with the given login password
@@ -262,6 +266,10 @@ If yes, it will try to log out before the app is closed and no session file will
         let token = self.session.get_password_token();
 
         let client = self.incomplete_tg_client.clone().unwrap();
-        thread::spawn(move || client.start_process(ProcessStart::SignInPasswords(token, password)));
+        self.runtime.spawn(async move {
+            client
+                .start_process(ProcessStart::SignInPasswords(token, password))
+                .await
+        });
     }
 }

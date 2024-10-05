@@ -6,7 +6,7 @@ use std::io::Write;
 use std::path::PathBuf;
 
 /// Downloads the app font data from github, saves them locally and loads them
-pub fn download_font(ctx: Context) {
+pub async fn download_font(ctx: Context) {
     let cjk_font_url =
         "https://github.com/TheRustyPickle/Talon/raw/main/fonts/NotoSansCJK-Regular.ttc";
     let gentium_font_url =
@@ -21,9 +21,9 @@ pub fn download_font(ctx: Context) {
     gentium_font.push("GentiumBookPlus-Regular.ttf");
     cjk_font.push("NotoSansCJK-Regular.ttc");
 
-    let client = reqwest::blocking::Client::new();
+    let client = reqwest::Client::new();
 
-    let Ok(response) = client.get(cjk_font_url).send() else {
+    let Ok(response) = client.get(cjk_font_url).send().await else {
         error!("Failed to get a response for CJK font");
         return;
     };
@@ -32,6 +32,7 @@ pub fn download_font(ctx: Context) {
         let mut file = File::create(cjk_font).unwrap();
         let response_data = response
             .bytes()
+            .await
             .expect("Could not convert CJK response into bytes");
         file.write_all(&response_data).unwrap();
         info!("Saved CJK font data successfully");
@@ -41,7 +42,7 @@ pub fn download_font(ctx: Context) {
         return;
     };
 
-    let Ok(response) = client.get(gentium_font_url).send() else {
+    let Ok(response) = client.get(gentium_font_url).send().await else {
         error!("Failed to get a response for Gentium font");
         return;
     };
@@ -50,6 +51,7 @@ pub fn download_font(ctx: Context) {
         let mut file = File::create(gentium_font).unwrap();
         let response_data = response
             .bytes()
+            .await
             .expect("Could not convert gentium response into bytes");
         file.write_all(&response_data).unwrap();
         info!("Saved Gentium font data successfully");

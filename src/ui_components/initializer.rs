@@ -12,8 +12,8 @@ use std::slice::IterMut;
 use std::sync::atomic::AtomicBool;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::{Arc, Mutex};
-use std::thread;
 use strum::IntoEnumIterator;
+use tokio::runtime::Runtime;
 
 use crate::tg_handler::{start_process, NewProcess, ProcessResult, ProcessStart, TGClient};
 use crate::ui_components::processor::{
@@ -24,7 +24,9 @@ use crate::ui_components::tab_ui::{
 };
 use crate::ui_components::widgets::AnimatedLabel;
 use crate::ui_components::TGKeys;
-use crate::utils::{find_session_files, get_api_keys, get_font_data, theme_hover_text};
+use crate::utils::{
+    find_session_files, get_api_keys, get_font_data, get_runtime, theme_hover_text,
+};
 
 pub struct MainWindow {
     pub app_state: AppState,
@@ -51,6 +53,7 @@ pub struct MainWindow {
     pub initial_chart_reset: bool,
     pub cancel_count: Arc<AtomicBool>,
     pub theme_animator: ThemeAnimator,
+    pub runtime: Runtime,
 }
 
 impl MainWindow {
@@ -58,6 +61,7 @@ impl MainWindow {
         cc.egui_ctx
             .options_mut(|a| a.theme_preference = ThemePreference::Light);
         let (sender, receiver) = channel();
+
         Self {
             app_state: AppState::default(),
             tg_keys: TGKeys::default(),
@@ -84,6 +88,7 @@ impl MainWindow {
             initial_chart_reset: false,
             cancel_count: Arc::new(AtomicBool::new(false)),
             theme_animator: ThemeAnimator::new(Visuals::light(), Visuals::dark()),
+            runtime: get_runtime(),
         }
     }
 }
@@ -95,14 +100,20 @@ impl App for MainWindow {
             let mut joins = Vec::new();
             for (_, client) in self.tg_clients.clone() {
                 if client.is_temporary() {
-                    let joiner =
-                        thread::spawn(move || client.start_process(ProcessStart::SessionLogout));
+                    let joiner = self.runtime.spawn(async move {
+                        client.start_process(ProcessStart::SessionLogout).await
+                    });
                     joins.push(joiner);
                 }
             }
 
-            for join in joins {
-                join.join().unwrap();
+            while !joins.is_empty() {
+                for (index, join) in joins.iter().enumerate() {
+                    if join.is_finished() {
+                        joins.remove(index);
+                        break;
+                    }
+                }
             }
         }
 
@@ -211,17 +222,18 @@ impl App for MainWindow {
                             self.is_processing = true;
                             let sender_clone = self.tg_sender.clone();
                             let ctx_clone = ctx.clone();
-                            thread::spawn(move || {
+                            self.runtime.spawn(async move {
                                 start_process(
                                     NewProcess::InitialSessionConnect(existing_sessions),
                                     sender_clone,
                                     ctx_clone,
-                                );
+                                )
+                                .await;
                             });
                         }
                         let version_body = self.new_version_body.clone();
-                        thread::spawn(|| {
-                            check_version(version_body);
+                        self.runtime.spawn(async move {
+                            check_version(version_body).await;
                         });
                     } else {
                         // At each UI loop, check on the receiver channel to check if there is anything
@@ -351,8 +363,8 @@ impl MainWindow {
             info!("Could not find font data. Starting download");
             let ctx_clone = ctx.clone();
 
-            thread::spawn(move || {
-                download_font(ctx_clone);
+            self.runtime.spawn(async move {
+                download_font(ctx_clone).await;
             });
         }
     }

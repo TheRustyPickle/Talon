@@ -23,6 +23,10 @@ impl DateNavigator {
         &mut self.nav_type
     }
 
+    pub fn nav_type_i(&mut self) -> NavigationType {
+        self.nav_type
+    }
+
     pub fn nav_name(&self) -> String {
         self.nav_type.to_string()
     }

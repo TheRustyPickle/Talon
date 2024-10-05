@@ -4,7 +4,6 @@ use eframe::egui::{
 use log::info;
 use std::collections::HashMap;
 use std::sync::atomic::Ordering;
-use std::thread;
 
 use crate::tg_handler::ProcessStart;
 use crate::ui_components::processor::{CounterCounts, ParsedChat, ProcessState};
@@ -529,17 +528,21 @@ To count all messages in a chat, paste the very first message link or keep it em
         let client = self.tg_clients.get(&selected_client).unwrap().clone();
 
         if self.counter.use_all_sessions && self.tg_clients.len() > 1 {
-            thread::spawn(move || {
-                client.start_process(ProcessStart::CheckChatExistence(
-                    chat_name, start_num, end_num,
-                ));
+            self.runtime.spawn(async move {
+                client
+                    .start_process(ProcessStart::CheckChatExistence(
+                        chat_name, start_num, end_num,
+                    ))
+                    .await;
             });
         } else {
             let cancel = self.cancel_count.clone();
-            thread::spawn(move || {
-                client.start_process(ProcessStart::StartCount(
-                    chat_name, start_num, end_num, false, cancel,
-                ));
+            self.runtime.spawn(async move {
+                client
+                    .start_process(ProcessStart::StartCount(
+                        chat_name, start_num, end_num, false, cancel,
+                    ))
+                    .await;
             });
         }
     }
