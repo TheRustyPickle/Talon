@@ -1,4 +1,5 @@
 use chrono::{Local, NaiveDate, NaiveDateTime};
+use egui_selectable_table::SelectableRow;
 use log::{error, info};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::error::Error;
@@ -8,7 +9,7 @@ use std::path::PathBuf;
 use tokio::runtime::{self, Runtime};
 
 use crate::ui_components::processor::{
-    ChartTiming, PackedBlacklistedUser, PackedWhitelistedUser, ParsedChat,
+    ChartTiming, ColumnName, PackedBlacklistedUser, PackedWhitelistedUser, ParsedChat,
 };
 use crate::ui_components::tab_ui::UserRowData;
 use crate::ui_components::TGKeys;
@@ -365,7 +366,7 @@ pub fn create_export_file(export_data: &str, file_name: String) {
     file.write_all(export_data.as_bytes()).unwrap();
 }
 
-pub fn export_table_data(rows: Vec<UserRowData>, name: &str) {
+pub fn export_table_data(rows: &Vec<SelectableRow<UserRowData, ColumnName>>, name: &str) {
     let mut export_file_location = PathBuf::from(".");
     let current_time = Local::now();
     let formatted_time = current_time.format("%Y-%m-%d %H-%M-%S").to_string();
@@ -377,6 +378,7 @@ pub fn export_table_data(rows: Vec<UserRowData>, name: &str) {
     let mut wtr = csv::Writer::from_writer(file);
 
     for row in rows {
+        let row = &row.row_data;
         if let Err(e) = wtr.serialize(row) {
             error!("Failed to add one row, skipping. Error: {e}");
         }

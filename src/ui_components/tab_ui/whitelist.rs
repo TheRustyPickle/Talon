@@ -1,22 +1,111 @@
 use eframe::egui::{
-    Align, Button, Grid, Key, Label, Layout, RichText, ScrollArea, SelectableLabel, TextEdit, Ui,
+    Align, Button, Grid, Key, Label, Layout, Response, RichText, SelectableLabel, Sense, TextEdit,
+    Ui,
 };
-use egui_extras::{Column, TableBuilder};
+use egui_extras::Column;
+use egui_selectable_table::{
+    ColumnOperations, ColumnOrdering, SelectableRow, SelectableTable, SortOrder,
+};
 use grammers_client::types::Chat;
 use log::{error, info};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use crate::tg_handler::ProcessStart;
 use crate::ui_components::processor::{ColumnName, PackedWhitelistedUser, ProcessState};
 use crate::ui_components::MainWindow;
 use crate::utils::{get_whitelisted, save_whitelisted_users, separate_whitelist_by_seen};
 
+#[derive(Default)]
+struct Config {
+    deleted_selected: bool,
+}
+
+impl ColumnOperations<WhiteListRowData, ColumnName, Config> for ColumnName {
+    fn column_text(&self, row: &WhiteListRowData) -> String {
+        match self {
+            ColumnName::Name => row.name.to_string(),
+            ColumnName::Username => row.username.to_string(),
+            ColumnName::UserID => row.id.to_string(),
+            _ => unreachable!(),
+        }
+    }
+    fn create_header(
+        &self,
+        ui: &mut eframe::egui::Ui,
+        _sort_order: Option<SortOrder>,
+        _table: &mut SelectableTable<WhiteListRowData, ColumnName, Config>,
+    ) -> Option<Response> {
+        let label_text = self.to_string();
+        let hover_text = match self {
+            ColumnName::Name => "Telegram name of the user".to_string(),
+            ColumnName::Username => "Telegram username of the user".to_string(),
+
+            ColumnName::UserID => "Telegram User ID of the user".to_string(),
+            _ => unreachable!(),
+        };
+
+        let label_text = RichText::new(label_text).strong();
+
+        let response = ui
+            .add_sized(ui.available_size(), Label::new(label_text))
+            .on_hover_text(hover_text);
+
+        Some(response)
+    }
+    fn create_table_row(
+        &self,
+        ui: &mut Ui,
+        row: &SelectableRow<WhiteListRowData, ColumnName>,
+        column_selected: bool,
+        table: &mut SelectableTable<WhiteListRowData, ColumnName, Config>,
+    ) -> Response {
+        let row_data = &row.row_data;
+        let mut show_tooltip = false;
+        let row_text = match self {
+            ColumnName::Name => {
+                show_tooltip = true;
+                row_data.name.clone()
+            }
+            ColumnName::Username => {
+                show_tooltip = true;
+                row_data.username.clone()
+            }
+            ColumnName::UserID => row_data.id.to_string(),
+            _ => unreachable!(),
+        };
+        let is_selected = column_selected;
+
+        let mut label = ui
+            .add_sized(
+                ui.available_size(),
+                SelectableLabel::new(is_selected, &row_text),
+            )
+            .interact(Sense::drag());
+
+        if show_tooltip {
+            label = label.on_hover_text(row_text);
+        };
+        label.context_menu(|ui| {
+            if ui.button("Deleted Selected").clicked() {
+                table.config.deleted_selected = true;
+                ui.close_menu();
+            };
+        });
+        label
+    }
+}
+
+impl ColumnOrdering<WhiteListRowData> for ColumnName {
+    fn order_by(&self, row_1: &WhiteListRowData, row_2: &WhiteListRowData) -> std::cmp::Ordering {
+        row_1.name.cmp(&row_2.name)
+    }
+}
+
 #[derive(Clone)]
 struct WhiteListRowData {
     name: String,
     username: String,
     id: i64,
-    is_selected: bool,
     belongs_to: Chat,
     seen_by: String,
 }
@@ -27,48 +116,40 @@ impl WhiteListRowData {
             name,
             username,
             id,
-            is_selected: false,
             belongs_to,
             seen_by,
         }
     }
 }
 
-#[derive(Default)]
 pub struct WhitelistData {
+    table: SelectableTable<WhiteListRowData, ColumnName, Config>,
     target_username: String,
-    rows: HashMap<i64, WhiteListRowData>,
-    active_rows: HashSet<i64>,
-    /// Only used when initially loading the saved whitelist data
-    /// and for creating the `ProcessState`.
-    /// Will never be changed after all whitelists are processed
     failed_whitelist: i32,
+    all_ids: HashSet<i64>,
+}
+
+impl Default for WhitelistData {
+    fn default() -> Self {
+        let table = SelectableTable::new(vec![
+            ColumnName::Name,
+            ColumnName::Username,
+            ColumnName::UserID,
+        ])
+        .auto_scroll()
+        .select_full_row()
+        .serial_column()
+        .auto_reload(1);
+        Self {
+            table,
+            target_username: String::new(),
+            failed_whitelist: 0,
+            all_ids: HashSet::new(),
+        }
+    }
 }
 
 impl WhitelistData {
-    /// Get all rows in a vector
-    fn rows(&self) -> Vec<WhiteListRowData> {
-        self.rows.values().cloned().collect()
-    }
-
-    /// Remove selection from all rows
-    fn unselected_all(&mut self) {
-        for (_, row) in self.rows.iter_mut() {
-            row.is_selected = false;
-        }
-        self.active_rows.clear();
-    }
-
-    /// Select all rows
-    fn select_all(&mut self) {
-        let mut rows = HashSet::new();
-        for (_, row) in self.rows.iter_mut() {
-            row.is_selected = true;
-            rows.insert(row.id);
-        }
-        self.active_rows = rows;
-    }
-
     /// Add a new row to the UI
     pub fn add_to_whitelist(
         &mut self,
@@ -85,48 +166,65 @@ impl WhitelistData {
         };
 
         info!("Adding {name} to whitelist, seen by {seen_by}");
-        let to_add = WhiteListRowData::new(name, username, id, belongs_to, seen_by);
-        self.rows.insert(id, to_add);
+        self.table.add_modify_row(|_rows| {
+            let to_add = WhiteListRowData::new(name, username, id, belongs_to, seen_by);
+            Some(to_add)
+        });
     }
 
     /// Check if user is whitelisted/in the whitelist UI
     pub fn is_user_whitelisted(&self, id: i64) -> bool {
-        self.rows.contains_key(&id)
+        self.all_ids.contains(&id)
     }
 
     /// Save the current row data in the whitelist json
     pub fn save_whitelisted_users(&self, overwrite: bool) {
         let mut packed_chats = Vec::new();
 
-        for row in self.rows.values() {
-            let hex_value = row.belongs_to.pack().to_hex();
+        self.table.get_all_rows().iter().for_each(|(_id, row)| {
+            let hex_value = row.row_data.belongs_to.pack().to_hex();
             packed_chats.push(PackedWhitelistedUser::new(
                 hex_value,
-                row.seen_by.to_string(),
+                row.row_data.seen_by.to_string(),
             ));
-        }
+        });
 
         save_whitelisted_users(packed_chats, overwrite);
     }
 
     /// Removes selected row from whitelist and saves the result
-    fn remove_selected(&mut self) -> HashSet<i64> {
-        let active_rows = self.active_rows.clone();
+    fn remove_selected(&mut self) -> Vec<i64> {
+        let active_rows = self.table.get_selected_rows();
 
+        let mut row_ids = Vec::new();
         for i in &active_rows {
-            info!("Removing user {} from whitelist", i);
-            self.rows.remove(i);
+            info!(
+                "Removing user {} | {} from whitelist",
+                i.row_data.username, i.row_data.id
+            );
+            self.table.add_modify_row(|rows| {
+                rows.remove(&i.id);
+                row_ids.push(i.id);
+                self.all_ids.remove(&i.id);
+                None
+            });
         }
         self.save_whitelisted_users(true);
-        active_rows
+        row_ids
     }
 
     /// Removes all row from whitelist and saves the result
     fn remove_all(&mut self) -> Vec<i64> {
         info!("Removing all users from whitelist");
-        let row_keys = self.rows.keys().map(ToOwned::to_owned).collect();
-        self.rows.clear();
+        let row_keys = self
+            .table
+            .get_all_rows()
+            .values()
+            .map(|row| row.row_data.id)
+            .collect();
+        self.table.clear_all_rows();
         self.save_whitelisted_users(true);
+        self.all_ids.clear();
 
         row_keys
     }
@@ -140,7 +238,7 @@ impl WhitelistData {
     }
 
     pub fn row_len(&self) -> usize {
-        self.rows.len()
+        self.table.total_rows()
     }
 
     pub fn failed_whitelist_num(&self) -> i32 {
@@ -154,7 +252,18 @@ impl MainWindow {
         let key_a_pressed = ui.ctx().input(|i| i.key_pressed(Key::A));
 
         if is_ctrl_pressed && key_a_pressed {
-            self.whitelist.select_all();
+            self.whitelist.table.select_all();
+        }
+
+        if self.whitelist.table.config.deleted_selected {
+            self.whitelist.table.config.deleted_selected = false;
+            let rows = self.whitelist.table.get_selected_rows();
+            let total_to_remove = rows.len();
+            let deleted_ids: Vec<i64> = rows.iter().map(|row| row.row_data.id).collect();
+
+            self.table().remove_whitelist(&deleted_ids);
+            self.whitelist.remove_selected();
+            self.process_state = ProcessState::WhitelistedUserRemoved(total_to_remove);
         }
 
         Grid::new("Whitelist Grid")
@@ -199,17 +308,18 @@ then right click on User Table to whitelist",
                 .on_hover_text("Select all users. Also usable with CTRL + A. Use CTRL + mouse click for manual selection")
                 .clicked()
             {
-                self.whitelist.select_all();
+                self.whitelist.table.select_all();
             };
             if ui
                 .button("Delete Selected")
                 .on_hover_text("Delete selected users from whitelist")
                 .clicked()
             {
-                let deleted: Vec<i64> = self.whitelist.remove_selected().into_iter().collect();
+                let deleted: Vec<i64> = self.whitelist.remove_selected();
                 let total_to_remove = deleted.len();
 
                 self.table().remove_whitelist(&deleted);
+                self.chart().reset_saved_bars();
                 self.process_state = ProcessState::WhitelistedUserRemoved(total_to_remove);
             };
             if ui
@@ -225,100 +335,18 @@ then right click on User Table to whitelist",
             };
         });
 
-        ScrollArea::horizontal()
-            .drag_to_scroll(false)
-            .show(ui, |ui| {
-                let column_size = (ui.available_width() - 20.0) / 3.0;
-                let table = TableBuilder::new(ui)
-                    .striped(true)
-                    .cell_layout(Layout::left_to_right(Align::Center))
-                    .column(Column::exact(column_size).clip(true))
-                    .column(Column::exact(column_size))
-                    .column(Column::exact(column_size))
-                    .drag_to_scroll(false)
-                    .auto_shrink([false; 2])
-                    .min_scrolled_height(0.0);
-
-                table
-                    .header(20.0, |mut header| {
-                        header.col(|ui| {
-                            self.create_whitelist_header(ColumnName::Name, ui);
-                        });
-                        header.col(|ui| {
-                            self.create_whitelist_header(ColumnName::Username, ui);
-                        });
-                        header.col(|ui| {
-                            self.create_whitelist_header(ColumnName::UserID, ui);
-                        });
-                    })
-                    .body(|body| {
-                        let table_rows = self.whitelist.rows();
-                        body.rows(25.0, table_rows.len(), |mut row| {
-                            let row_data = &table_rows[row.index()];
-                            row.col(|ui| {
-                                self.create_whitelist_row(ColumnName::Name, row_data, ui);
-                            });
-                            row.col(|ui| {
-                                self.create_whitelist_row(ColumnName::Username, row_data, ui);
-                            });
-                            row.col(|ui| {
-                                self.create_whitelist_row(ColumnName::UserID, row_data, ui);
-                            });
-                        });
-                    });
-            });
-    }
-
-    fn create_whitelist_header(&self, column: ColumnName, ui: &mut Ui) {
-        let text = column.to_string();
-        let hover_text = match column {
-            ColumnName::Name => "Telegram name of the user".to_string(),
-            ColumnName::Username => "Telegram username of the user".to_string(),
-
-            ColumnName::UserID => "Telegram User ID of the user".to_string(),
-
-            _ => unreachable!(),
-        };
-
-        let text = RichText::new(text).strong();
-        ui.add_sized(ui.available_size(), Label::new(text))
-            .on_hover_text(hover_text);
-    }
-
-    fn create_whitelist_row(
-        &mut self,
-        column: ColumnName,
-        row_data: &WhiteListRowData,
-        ui: &mut Ui,
-    ) {
-        let row_text = match column {
-            ColumnName::Name => row_data.name.clone(),
-            ColumnName::Username => row_data.username.clone(),
-            ColumnName::UserID => row_data.id.to_string(),
-            _ => unreachable!(),
-        };
-
-        let row = ui.add_sized(
-            ui.available_size(),
-            SelectableLabel::new(row_data.is_selected, row_text),
-        );
-        row.context_menu(|ui| {
-            if ui.button("Delete Selected").clicked() {
-                let deleted: Vec<i64> = self.whitelist.remove_selected().into_iter().collect();
-
-                self.table().remove_whitelist(&deleted);
-                ui.close_menu();
-            }
+        let column_size = (ui.available_width() - 20.0) / 3.0;
+        self.whitelist.table.show_ui(ui, |table| {
+            table
+                .striped(true)
+                .cell_layout(Layout::left_to_right(Align::Center))
+                .column(Column::exact(column_size).clip(true))
+                .column(Column::exact(column_size))
+                .column(Column::exact(column_size))
+                .drag_to_scroll(false)
+                .auto_shrink([false; 2])
+                .min_scrolled_height(0.0)
         });
-
-        if row.clicked() {
-            if !ui.ctx().input(|i| i.modifiers.ctrl) {
-                self.whitelist.unselected_all();
-            }
-            let target_row = self.whitelist.rows.get_mut(&row_data.id).unwrap();
-            target_row.is_selected = true;
-            self.whitelist.active_rows.insert(row_data.id);
-        };
     }
 
     pub fn load_whitelisted_users(&mut self) {
