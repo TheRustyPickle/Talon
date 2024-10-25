@@ -45,7 +45,7 @@ pub enum ProcessState {
     InitialClientConnectionSuccessful(String),
     Counting(u8),
     InvalidStartChat,
-    DataCopied(i32),
+    DataCopied,
     AuthorizationError,
     FileCreationFailed,
     UnauthorizedClient(String),
@@ -107,8 +107,8 @@ impl Display for ProcessState {
                 Ok(())
             }
             ProcessState::InvalidStartChat => write!(f, "Status: Could not detect any valid chat details"),
-            ProcessState::DataCopied(num) => {
-                write!(f, "Status: Table data copied. Total cells: {num}",)
+            ProcessState::DataCopied => {
+                write!(f, "Status: Selected table data copied.",)
             }
             ProcessState::AuthorizationError => write!(
                 f,
@@ -156,13 +156,6 @@ impl Display for ProcessState {
     }
 }
 
-#[derive(Default)]
-pub enum SortOrder {
-    #[default]
-    Ascending,
-    Descending,
-}
-
 #[derive(EnumIter, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Default, Copy)]
 pub enum ColumnName {
     #[default]
@@ -195,61 +188,6 @@ impl fmt::Display for ColumnName {
             ColumnName::Whitelisted => "Whitelisted",
         };
         write!(f, "{name}")
-    }
-}
-
-impl ColumnName {
-    pub fn get_next(&self) -> Self {
-        match self {
-            ColumnName::Name => ColumnName::Username,
-            ColumnName::Username => ColumnName::UserID,
-            ColumnName::UserID => ColumnName::TotalMessage,
-            ColumnName::TotalMessage => ColumnName::TotalWord,
-            ColumnName::TotalWord => ColumnName::TotalChar,
-            ColumnName::TotalChar => ColumnName::AverageWord,
-            ColumnName::AverageWord => ColumnName::AverageChar,
-            ColumnName::AverageChar => ColumnName::FirstMessageSeen,
-            ColumnName::FirstMessageSeen => ColumnName::LastMessageSeen,
-            ColumnName::LastMessageSeen => ColumnName::Whitelisted,
-            ColumnName::Whitelisted => ColumnName::Name,
-        }
-    }
-
-    pub fn get_previous(&self) -> Self {
-        match self {
-            ColumnName::Name => ColumnName::Whitelisted,
-            ColumnName::Username => ColumnName::Name,
-            ColumnName::UserID => ColumnName::Username,
-            ColumnName::TotalMessage => ColumnName::UserID,
-            ColumnName::TotalWord => ColumnName::TotalMessage,
-            ColumnName::TotalChar => ColumnName::TotalWord,
-            ColumnName::AverageWord => ColumnName::TotalChar,
-            ColumnName::AverageChar => ColumnName::AverageWord,
-            ColumnName::FirstMessageSeen => ColumnName::AverageChar,
-            ColumnName::LastMessageSeen => ColumnName::FirstMessageSeen,
-            ColumnName::Whitelisted => ColumnName::LastMessageSeen,
-        }
-    }
-
-    pub fn from_num(num: i32) -> Self {
-        match num {
-            0 => ColumnName::Name,
-            1 => ColumnName::Username,
-            2 => ColumnName::UserID,
-            3 => ColumnName::TotalMessage,
-            4 => ColumnName::TotalWord,
-            5 => ColumnName::TotalChar,
-            6 => ColumnName::AverageWord,
-            7 => ColumnName::AverageChar,
-            8 => ColumnName::FirstMessageSeen,
-            9 => ColumnName::LastMessageSeen,
-            10 => ColumnName::Whitelisted,
-            _ => unreachable!("Invalid enum variant for number {}", num),
-        }
-    }
-
-    pub fn get_last() -> Self {
-        ColumnName::Whitelisted
     }
 }
 

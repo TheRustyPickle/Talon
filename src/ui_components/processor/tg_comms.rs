@@ -111,7 +111,7 @@ impl MainWindow {
                     }
 
                     let total_user = self.t_table().get_total_user();
-                    self.t_count().set_total_user(total_user);
+                    self.t_count().set_total_user(total_user as i32);
 
                     let total_to_iter = start_from - end_at;
                     let message_value = 100.0 / total_to_iter as f32;
