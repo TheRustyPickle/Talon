@@ -1,6 +1,5 @@
 use eframe::egui::{
-    Align, Button, Grid, Key, Label, Layout, Response, RichText, SelectableLabel, Sense, TextEdit,
-    Ui,
+    Align, Button, Grid, Label, Layout, Response, RichText, SelectableLabel, Sense, TextEdit, Ui,
 };
 use egui_extras::Column;
 use egui_selectable_table::{
@@ -166,6 +165,7 @@ impl WhitelistData {
         };
 
         info!("Adding {name} to whitelist, seen by {seen_by}");
+        self.all_ids.insert(id);
         self.table.add_modify_row(|_rows| {
             let to_add = WhiteListRowData::new(name, username, id, belongs_to, seen_by);
             Some(to_add)
@@ -202,10 +202,10 @@ impl WhitelistData {
                 "Removing user {} | {} from whitelist",
                 i.row_data.username, i.row_data.id
             );
+            self.all_ids.remove(&i.row_data.id);
             self.table.add_modify_row(|rows| {
                 rows.remove(&i.id);
-                row_ids.push(i.id);
-                self.all_ids.remove(&i.id);
+                row_ids.push(i.row_data.id);
                 None
             });
         }
@@ -216,12 +216,7 @@ impl WhitelistData {
     /// Removes all row from whitelist and saves the result
     fn remove_all(&mut self) -> Vec<i64> {
         info!("Removing all users from whitelist");
-        let row_keys = self
-            .table
-            .get_all_rows()
-            .values()
-            .map(|row| row.row_data.id)
-            .collect();
+        let row_keys = self.all_ids.iter().copied().collect();
         self.table.clear_all_rows();
         self.save_whitelisted_users(true);
         self.all_ids.clear();
@@ -248,13 +243,6 @@ impl WhitelistData {
 
 impl MainWindow {
     pub fn show_whitelist_ui(&mut self, ui: &mut Ui) {
-        let is_ctrl_pressed = ui.ctx().input(|i| i.modifiers.ctrl);
-        let key_a_pressed = ui.ctx().input(|i| i.key_pressed(Key::A));
-
-        if is_ctrl_pressed && key_a_pressed {
-            self.whitelist.table.select_all();
-        }
-
         if self.whitelist.table.config.deleted_selected {
             self.whitelist.table.config.deleted_selected = false;
             let rows = self.whitelist.table.get_selected_rows();

@@ -1,22 +1,109 @@
 use eframe::egui::{
-    Align, Button, Grid, Key, Label, Layout, RichText, ScrollArea, SelectableLabel, TextEdit, Ui,
+    Align, Button, Grid, Label, Layout, Response, RichText, SelectableLabel, Sense, TextEdit, Ui,
 };
-use egui_extras::{Column, TableBuilder};
+use egui_extras::Column;
+use egui_selectable_table::{
+    ColumnOperations, ColumnOrdering, SelectableRow, SelectableTable, SortOrder,
+};
 use grammers_client::types::Chat;
 use log::{error, info};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use crate::tg_handler::ProcessStart;
 use crate::ui_components::processor::{ColumnName, PackedBlacklistedUser, ProcessState};
 use crate::ui_components::MainWindow;
 use crate::utils::{get_blacklisted, save_blacklisted_users, separate_blacklist_by_seen};
 
+#[derive(Default)]
+struct Config {
+    deleted_selected: bool,
+}
+
+impl ColumnOperations<BlackListRowData, ColumnName, Config> for ColumnName {
+    fn column_text(&self, row: &BlackListRowData) -> String {
+        match self {
+            ColumnName::Name => row.name.to_string(),
+            ColumnName::Username => row.username.to_string(),
+            ColumnName::UserID => row.id.to_string(),
+            _ => unreachable!(),
+        }
+    }
+    fn create_header(
+        &self,
+        ui: &mut eframe::egui::Ui,
+        _sort_order: Option<SortOrder>,
+        _table: &mut SelectableTable<BlackListRowData, ColumnName, Config>,
+    ) -> Option<Response> {
+        let label_text = self.to_string();
+        let hover_text = match self {
+            ColumnName::Name => "Telegram name of the user".to_string(),
+            ColumnName::Username => "Telegram username of the user".to_string(),
+
+            ColumnName::UserID => "Telegram User ID of the user".to_string(),
+            _ => unreachable!(),
+        };
+
+        let label_text = RichText::new(label_text).strong();
+
+        let response = ui
+            .add_sized(ui.available_size(), Label::new(label_text))
+            .on_hover_text(hover_text);
+
+        Some(response)
+    }
+    fn create_table_row(
+        &self,
+        ui: &mut Ui,
+        row: &SelectableRow<BlackListRowData, ColumnName>,
+        column_selected: bool,
+        table: &mut SelectableTable<BlackListRowData, ColumnName, Config>,
+    ) -> Response {
+        let row_data = &row.row_data;
+        let mut show_tooltip = false;
+        let row_text = match self {
+            ColumnName::Name => {
+                show_tooltip = true;
+                row_data.name.clone()
+            }
+            ColumnName::Username => {
+                show_tooltip = true;
+                row_data.username.clone()
+            }
+            ColumnName::UserID => row_data.id.to_string(),
+            _ => unreachable!(),
+        };
+        let is_selected = column_selected;
+
+        let mut label = ui
+            .add_sized(
+                ui.available_size(),
+                SelectableLabel::new(is_selected, &row_text),
+            )
+            .interact(Sense::drag());
+
+        if show_tooltip {
+            label = label.on_hover_text(row_text);
+        };
+        label.context_menu(|ui| {
+            if ui.button("Deleted Selected").clicked() {
+                table.config.deleted_selected = true;
+                ui.close_menu();
+            };
+        });
+        label
+    }
+}
+
+impl ColumnOrdering<BlackListRowData> for ColumnName {
+    fn order_by(&self, row_1: &BlackListRowData, row_2: &BlackListRowData) -> std::cmp::Ordering {
+        row_1.name.cmp(&row_2.name)
+    }
+}
 #[derive(Clone)]
 struct BlackListRowData {
     name: String,
     username: String,
     id: i64,
-    is_selected: bool,
     belongs_to: Chat,
     seen_by: String,
 }
@@ -27,48 +114,39 @@ impl BlackListRowData {
             name,
             username,
             id,
-            is_selected: false,
             belongs_to,
             seen_by,
         }
     }
 }
 
-#[derive(Default)]
 pub struct BlacklistData {
+    table: SelectableTable<BlackListRowData, ColumnName, Config>,
     target_username: String,
-    rows: HashMap<i64, BlackListRowData>,
-    active_rows: HashSet<i64>,
-    /// Only used when initially loading the saved blacklist data
-    /// and for creating the `ProcessState`.
-    /// Will never be changed after all blacklist are processed
     failed_blacklist: i32,
+    all_ids: HashSet<i64>,
+}
+impl Default for BlacklistData {
+    fn default() -> Self {
+        let table = SelectableTable::new(vec![
+            ColumnName::Name,
+            ColumnName::Username,
+            ColumnName::UserID,
+        ])
+        .auto_scroll()
+        .select_full_row()
+        .serial_column()
+        .auto_reload(1);
+        Self {
+            table,
+            target_username: String::new(),
+            failed_blacklist: 0,
+            all_ids: HashSet::new(),
+        }
+    }
 }
 
 impl BlacklistData {
-    /// Get all rows in a vector
-    fn rows(&self) -> Vec<BlackListRowData> {
-        self.rows.values().cloned().collect()
-    }
-
-    /// Remove selection from all rows
-    fn unselected_all(&mut self) {
-        for (_, row) in self.rows.iter_mut() {
-            row.is_selected = false;
-        }
-        self.active_rows.clear();
-    }
-
-    /// Select all rows
-    fn select_all(&mut self) {
-        let mut rows = HashSet::new();
-        for (_, row) in self.rows.iter_mut() {
-            row.is_selected = true;
-            rows.insert(row.id);
-        }
-        self.active_rows = rows;
-    }
-
     /// Add a new row to the UI
     pub fn add_to_blacklist(
         &mut self,
@@ -85,48 +163,61 @@ impl BlacklistData {
         };
 
         info!("Adding {name} to blacklist, seen by {seen_by}");
-        let to_add = BlackListRowData::new(name, username, id, belongs_to, seen_by);
-        self.rows.insert(id, to_add);
+        self.all_ids.insert(id);
+        self.table.add_modify_row(|_rows| {
+            let to_add = BlackListRowData::new(name, username, id, belongs_to, seen_by);
+            Some(to_add)
+        });
     }
 
     /// Check if user is blacklisted/in the blacklist UI
     pub fn is_user_blacklisted(&self, id: i64) -> bool {
-        self.rows.contains_key(&id)
+        self.all_ids.contains(&id)
     }
 
     /// Save the current row data in the blacklist json
     pub fn save_blacklisted_users(&self, overwrite: bool) {
         let mut packed_chats = Vec::new();
 
-        for row in self.rows.values() {
-            let hex_value = row.belongs_to.pack().to_hex();
+        self.table.get_all_rows().iter().for_each(|(_id, row)| {
+            let hex_value = row.row_data.belongs_to.pack().to_hex();
             packed_chats.push(PackedBlacklistedUser::new(
                 hex_value,
-                row.seen_by.to_string(),
+                row.row_data.seen_by.to_string(),
             ));
-        }
+        });
 
         save_blacklisted_users(packed_chats, overwrite);
     }
 
     /// Removes selected row from blacklist and saves the result
-    fn remove_selected(&mut self) -> HashSet<i64> {
-        let active_rows = self.active_rows.clone();
+    fn remove_selected(&mut self) -> Vec<i64> {
+        let active_rows = self.table.get_selected_rows();
 
+        let mut row_ids = Vec::new();
         for i in &active_rows {
-            info!("Removing user {} from blacklist", i);
-            self.rows.remove(i);
+            info!(
+                "Removing user {} | {} from blacklist",
+                i.row_data.username, i.row_data.id
+            );
+            self.all_ids.remove(&i.row_data.id);
+            self.table.add_modify_row(|rows| {
+                rows.remove(&i.id);
+                row_ids.push(i.row_data.id);
+                None
+            });
         }
         self.save_blacklisted_users(true);
-        active_rows
+        row_ids
     }
 
     /// Removes all row from blacklist and saves the result
     fn remove_all(&mut self) -> Vec<i64> {
         info!("Removing all users from blacklist");
-        let row_keys = self.rows.keys().map(ToOwned::to_owned).collect();
-        self.rows.clear();
+        let row_keys = self.all_ids.iter().copied().collect();
+        self.table.clear_all_rows();
         self.save_blacklisted_users(true);
+        self.all_ids.clear();
 
         row_keys
     }
@@ -140,7 +231,7 @@ impl BlacklistData {
     }
 
     pub fn row_len(&self) -> usize {
-        self.rows.len()
+        self.table.total_rows()
     }
 
     pub fn failed_blacklist_num(&self) -> i32 {
@@ -150,12 +241,12 @@ impl BlacklistData {
 
 impl MainWindow {
     pub fn show_blacklist_ui(&mut self, ui: &mut Ui) {
-        let is_ctrl_pressed = ui.ctx().input(|i| i.modifiers.ctrl);
-        let key_a_pressed = ui.ctx().input(|i| i.key_pressed(Key::A));
-
-        if is_ctrl_pressed && key_a_pressed {
-            self.blacklist.select_all();
-        }
+        if self.blacklist.table.config.deleted_selected {
+            self.blacklist.table.config.deleted_selected = false;
+            let deleted = self.blacklist.remove_selected();
+            let total_to_remove = deleted.len();
+            self.process_state = ProcessState::BlacklistedUserRemoved(total_to_remove);
+        };
 
         Grid::new("blacklist Grid")
             .num_columns(2)
@@ -199,7 +290,7 @@ then right click on User Table to blacklist",
                 .on_hover_text("Select all users. Also usable with CTRL + A. Use CTRL + mouse click for manual selection")
                 .clicked()
             {
-                self.blacklist.select_all();
+                self.blacklist.table.select_all();
             };
             if ui
                 .button("Delete Selected")
@@ -220,101 +311,18 @@ then right click on User Table to blacklist",
             };
         });
 
-        ScrollArea::horizontal()
-            .drag_to_scroll(false)
-            .show(ui, |ui| {
-                let column_size = (ui.available_width() - 20.0) / 3.0;
-                let table = TableBuilder::new(ui)
-                    .striped(true)
-                    .cell_layout(Layout::left_to_right(Align::Center))
-                    .column(Column::exact(column_size).clip(true))
-                    .column(Column::exact(column_size))
-                    .column(Column::exact(column_size))
-                    .drag_to_scroll(false)
-                    .auto_shrink([false; 2])
-                    .min_scrolled_height(0.0);
-
-                table
-                    .header(20.0, |mut header| {
-                        header.col(|ui| {
-                            self.create_blacklist_header(ColumnName::Name, ui);
-                        });
-                        header.col(|ui| {
-                            self.create_blacklist_header(ColumnName::Username, ui);
-                        });
-                        header.col(|ui| {
-                            self.create_blacklist_header(ColumnName::UserID, ui);
-                        });
-                    })
-                    .body(|body| {
-                        let table_rows = self.blacklist.rows();
-                        body.rows(25.0, table_rows.len(), |mut row| {
-                            let row_data = &table_rows[row.index()];
-                            row.col(|ui| {
-                                self.create_blacklist_row(ColumnName::Name, row_data, ui);
-                            });
-                            row.col(|ui| {
-                                self.create_blacklist_row(ColumnName::Username, row_data, ui);
-                            });
-                            row.col(|ui| {
-                                self.create_blacklist_row(ColumnName::UserID, row_data, ui);
-                            });
-                        });
-                    });
-            });
-    }
-
-    fn create_blacklist_header(&self, column: ColumnName, ui: &mut Ui) {
-        let (text, hover_text) = match column {
-            ColumnName::Name => ("Name".to_string(), "Telegram name of the user".to_string()),
-            ColumnName::Username => (
-                "Username".to_string(),
-                "Telegram username of the user".to_string(),
-            ),
-            ColumnName::UserID => (
-                "User ID".to_string(),
-                "Telegram User ID of the user".to_string(),
-            ),
-            _ => unreachable!(),
-        };
-
-        let text = RichText::new(text).strong();
-        ui.add_sized(ui.available_size(), Label::new(text))
-            .on_hover_text(hover_text);
-    }
-
-    fn create_blacklist_row(
-        &mut self,
-        column: ColumnName,
-        row_data: &BlackListRowData,
-        ui: &mut Ui,
-    ) {
-        let row_text = match column {
-            ColumnName::Name => row_data.name.clone(),
-            ColumnName::Username => row_data.username.clone(),
-            ColumnName::UserID => row_data.id.to_string(),
-            _ => unreachable!(),
-        };
-
-        let row = ui.add_sized(
-            ui.available_size(),
-            SelectableLabel::new(row_data.is_selected, row_text),
-        );
-        row.context_menu(|ui| {
-            if ui.button("Delete Selected").clicked() {
-                let _ = self.blacklist.remove_selected();
-                ui.close_menu();
-            }
+        let column_size = (ui.available_width() - 20.0) / 3.0;
+        self.blacklist.table.show_ui(ui, |table| {
+            table
+                .striped(true)
+                .cell_layout(Layout::left_to_right(Align::Center))
+                .column(Column::exact(column_size).clip(true))
+                .column(Column::exact(column_size))
+                .column(Column::exact(column_size))
+                .drag_to_scroll(false)
+                .auto_shrink([false; 2])
+                .min_scrolled_height(0.0)
         });
-
-        if row.clicked() {
-            if !ui.ctx().input(|i| i.modifiers.ctrl) {
-                self.blacklist.unselected_all();
-            }
-            let target_row = self.blacklist.rows.get_mut(&row_data.id).unwrap();
-            target_row.is_selected = true;
-            self.blacklist.active_rows.insert(row_data.id);
-        };
     }
 
     pub fn load_blacklisted_users(&mut self) {
