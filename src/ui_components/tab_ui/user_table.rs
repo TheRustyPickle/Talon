@@ -286,7 +286,8 @@ impl Default for UserTableData {
     fn default() -> Self {
         let table = SelectableTable::new(ColumnName::iter().collect())
             .auto_scroll()
-            .serial_column();
+            .serial_column()
+            .horizontal_scroll();
         Self {
             user_data: HashMap::new(),
             table,
@@ -403,6 +404,10 @@ impl UserTableData {
 
     pub fn get_total_user(&self) -> usize {
         self.table.total_displayed_rows()
+    }
+
+    pub fn get_total_users_full(&self) -> usize {
+        self.table.total_rows()
     }
 
     /// Recreate the rows that will be shown in the UI. Used only when date picker date is updated
