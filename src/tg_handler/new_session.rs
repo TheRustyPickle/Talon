@@ -1,6 +1,6 @@
 use eframe::egui::Context;
 use grammers_client::types::{LoginToken, PasswordToken};
-use grammers_client::{Client, Config, SignInError};
+use grammers_client::{Client, Config, FixedReconnect, InitParams, SignInError};
 use grammers_session::Session;
 use log::{error, info};
 use std::fs;
@@ -43,11 +43,20 @@ pub async fn send_login_code(
         Session::load_file_or_create(target_path).unwrap()
     };
 
+    let reconnection = Box::leak(Box::new(FixedReconnect {
+        attempts: 10,
+        delay: std::time::Duration::from_secs(1),
+    }));
+
     let client = Client::connect(Config {
         session,
         api_id,
         api_hash,
-        params: Default::default(),
+        params: InitParams {
+            reconnection_policy: reconnection,
+            update_queue_limit: Some(1),
+            ..Default::default()
+        },
     })
     .await
     .map_err(|_| ProcessError::AuthorizationError)?;

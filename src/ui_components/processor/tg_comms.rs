@@ -59,6 +59,8 @@ impl MainWindow {
                     // Also recreate table data after counting session ends for a chat
                     if self.counter.session_remaining() <= 1 {
                         self.t_table().create_rows();
+                        let total_user = self.t_table().get_total_users_full();
+                        self.t_count().set_total_user(total_user as i32);
                         self.go_next_or_stop();
                     } else {
                         self.counter.reduce_session();
@@ -110,7 +112,7 @@ impl MainWindow {
                         self.t_table().set_as_whitelisted(&[user_id]);
                     }
 
-                    let total_user = self.t_table().get_total_user();
+                    let total_user = self.t_table().get_total_users_full();
                     self.t_count().set_total_user(total_user as i32);
 
                     let total_to_iter = start_from - end_at;

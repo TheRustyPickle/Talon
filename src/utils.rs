@@ -1,6 +1,7 @@
 use chrono::{Local, NaiveDate, NaiveDateTime};
 use egui_selectable_table::SelectableRow;
 use log::{error, info};
+use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::error::Error;
 use std::fs::{self, File};
@@ -13,6 +14,11 @@ use crate::ui_components::processor::{
 };
 use crate::ui_components::tab_ui::UserRowData;
 use crate::ui_components::TGKeys;
+
+#[derive(Serialize, Deserialize)]
+pub struct IsLightTheme {
+    is_light: bool,
+}
 
 /// Finds all the saved session files
 pub fn find_session_files() -> Vec<String> {
@@ -359,13 +365,6 @@ pub fn weekday_num_to_string(weekday: u8) -> String {
     }
 }
 
-pub fn create_export_file(export_data: &str, file_name: String) {
-    let mut export_file_location = PathBuf::from(".");
-    export_file_location.push(file_name);
-    let mut file = File::create(export_file_location).unwrap();
-    file.write_all(export_data.as_bytes()).unwrap();
-}
-
 pub fn export_table_data(rows: &Vec<SelectableRow<UserRowData, ColumnName>>, name: &str) {
     let mut export_file_location = PathBuf::from(".");
     let current_time = Local::now();
@@ -431,4 +430,32 @@ pub fn to_chart_name(user_name: String, full_name: &str, user_id: i64) -> String
     } else {
         format!("{full_name} {user_id}")
     }
+}
+
+pub fn last_theme() -> Result<bool, Box<dyn Error>> {
+    let mut theme_json = PathBuf::from(".");
+    theme_json.push("theme.json");
+
+    if let Ok(mut file) = File::open(theme_json) {
+        let mut contents = String::new();
+        file.read_to_string(&mut contents)?;
+
+        let existing_data: IsLightTheme = serde_json::from_str(&contents)?;
+        Ok(existing_data.is_light)
+    } else {
+        Ok(true)
+    }
+}
+
+pub fn save_theme(status: bool) {
+    let new_data = IsLightTheme { is_light: status };
+
+    let data = serde_json::to_string(&new_data);
+
+    if let Ok(data) = data {
+        let mut theme_path = PathBuf::from(".");
+        theme_path.push("theme.json");
+        let mut file = File::create(theme_path).unwrap();
+        file.write_all(data.as_bytes()).unwrap();
+    };
 }

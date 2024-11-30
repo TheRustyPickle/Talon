@@ -25,7 +25,8 @@ use crate::ui_components::tab_ui::{
 use crate::ui_components::widgets::AnimatedLabel;
 use crate::ui_components::TGKeys;
 use crate::utils::{
-    find_session_files, get_api_keys, get_font_data, get_runtime, theme_hover_text,
+    find_session_files, get_api_keys, get_font_data, get_runtime, last_theme, save_theme,
+    theme_hover_text,
 };
 
 pub struct MainWindow {
@@ -58,8 +59,18 @@ pub struct MainWindow {
 
 impl MainWindow {
     pub fn new(cc: &CreationContext) -> Self {
-        cc.egui_ctx
-            .options_mut(|a| a.theme_preference = ThemePreference::Light);
+        let last_theme_light = last_theme().unwrap_or_default();
+        let mut animator = ThemeAnimator::new(Visuals::light(), Visuals::dark());
+
+        if last_theme_light {
+            cc.egui_ctx
+                .options_mut(|a| a.theme_preference = ThemePreference::Light);
+            animator.theme_1_to_2 = true;
+        } else {
+            cc.egui_ctx
+                .options_mut(|a| a.theme_preference = ThemePreference::Dark);
+            animator.theme_1_to_2 = false;
+        };
         let (sender, receiver) = channel();
 
         Self {
@@ -79,7 +90,7 @@ impl MainWindow {
             tg_clients: BTreeMap::new(),
             incomplete_tg_client: None,
             existing_sessions_checked: false,
-            is_light_theme: true,
+            is_light_theme: last_theme_light,
             is_processing: false,
             new_version_body: Arc::new(Mutex::new(None)),
             counter_chat_index: 0,
@@ -87,7 +98,7 @@ impl MainWindow {
             chart_chat_index: 0,
             initial_chart_reset: false,
             cancel_count: Arc::new(AtomicBool::new(false)),
-            theme_animator: ThemeAnimator::new(Visuals::light(), Visuals::dark()),
+            theme_animator: animator,
             runtime: get_runtime(),
         }
     }
@@ -160,7 +171,9 @@ impl App for MainWindow {
                                 .on_hover_text(hover_text)
                                 .clicked()
                             {
-                                self.theme_animator.start()
+                                self.theme_animator.start();
+                                self.is_light_theme = !self.is_light_theme;
+                                save_theme(self.is_light_theme);
                             };
 
                             let hover_position = ui.make_persistent_id("tab_hover");
