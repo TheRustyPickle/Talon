@@ -4,15 +4,12 @@ use egui_dropdown::DropDownBox;
 use egui_extras::DatePickerButton;
 use egui_plot::{Bar, BarChart, Legend, Plot, PlotPoint};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
-use std::env::current_dir;
 use strum::IntoEnumIterator;
 
-use crate::ui_components::processor::{
-    ChartTiming, ChartType, DateNavigator, NavigationType, ProcessState,
-};
+use crate::ui_components::processor::{ChartTiming, ChartType, DateNavigator, NavigationType};
 use crate::ui_components::widgets::AnimatedLabel;
 use crate::ui_components::MainWindow;
-use crate::utils::{create_export_file, time_to_string, weekday_num_to_string};
+use crate::utils::{time_to_string, weekday_num_to_string};
 
 #[derive(Default)]
 pub struct ChartsData {
@@ -235,88 +232,6 @@ impl ChartsData {
 
         self.reset_saved_bars();
         self.date_nav.handler().update_dates(date);
-    }
-
-    /// Used to export chart data points to a text file
-    fn export_chart_data(&self) {
-        let timing_data = match self.chart_type {
-            ChartType::Message | ChartType::ActiveUser => match self.chart_timing {
-                ChartTiming::Hourly => Some(&self.hourly_message),
-                ChartTiming::Daily => Some(&self.daily_message),
-                ChartTiming::Weekly => Some(&self.weekly_message),
-                ChartTiming::Monthly => Some(&self.monthly_message),
-            },
-            _ => None,
-        };
-
-        let weekday_data = if timing_data.is_none() {
-            Some(&self.weekday_message)
-        } else {
-            None
-        };
-
-        let export_file_name = if timing_data.is_some() {
-            format!("export_{}_{}.txt", self.chart_type, self.chart_timing)
-        } else {
-            format!("export_{}_txt", self.chart_type)
-        };
-
-        let mut export_data = String::new();
-
-        if timing_data.is_some() {
-            // Date of chart points + {username or Full Name or user ID : total message sent}
-            let data = timing_data.unwrap();
-
-            for (timing, message_data) in data {
-                export_data += &format!("Timing: {timing}\n");
-                let (user_data, total_message, total_user) = self.chart_data_to_text(message_data);
-                export_data += &format!("Total Message: {total_message}\n");
-                export_data += &format!("Total User: {total_user}\n");
-                export_data += &format!("User Data and Message Sent:\n{user_data}");
-                export_data += "\n\n";
-            }
-        } else {
-            // Day of the week in u8 + {username or Full Name or user ID : total message sent}
-            let data = weekday_data.unwrap();
-
-            for (timing, message_data) in data {
-                let weekday_name = weekday_num_to_string(*timing);
-
-                export_data += &format!("Weekday: {weekday_name}\n");
-                let (user_data, total_message, total_user) = self.chart_data_to_text(message_data);
-                export_data += &format!("Total Message: {total_message}\n");
-                export_data += &format!("Total User: {total_user}\n");
-                export_data += &format!("User Data and Message Sent:\n{user_data}");
-                export_data += "\n\n";
-            }
-        }
-
-        create_export_file(&export_data, export_file_name);
-    }
-
-    /// Converts chart data points into textual representation
-    fn chart_data_to_text(&self, message_data: &HashMap<String, u64>) -> (String, u64, u64) {
-        let total_length = message_data.len();
-        let mut user_added = 0;
-        let mut total_message = 0;
-        let mut total_user = 0;
-        let mut user_data = String::new();
-        let mut index = 0;
-
-        for (user_id, message_num) in message_data {
-            total_message += message_num;
-            total_user += 1;
-            user_added += 1;
-            index += 1;
-
-            user_data += &format!("{user_id}: {message_num} ");
-            // Prevent adding extra space if is the last value
-            if user_added == 6 && index != total_length - 1 {
-                user_added = 0;
-                user_data += "\n";
-            }
-        }
-        (user_data, total_message, total_user)
     }
 
     /// Clears all pre-saved bars
@@ -634,22 +549,6 @@ impl MainWindow {
         }
 
         ui.horizontal(|ui| {
-            let button_text = if [ChartType::ActiveUserWeekDay, ChartType::MessageWeekDay].contains(&self.chart().chart_type) {
-                format!("Export {} Chart Data", self.chart().chart_type)
-            } else {
-                format!(
-                    "Export {} {} Chart Data",
-                    self.chart_i().chart_type, self.chart_i().chart_timing
-                )
-            };
-
-            let enable_export = !self.is_processing && !self.chart().available_users.is_empty();
-            if ui.add_enabled(enable_export, Button::new(button_text)).on_hover_text("Export Chart data in text file").clicked()
-            {
-                self.chart().export_chart_data();
-                self.process_state = ProcessState::DataExported(current_dir().unwrap().to_string_lossy().into());
-            };
-            ui.add_space(2.0);
             ui.label("Use CTRL + scroll to zoom, drag mouse or scroll to move and double click to fit/reset the chart");
         });
 
