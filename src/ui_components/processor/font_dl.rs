@@ -4,6 +4,7 @@ use log::{error, info};
 use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 /// Downloads the app font data from github, saves them locally and loads them
 pub async fn download_font(ctx: Context) {
@@ -61,8 +62,8 @@ pub async fn download_font(ctx: Context) {
         return;
     };
 
-    let font_cjk = FontData::from_owned(cjk_data.to_vec());
-    let font_gentium = FontData::from_owned(gentium_data.to_vec());
+    let font_cjk = Arc::new(FontData::from_owned(cjk_data.to_vec()));
+    let font_gentium = Arc::new(FontData::from_owned(gentium_data.to_vec()));
     let mut font_definitions = FontDefinitions::default();
 
     font_definitions

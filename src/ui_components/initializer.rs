@@ -1,10 +1,8 @@
-use eframe::egui::{Rounding, TopBottomPanel};
 use eframe::{egui, App, CreationContext, Frame};
 use egui::{
-    Align, Button, CentralPanel, Context, FontData, FontDefinitions, FontFamily, Layout, Spinner,
-    ThemePreference, ViewportCommand, Visuals,
+    Align, Button, CentralPanel, Context, FontData, FontDefinitions, FontFamily, Id, Layout, Modal,
+    Rounding, ScrollArea, Spinner, ThemePreference, TopBottomPanel, ViewportCommand, Visuals,
 };
-use egui_modal::Modal;
 use egui_theme_lerp::ThemeAnimator;
 use log::info;
 use std::collections::{BTreeMap, HashMap};
@@ -258,29 +256,78 @@ impl App for MainWindow {
                         }
                     }
 
-                    if self.new_version_body.lock().unwrap().is_some() {
-                        let modal = Modal::new(ctx, "version_modal");
 
-                        modal.show(|ui| {
-                            modal.title(ui, "New Version Available");
-                            modal.frame(ui, |ui| {
-                                let modal_text =
-                                    self.new_version_body.lock().unwrap().clone().unwrap();
-                                modal.body(ui, modal_text);
+                    if self.new_version_body.lock().unwrap().is_some() {
+
+                        *self.new_version_body.lock().unwrap() = Some("Can you confirm where the amount listed here is derived from? Is it from the dapps listed on EARN REWARD section?Can you confirm where the amount listed here is derived from? Is it from the dapps listed on EARN REWARD section?Can you confirm where the amount listed here is derived from? Is it from the dapps listed on EARN REWARD section?Can you confirm where the amount listed here is derived from? Is it from the dapps listed on EARN REWARD section?Can you confirm where the amount listed here is derived from? Is it from the dapps listed on EARN REWARD section?Can you confirm where the amount listed here is derived from? Is it from the dapps listed on EARN REWARD section?Can you confirm where the amount listed here is derived from? Is it from the dapps listed on EARN REWARD section?Can you confirm where the amount listed here is derived from? Is it from the dapps listed on EARN REWARD section?".to_string());
+                        let modal_text = self.new_version_body.lock().unwrap().clone().unwrap();
+                        let modal = Modal::new(Id::new("version_modal")).show(ui.ctx(), |ui| {
+                            ui.set_width(300.0);
+                            ui.set_height(300.0);
+
+                            TopBottomPanel::top("version_top_panel").show_inside(ui, |ui| {
+                                ui.vertical_centered(|ui| {
+                                    ui.heading("A new version is available");
+                                });
                             });
-                            modal.buttons(ui, |ui| {
-                                if modal.button(ui, "Close").clicked() {
-                                    *self.new_version_body.lock().unwrap() = None;
-                                };
-                                if modal.button(ui, "Update").clicked() {
-                                    *self.new_version_body.lock().unwrap() = None;
-                                    let _ = open::that(
-                                        "https://github.com/TheRustyPickle/Talon/releases/latest",
-                                    );
-                                };
+                            TopBottomPanel::bottom("version_bottom_panel").show_inside(ui, |ui| {
+                                ui.horizontal(|ui| {
+                                    let available_width = ui.available_width();
+                                    let button_width = available_width / 2.0;
+
+                                    if ui
+                                        .add_sized(
+                                            [button_width - 5.0, 15.0],
+                                            Button::new("Update"),
+                                        )
+                                        .clicked()
+                                    {
+                                        let _ = open::that(
+                                            "https://github.com/TheRustyPickle/Talon/releases/latest",
+                                        );
+                                        *self.new_version_body.lock().unwrap() = None;
+                                    }
+
+                                    if ui
+                                        .add_sized([button_width - 5.0, 15.0], Button::new("Close"))
+                                        .clicked()
+                                    {
+                                        *self.new_version_body.lock().unwrap() = None;
+                                    }
+                                });
+                            });
+
+                            CentralPanel::default().show_inside(ui, |ui| {
+                                ScrollArea::vertical().show(ui, |ui| {
+                                    ui.label(modal_text);
+                                });
                             });
                         });
-                        modal.open();
+                        if modal.should_close() {
+                            *self.new_version_body.lock().unwrap() = None;
+                        }
+                        // let modal = Modal::new(ctx, "version_modal");
+                        //
+                        // modal.show(|ui| {
+                        //     modal.title(ui, "New Version Available");
+                        //     modal.frame(ui, |ui| {
+                        //         let modal_text =
+                        //             self.new_version_body.lock().unwrap().clone().unwrap();
+                        //         modal.body(ui, modal_text);
+                        //     });
+                        //     modal.buttons(ui, |ui| {
+                        //         if modal.button(ui, "Close").clicked() {
+                        //             *self.new_version_body.lock().unwrap() = None;
+                        //         };
+                        //         if modal.button(ui, "Update").clicked() {
+                        //             *self.new_version_body.lock().unwrap() = None;
+                        //             let _ = open::that(
+                        //                 "https://github.com/TheRustyPickle/Talon/releases/latest",
+                        //             );
+                        //         };
+                        //     });
+                        // });
+                        // modal.open();
                     }
                 });
             }
@@ -354,8 +401,8 @@ impl MainWindow {
 
         if let Some((cjk, gentium)) = font_data {
             // Add the fonts on top of the default ones
-            let font_cjk = FontData::from_owned(cjk);
-            let font_gentium = FontData::from_owned(gentium);
+            let font_cjk = Arc::new(FontData::from_owned(cjk));
+            let font_gentium = Arc::new(FontData::from_owned(gentium));
             let mut font_definitions = FontDefinitions::default();
 
             font_definitions
