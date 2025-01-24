@@ -258,8 +258,6 @@ impl App for MainWindow {
 
 
                     if self.new_version_body.lock().unwrap().is_some() {
-
-                        *self.new_version_body.lock().unwrap() = Some("Can you confirm where the amount listed here is derived from? Is it from the dapps listed on EARN REWARD section?Can you confirm where the amount listed here is derived from? Is it from the dapps listed on EARN REWARD section?Can you confirm where the amount listed here is derived from? Is it from the dapps listed on EARN REWARD section?Can you confirm where the amount listed here is derived from? Is it from the dapps listed on EARN REWARD section?Can you confirm where the amount listed here is derived from? Is it from the dapps listed on EARN REWARD section?Can you confirm where the amount listed here is derived from? Is it from the dapps listed on EARN REWARD section?Can you confirm where the amount listed here is derived from? Is it from the dapps listed on EARN REWARD section?Can you confirm where the amount listed here is derived from? Is it from the dapps listed on EARN REWARD section?".to_string());
                         let modal_text = self.new_version_body.lock().unwrap().clone().unwrap();
                         let modal = Modal::new(Id::new("version_modal")).show(ui.ctx(), |ui| {
                             ui.set_width(300.0);
@@ -306,28 +304,6 @@ impl App for MainWindow {
                         if modal.should_close() {
                             *self.new_version_body.lock().unwrap() = None;
                         }
-                        // let modal = Modal::new(ctx, "version_modal");
-                        //
-                        // modal.show(|ui| {
-                        //     modal.title(ui, "New Version Available");
-                        //     modal.frame(ui, |ui| {
-                        //         let modal_text =
-                        //             self.new_version_body.lock().unwrap().clone().unwrap();
-                        //         modal.body(ui, modal_text);
-                        //     });
-                        //     modal.buttons(ui, |ui| {
-                        //         if modal.button(ui, "Close").clicked() {
-                        //             *self.new_version_body.lock().unwrap() = None;
-                        //         };
-                        //         if modal.button(ui, "Update").clicked() {
-                        //             *self.new_version_body.lock().unwrap() = None;
-                        //             let _ = open::that(
-                        //                 "https://github.com/TheRustyPickle/Talon/releases/latest",
-                        //             );
-                        //         };
-                        //     });
-                        // });
-                        // modal.open();
                     }
                 });
             }
