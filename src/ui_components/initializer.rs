@@ -1,7 +1,7 @@
 use eframe::{egui, App, CreationContext, Frame};
 use egui::{
-    Align, Button, CentralPanel, Context, FontData, FontDefinitions, FontFamily, Id, Layout, Modal,
-    Rounding, ScrollArea, Spinner, ThemePreference, TopBottomPanel, ViewportCommand, Visuals,
+    Align, Button, CentralPanel, Context, CornerRadius, FontData, FontDefinitions, FontFamily, Id,
+    Layout, Modal, ScrollArea, Spinner, ThemePreference, TopBottomPanel, ViewportCommand, Visuals,
 };
 use egui_theme_lerp::ThemeAnimator;
 use log::info;
@@ -75,7 +75,7 @@ impl MainWindow {
             app_state: AppState::default(),
             tg_keys: TGKeys::default(),
             counter: CounterData::default(),
-            // default value with an existing one with default
+            // Default value with an existing one with default
             table: vec![UserTableData::default()],
             chart: vec![ChartsData::default()],
             whitelist: WhitelistData::default(),
@@ -131,7 +131,7 @@ impl App for MainWindow {
                 ctx.set_pixels_per_point(1.1);
                 self.set_fonts(ctx);
 
-                // If API keys are found, start the main UI otherwise show the UI to input the api keys
+                // If API keys are found, start the main UI otherwise show the UI to input the API keys
                 if get_api_keys().is_some() {
                     self.app_state = AppState::InitializedUI;
                 } else {
@@ -141,7 +141,7 @@ impl App for MainWindow {
             AppState::InputAPIKeys => self.show_tg_keys_ui(ctx),
             AppState::InitializedUI => {
                 TopBottomPanel::top("top_panel")
-                    .show_separator_line(false)
+                    .show_separator_line(true)
                     .show(ctx, |ui| {
                         if self.theme_animator.anim_id.is_none() {
                             self.theme_animator.create_id(ui)
@@ -186,9 +186,9 @@ impl App for MainWindow {
                                     val.to_string(),
                                     selected_position,
                                     hover_position,
-                                    60.0,
+                                    70.0,
                                     15.5,
-                                    Some(Rounding::ZERO),
+                                    Some(CornerRadius::ZERO),
                                     (first_val, true),
                                 ));
 
@@ -202,7 +202,7 @@ impl App for MainWindow {
                         ui.add_space(0.5);
                     });
                 TopBottomPanel::bottom("bottom_panel")
-                    .show_separator_line(false)
+                    .show_separator_line(true)
                     .show(ctx, |ui| {
                         ui.add_space(4.0);
                         let status_text = self.process_state.to_string();
