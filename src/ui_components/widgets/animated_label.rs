@@ -52,6 +52,8 @@ impl Widget for AnimatedLabel {
             separator_position,
         } = self;
 
+        let ui_spacing = ui.spacing().item_spacing.x;
+
         ui.spacing_mut().item_spacing.x = 0.0;
 
         let (separator_left, separator_right) = separator_position;
@@ -155,6 +157,8 @@ impl Widget for AnimatedLabel {
                 painter.vline(fixed_line_x, separator_y_1..=separator_y_2, stroke);
             }
         }
+
+        ui.spacing_mut().item_spacing.x = ui_spacing;
 
         response
     }
