@@ -3696,7 +3696,7 @@ dependencies = [
 
 [[package]]
 name = "talon-gui"
-version = "1.0.8"
+version = "1.0.9"
 dependencies = [
  "chrono",
  "csv",
