@@ -35,11 +35,11 @@ pub struct ChartsData {
     /// Pre-saved Bars to for the daily chart, used for both Message and User
     daily_bars: Option<BTreeMap<String, Vec<Bar>>>,
     date_nav: DateNavigator,
-    /// Hover labels, key = x value in chart. values = (date, total message, whitelist message)
+    /// Hover labels, key = x value in chart. Values = (date, total message, whitelist message)
     labels: HashMap<i64, (NaiveDateTime, u64, u64)>,
-    /// Hover labels for the hourly chart, key = x value in chart. values = (date, total message, whitelist message)
+    /// Hover labels for the hourly chart, key = x value in chart. Values = (date, total message, whitelist message)
     hourly_labels: HashMap<i64, (NaiveDateTime, u64, u64)>,
-    /// Hover labels for the daily chart, key = x value in chart. values = (date, total message, whitelist message)
+    /// Hover labels for the daily chart, key = x value in chart. Values = (date, total message, whitelist message)
     daily_labels: HashMap<i64, (NaiveDateTime, u64, u64)>,
 }
 
@@ -112,7 +112,7 @@ impl ChartsData {
         add_to: String,
         client_name: &str,
     ) {
-        // keep a common value among messages for example messages sent within the same hour,
+        // Keep a common value among messages for example messages sent within the same hour,
         // reset the second and minute value to 0 so these messages can be grouped
         let hourly_time = time.with_second(0).unwrap().with_minute(0).unwrap();
         let daily_time = time
@@ -144,7 +144,7 @@ impl ChartsData {
             .and_hms_opt(0, 0, 0)
             .unwrap();
 
-        // If last day is January 10, current day is January 5, add january 6 to 9 with 0 value
+        // If last day is January 10, current day is January 5, add January 6 to 9 with 0 value
         // Apply the same for all of them
         if let Some(Some(last_hour)) = self.last_hour.get_mut(client_name) {
             let missing_hour = (*last_hour - hourly_time).num_hours();
@@ -244,7 +244,7 @@ impl ChartsData {
 
     /// Whether total message and whitelist message are added to the chart
     fn message_whitelist_added(&self, row_len: usize) -> (bool, bool) {
-        // If there is no whitelisted users, this will be considered as not-shown. Adds extra bars
+        // If there are no whitelisted users, this will be considered as not-shown. Adds extra bars
         // to the ui => consume more power.
         let whitelist = self.added_to_chart.contains("Show whitelisted data") && row_len > 0;
 
@@ -404,7 +404,7 @@ impl MainWindow {
                         if let Some(size) = self.chart().button_sizes.get(user).unwrap() {
                             size.to_owned()
                         } else {
-                            // magic math to calculate size taken somewhere from the egui source code
+                            // Magic math to calculate size taken somewhere from the egui source code
                             (user.len() as f32 * (ui.style().spacing.button_padding.x * 2.0))
                                 + ui.spacing().item_spacing.x
                         };
@@ -615,7 +615,7 @@ impl MainWindow {
             let key_date = key.date();
 
             // Check whether the date is within the given range and whether before the to value
-            // BTreeMap is already sorted, we are going from low to high so if already beyond the
+            // BTreeMap is already sorted. We are going from low to high so if already beyond the
             // to value, there is no use iterating further and break
             let within_range = self.chart_i().date_nav.handler_i().within_range(key_date);
             let before_to_range = self
@@ -759,7 +759,7 @@ impl MainWindow {
             let arg = index as f64;
             let key_date = key.date();
             // Check whether the date is within the given range and whether before the to value
-            // BTreeMap is already sorted, we are going from low to high so if already beyond the
+            // BTreeMap is already sorted. We are going from low to high so if already beyond the
             // to value, there is no use iterating further and break
             let within_range = self.chart_i().date_nav.handler_i().within_range(key_date);
             let before_to_range = self
@@ -845,7 +845,7 @@ impl MainWindow {
             .chart_i()
             .message_whitelist_added(self.whitelist.row_len());
 
-        // Key = week day num
+        // Key = Weekday num
         // user = All users that sent messages to this common time + the amount of message
         for (index, (key, user)) in to_iter {
             let arg = index as f64;
@@ -907,7 +907,7 @@ impl MainWindow {
             .chart_i()
             .message_whitelist_added(self.whitelist.row_len());
 
-        // Key = week day num
+        // Key = weekday num
         // user = All users that sent messages to this common time + the amount of message
         for (index, (key, user)) in to_iter {
             let arg = index as f64;
@@ -1012,7 +1012,7 @@ impl MainWindow {
         // User data stacking only happens on Message chart
         if self.chart().chart_type == ChartType::Message {
             // Only triggered when Something other than total and whitelisted message is added to
-            // the chart
+            // the chart.
             // All charts must be stacked by all the previous charts
             // Chart 3 will be stacked by chart 1 and 2
             // The target is the bottom chart is total message => whitelist => the rest of the users
@@ -1087,7 +1087,7 @@ impl MainWindow {
 
         Plot::new("Plot")
             .legend(Legend::default().background_alpha(0.0))
-            .auto_bounds([true; 2].into())
+            .auto_bounds([true; 2])
             .clamp_grid(true)
             .label_formatter(label_fmt)
             .show(ui, |plot_ui| {

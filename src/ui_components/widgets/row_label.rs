@@ -1,4 +1,6 @@
-use eframe::egui::{Response, Sense, TextStyle, Ui, Widget, WidgetInfo, WidgetText, WidgetType};
+use eframe::egui::{
+    Response, Sense, StrokeKind, TextStyle, Ui, Widget, WidgetInfo, WidgetText, WidgetType,
+};
 use eframe::emath::NumExt;
 use eframe::epaint::Color32;
 
@@ -61,17 +63,19 @@ impl Widget for RowLabel {
 
                 ui.painter().rect(
                     rect,
-                    visuals.rounding,
+                    visuals.corner_radius,
                     visuals.weak_bg_fill,
                     visuals.bg_stroke,
+                    StrokeKind::Middle,
                 );
             } else if response.hovered() && whitelisted {
                 let rect = rect.expand(visuals.expansion);
                 ui.painter().rect(
                     rect,
-                    visuals.rounding,
+                    visuals.corner_radius,
                     Color32::from_rgb(255, 127, 80),
                     visuals.bg_stroke,
+                    StrokeKind::Middle,
                 );
             } else if whitelisted {
                 let rect = rect.expand(visuals.expansion);
@@ -83,8 +87,13 @@ impl Widget for RowLabel {
                     Color32::from_rgb(255, 160, 122)
                 };
 
-                ui.painter()
-                    .rect(rect, visuals.rounding, color, visuals.bg_stroke);
+                ui.painter().rect(
+                    rect,
+                    visuals.corner_radius,
+                    color,
+                    visuals.bg_stroke,
+                    StrokeKind::Middle,
+                );
             }
 
             ui.painter().galley(text_pos, text, visuals.text_color());
