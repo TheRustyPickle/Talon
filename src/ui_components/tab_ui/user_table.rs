@@ -1,7 +1,5 @@
 use chrono::{NaiveDate, NaiveDateTime};
-use eframe::egui::{
-    Align, Button, ComboBox, Key, Layout, Response, RichText, SelectableLabel, Sense, Ui,
-};
+use eframe::egui::{Align, Button, ComboBox, Key, Layout, Response, RichText, Sense, Ui};
 use egui_extras::{Column, DatePickerButton};
 use egui_selectable_table::{
     ColumnOperations, ColumnOrdering, SelectableRow, SelectableTable, SortOrder,
@@ -121,7 +119,7 @@ impl ColumnOperations<UserRowData, ColumnName, Config> for ColumnName {
         let response = ui
             .add_sized(
                 ui.available_size(),
-                SelectableLabel::new(is_selected, label_text),
+                Button::selectable(is_selected, label_text),
             )
             .on_hover_text(hover_text);
         Some(response)
@@ -169,21 +167,21 @@ impl ColumnOperations<UserRowData, ColumnName, Config> for ColumnName {
 
         if show_tooltip {
             label = label.on_hover_text(row_text);
-        };
+        }
         label.context_menu(|ui| {
             if ui.button("Copy selected rows").clicked() {
                 table.config.copy_selected = true;
-                ui.close_menu();
-            };
+                ui.close();
+            }
             if ui.button("Whitelist selected rows").clicked() {
                 table.config.whitelist_rows = true;
-                ui.close_menu();
-            };
+                ui.close();
+            }
 
             if ui.button("Blacklist selected rows").clicked() {
                 table.config.blacklisted_rows = true;
-                ui.close_menu();
-            };
+                ui.close();
+            }
         });
         label
     }
@@ -466,7 +464,7 @@ impl UserTableData {
 
     /// Mark a row as whitelisted if exists
     pub fn set_as_whitelisted(&mut self, user_id: &[i64]) {
-        for (_d, row_data) in self.user_data.iter_mut() {
+        for row_data in self.user_data.values_mut() {
             for (id, row) in row_data.iter_mut() {
                 for u_id in user_id {
                     if id == u_id {
@@ -479,7 +477,7 @@ impl UserTableData {
     }
 
     pub fn remove_blacklisted_rows(&mut self, user_id: &[i64]) {
-        for (_d, row_data) in self.user_data.iter_mut() {
+        for row_data in self.user_data.values_mut() {
             for id in user_id {
                 row_data.remove(id);
             }
@@ -489,7 +487,7 @@ impl UserTableData {
 
     /// Remove whitelist status from a row if exists
     pub fn remove_whitelist(&mut self, user_id: &[i64]) {
-        for (_d, row_data) in self.user_data.iter_mut() {
+        for row_data in self.user_data.values_mut() {
             for (id, row) in row_data.iter_mut() {
                 for u_id in user_id {
                     if id == u_id {
@@ -541,7 +539,7 @@ impl MainWindow {
                 self.table().export_data(&chat_name);
                 self.process_state =
                     ProcessState::DataExported(current_dir().unwrap().to_string_lossy().into());
-            };
+            }
         });
         ui.separator();
 
@@ -613,11 +611,11 @@ impl MainWindow {
 
                 if ui.button(format!("Previous {}", table.date_nav.nav_name())).on_hover_text(previous_hover).clicked() {
                     table.date_nav.go_previous();
-                };
+                }
 
                 if ui.button(format!("Next {}", table.date_nav.nav_name())).on_hover_text(next_hover).clicked() {
                     table.date_nav.go_next();
-                };
+                }
             });
         });
 

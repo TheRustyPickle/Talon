@@ -88,10 +88,7 @@ impl TGClient {
         let end_at = end_num.unwrap_or(1);
         let mut start_at = start_num.unwrap_or(-1);
 
-        info!(
-            "Starting message num {}, ending message num {}",
-            start_at, end_at
-        );
+        info!("Starting message num {start_at}, ending message num {end_at}");
 
         let last_sent = Arc::new(Mutex::new(Some(Instant::now())));
 
@@ -111,7 +108,7 @@ impl TGClient {
                 if time_passed > 500 && time_passed < 1050 {
                     sender.send(ProcessResult::FloodWait).unwrap();
                     context.request_repaint();
-                };
+                }
 
                 // stop this thread if no activity for over 60 seconds
                 if time_passed > 60000 {

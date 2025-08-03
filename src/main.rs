@@ -25,7 +25,7 @@ fn main() {
         builder
             .filter_module(env!("CARGO_BIN_NAME"), LevelFilter::Info)
             .init();
-    };
+    }
 
     let working_path = data_local_dir();
 

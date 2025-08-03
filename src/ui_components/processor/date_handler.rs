@@ -60,13 +60,13 @@ impl DatePickerHandler {
     /// Compare the given date with the current Start and End date
     /// to find the oldest and the newest date
     pub fn update_dates(&mut self, date: NaiveDate) {
-        if self.start.map_or(true, |current| current > date) {
+        if self.start.is_none_or(|current| current > date) {
             self.from = date;
             self.start = Some(date);
             self.last_from = Some(date);
         }
 
-        if self.end.map_or(true, |current_date| current_date < date) {
+        if self.end.is_none_or(|current_date| current_date < date) {
             self.to = date;
             self.end = Some(date);
             self.last_to = Some(date);

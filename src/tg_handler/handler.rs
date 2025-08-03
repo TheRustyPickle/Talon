@@ -99,7 +99,7 @@ impl TGClient {
             .await
             .map_err(ProcessError::UnknownError)?;
 
-        info!("Client authorization status: {}", authorized);
+        info!("Client authorization status: {authorized}");
 
         if !authorized {
             self.send(ProcessResult::UnauthorizedClient(self.name()));

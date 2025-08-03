@@ -488,11 +488,11 @@ impl MainWindow {
 
                     if ui.button(format!("Previous {}", chart.date_nav.nav_name())).on_hover_text(previous_hover).clicked() {
                         chart.date_nav.go_previous();
-                    };
+                    }
 
                     if ui.button(format!("Next {}", chart.date_nav.nav_name())).on_hover_text(next_hover).clicked() {
                         chart.date_nav.go_next();
-                    };
+                    }
                 });
             });
 
@@ -969,7 +969,7 @@ impl MainWindow {
 
                         whitelist_chart = whitelist_chart.stack_on(&[&total_message_chart]);
                         all_charts.push(total_message_chart);
-                    };
+                    }
                 }
                 all_charts.push(whitelist_chart);
             }
@@ -979,8 +979,8 @@ impl MainWindow {
                     .width(1.0)
                     .name(total_data_name);
                 all_charts.push(total_message_chart);
-            };
-        };
+            }
+        }
 
         // User data stacking only happens on Message chart
         if self.chart().chart_type == ChartType::Message {
@@ -1030,21 +1030,19 @@ impl MainWindow {
                 let date_label;
 
                 match chart_type {
-                    ChartType::Message | ChartType::ActiveUser => {
-                        match timing {
-                            ChartTiming::Hourly | ChartTiming::Daily => {
-                                date_label = date.to_string();
-                            }
-                            ChartTiming::Weekly => {
-                                let other_date = date.checked_add_days(Days::new(7)).unwrap();
-                                date_label = format!("{date} - {other_date}");
-                            }
-                            ChartTiming::Monthly => {
-                                let other_date = date.checked_add_months(Months::new(1)).unwrap();
-                                date_label = format!("{date} - {other_date}");
-                            }
-                        };
-                    }
+                    ChartType::Message | ChartType::ActiveUser => match timing {
+                        ChartTiming::Hourly | ChartTiming::Daily => {
+                            date_label = date.to_string();
+                        }
+                        ChartTiming::Weekly => {
+                            let other_date = date.checked_add_days(Days::new(7)).unwrap();
+                            date_label = format!("{date} - {other_date}");
+                        }
+                        ChartTiming::Monthly => {
+                            let other_date = date.checked_add_months(Months::new(1)).unwrap();
+                            date_label = format!("{date} - {other_date}");
+                        }
+                    },
                     ChartType::MessageWeekDay | ChartType::ActiveUserWeekDay => {
                         date_label = weekday_num_to_string(x_val as u8);
                     }

@@ -27,7 +27,7 @@ pub fn find_session_files() -> Vec<String> {
         for entry in entries {
             if let Ok(file_name) = entry.unwrap().file_name().into_string() {
                 if file_name.ends_with(".session") {
-                    info!("Found existing session file {}", file_name);
+                    info!("Found existing session file {file_name}");
                     sessions.push(file_name);
                 }
             }
@@ -148,7 +148,7 @@ pub fn parse_tg_chat(text: &str) -> (Option<String>, Option<i32>) {
             (chat_name, message_number) = split_tg_link(text);
         } else {
             chat_name = Some(text.to_string());
-        };
+        }
     }
     (chat_name, message_number)
 }
@@ -163,7 +163,7 @@ fn split_tg_link(text: &str) -> (Option<String>, Option<i32>) {
         if let Ok(num) = num.parse() {
             message_number = Some(num);
         }
-    };
+    }
 
     (chat_name, message_number)
 }
@@ -219,7 +219,7 @@ pub fn save_api_keys(api_keys: &TGKeys) {
         api_key_path.push("api_keys.json");
         let mut file = File::create(api_key_path).unwrap();
         file.write_all(data.as_bytes()).unwrap();
-    };
+    }
 }
 
 /// Reads the whitelisted user `PackedChat` Hex IDs and returns them
@@ -457,5 +457,5 @@ pub fn save_theme(status: bool) {
         theme_path.push("theme.json");
         let mut file = File::create(theme_path).unwrap();
         file.write_all(data.as_bytes()).unwrap();
-    };
+    }
 }

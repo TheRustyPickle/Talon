@@ -8,6 +8,7 @@ use tokio::sync::Mutex;
 use crate::tg_handler::{TGClient, TGCountData};
 use crate::ui_components::processor::{UnpackedBlacklistedUser, UnpackedWhitelistedUser};
 
+#[allow(clippy::large_enum_variant)]
 pub enum ProcessResult {
     InitialSessionSuccess((Vec<TGClient>, Vec<String>, Vec<String>)),
     InvalidChat(String),

@@ -253,7 +253,7 @@ If yes, it will try to log out before the app is closed and no session file will
         self.runtime.spawn(async move {
             client
                 .start_process(ProcessStart::SignInCode(token, code))
-                .await
+                .await;
         });
     }
 
@@ -269,7 +269,7 @@ If yes, it will try to log out before the app is closed and no session file will
         self.runtime.spawn(async move {
             client
                 .start_process(ProcessStart::SignInPasswords(token, password))
-                .await
+                .await;
         });
     }
 }

@@ -276,7 +276,7 @@ impl MainWindow {
                     if start_button.clicked() {
                         self.start_counting();
                     }
-                };
+                }
             });
         });
 

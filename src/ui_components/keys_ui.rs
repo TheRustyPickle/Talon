@@ -30,7 +30,7 @@ impl MainWindow {
                     ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
                         if ui.link(tg_link).clicked() {
                             open::that(tg_link).unwrap();
-                        };
+                        }
                     });
                     ui.end_row();
 

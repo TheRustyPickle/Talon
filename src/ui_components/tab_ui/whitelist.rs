@@ -1,6 +1,4 @@
-use eframe::egui::{
-    Align, Button, Grid, Label, Layout, Response, RichText, SelectableLabel, Sense, TextEdit, Ui,
-};
+use eframe::egui::{Align, Button, Grid, Label, Layout, Response, RichText, Sense, TextEdit, Ui};
 use egui_extras::Column;
 use egui_selectable_table::{
     ColumnOperations, ColumnOrdering, SelectableRow, SelectableTable, SortOrder,
@@ -77,18 +75,18 @@ impl ColumnOperations<WhiteListRowData, ColumnName, Config> for ColumnName {
         let mut label = ui
             .add_sized(
                 ui.available_size(),
-                SelectableLabel::new(is_selected, &row_text),
+                Button::selectable(is_selected, &row_text),
             )
             .interact(Sense::drag());
 
         if show_tooltip {
             label = label.on_hover_text(row_text);
-        };
+        }
         label.context_menu(|ui| {
             if ui.button("Deleted Selected").clicked() {
                 table.config.deleted_selected = true;
-                ui.close_menu();
-            };
+                ui.close();
+            }
         });
         label
     }
@@ -297,7 +295,7 @@ then right click on User Table to whitelist",
                 .clicked()
             {
                 self.whitelist.table.select_all();
-            };
+            }
             if ui
                 .button("Delete Selected")
                 .on_hover_text("Delete selected users from whitelist")
@@ -309,7 +307,7 @@ then right click on User Table to whitelist",
                 self.table().remove_whitelist(&deleted);
                 self.chart().reset_saved_bars();
                 self.process_state = ProcessState::WhitelistedUserRemoved(total_to_remove);
-            };
+            }
             if ui
                 .button("Delete All")
                 .on_hover_text("Delete all whitelisted users")
@@ -320,7 +318,7 @@ then right click on User Table to whitelist",
                 self.table().remove_whitelist(&deleted);
                 self.chart().reset_saved_bars();
                 self.process_state = ProcessState::AllWhitelistRemoved;
-            };
+            }
         });
 
         let column_size = (ui.available_width() - 20.0) / 3.0;
