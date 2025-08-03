@@ -1,5 +1,7 @@
 use chrono::{Datelike, Days, Duration, Months, NaiveDate, NaiveDateTime, Timelike, Weekday};
-use eframe::egui::{CentralPanel, ComboBox, Id, Key, Modal, ScrollArea, TopBottomPanel, Ui};
+use eframe::egui::{
+    CentralPanel, ComboBox, Id, Key, Modal, ScrollArea, TextEdit, TopBottomPanel, Ui,
+};
 use egui_extras::DatePickerButton;
 use egui_plot::{Bar, BarChart, Legend, Plot, PlotPoint};
 use nucleo_matcher::pattern::{CaseMatching, Normalization, Pattern};
@@ -257,12 +259,16 @@ impl ChartsData {
                 ui.vertical_centered_justified(|ui| {
                     if ui.button("Confirm").clicked() {
                         self.modal_open = false;
+                        self.search_text.clear();
                     }
                 })
             });
 
             CentralPanel::default().show_inside(ui, |ui| {
-                ui.text_edit_singleline(&mut self.search_text);
+                let text_edit =
+                    TextEdit::singleline(&mut self.search_text).hint_text("Search user");
+
+                ui.add(text_edit);
 
                 ScrollArea::vertical().show(ui, |ui| {
                     let all_keys = self.available_users.keys().cloned().collect::<Vec<_>>();
@@ -295,6 +301,7 @@ impl ChartsData {
 
         if response.should_close() {
             self.modal_open = false;
+            self.search_text.clear();
         }
 
         if !self.modal_open {
