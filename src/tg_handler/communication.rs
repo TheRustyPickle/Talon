@@ -1,8 +1,8 @@
 use grammers_client::types::iter_buffer::InvocationError;
 use grammers_client::types::{LoginToken, PasswordToken};
 use grammers_mtsender::AuthorizationError;
-use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 use tokio::sync::Mutex;
 
 use crate::tg_handler::{TGClient, TGCountData};

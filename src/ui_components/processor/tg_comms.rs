@@ -3,8 +3,8 @@ use log::{error, info};
 use std::sync::atomic::Ordering;
 
 use crate::tg_handler::{ProcessError, ProcessResult, ProcessStart};
-use crate::ui_components::processor::ProcessState;
 use crate::ui_components::MainWindow;
+use crate::ui_components::processor::ProcessState;
 use crate::utils::to_chart_name;
 
 impl MainWindow {
@@ -188,7 +188,9 @@ impl MainWindow {
                             self.process_state = ProcessState::NotSignedUp;
                         }
                         ProcessError::UnknownError(e) => {
-                            error!("Unknown error encountered while trying to complete the process. {e}");
+                            error!(
+                                "Unknown error encountered while trying to complete the process. {e}"
+                            );
                             self.process_state = ProcessState::UnknownError;
                         }
                         ProcessError::InvalidPassword => {

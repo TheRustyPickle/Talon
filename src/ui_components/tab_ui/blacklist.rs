@@ -8,8 +8,8 @@ use log::{error, info};
 use std::collections::HashSet;
 
 use crate::tg_handler::ProcessStart;
-use crate::ui_components::processor::{ColumnName, PackedBlacklistedUser, ProcessState};
 use crate::ui_components::MainWindow;
+use crate::ui_components::processor::{ColumnName, PackedBlacklistedUser, ProcessState};
 use crate::utils::{get_blacklisted, save_blacklisted_users, separate_blacklist_by_seen};
 
 #[derive(Default)]

@@ -11,12 +11,12 @@ use std::collections::{HashMap, HashSet};
 use std::env::current_dir;
 use strum::IntoEnumIterator;
 
+use crate::ui_components::MainWindow;
 use crate::ui_components::processor::{
     ColumnName, DateNavigator, NavigationType, PackedBlacklistedUser, PackedWhitelistedUser,
     ProcessState,
 };
 use crate::ui_components::widgets::{AnimatedLabel, RowLabel};
-use crate::ui_components::MainWindow;
 use crate::utils::{entry_insert_user, export_table_data, to_chart_name};
 
 #[derive(Default)]

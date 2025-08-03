@@ -9,11 +9,11 @@ use std::io::{Read, Write};
 use std::path::PathBuf;
 use tokio::runtime::{self, Runtime};
 
+use crate::ui_components::TGKeys;
 use crate::ui_components::processor::{
     ChartTiming, ColumnName, PackedBlacklistedUser, PackedWhitelistedUser, ParsedChat,
 };
 use crate::ui_components::tab_ui::UserRowData;
-use crate::ui_components::TGKeys;
 
 #[derive(Serialize, Deserialize)]
 pub struct IsLightTheme {
@@ -97,7 +97,9 @@ pub fn parse_chat_details(start: &str, end: &str) -> HashMap<String, ParsedChat>
             if let Some(end_num) = num {
                 let completed = parsed.set_end_point(end_num);
                 if !completed {
-                    error!("End point cannot be equal or bigger than start point. Ignoring the end point for {chat}");
+                    error!(
+                        "End point cannot be equal or bigger than start point. Ignoring the end point for {chat}"
+                    );
                 }
             }
         } else {

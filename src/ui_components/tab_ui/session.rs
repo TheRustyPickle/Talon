@@ -1,11 +1,11 @@
-use eframe::egui::{vec2, Align, Button, Checkbox, Context, Grid, Label, Layout, TextEdit, Ui};
+use eframe::egui::{Align, Button, Checkbox, Context, Grid, Label, Layout, TextEdit, Ui, vec2};
 use grammers_client::types::{LoginToken, PasswordToken};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use crate::tg_handler::{start_process, NewProcess, ProcessStart};
-use crate::ui_components::processor::ProcessState;
+use crate::tg_handler::{NewProcess, ProcessStart, start_process};
 use crate::ui_components::MainWindow;
+use crate::ui_components::processor::ProcessState;
 
 #[derive(Default)]
 pub struct SessionData {

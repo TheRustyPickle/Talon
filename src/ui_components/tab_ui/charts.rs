@@ -4,14 +4,14 @@ use eframe::egui::{
 };
 use egui_extras::DatePickerButton;
 use egui_plot::{Bar, BarChart, Legend, Plot, PlotPoint};
-use nucleo_matcher::pattern::{CaseMatching, Normalization, Pattern};
 use nucleo_matcher::Matcher;
+use nucleo_matcher::pattern::{CaseMatching, Normalization, Pattern};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use strum::IntoEnumIterator;
 
+use crate::ui_components::MainWindow;
 use crate::ui_components::processor::{ChartTiming, ChartType, DateNavigator, NavigationType};
 use crate::ui_components::widgets::AnimatedLabel;
-use crate::ui_components::MainWindow;
 use crate::utils::{time_to_string, weekday_num_to_string};
 
 #[derive(Default)]

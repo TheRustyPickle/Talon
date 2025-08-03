@@ -1,4 +1,4 @@
-use eframe::{egui, App, CreationContext, Frame};
+use eframe::{App, CreationContext, Frame, egui};
 use egui::{
     Align, Button, CentralPanel, Context, CornerRadius, FontData, FontDefinitions, FontFamily, Id,
     Layout, Modal, ScrollArea, Spinner, ThemePreference, TopBottomPanel, ViewportCommand, Visuals,
@@ -8,20 +8,20 @@ use log::info;
 use std::collections::{BTreeMap, HashMap};
 use std::slice::IterMut;
 use std::sync::atomic::AtomicBool;
-use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::mpsc::{Receiver, Sender, channel};
 use std::sync::{Arc, Mutex};
 use strum::IntoEnumIterator;
 use tokio::runtime::Runtime;
 
-use crate::tg_handler::{start_process, NewProcess, ProcessResult, ProcessStart, TGClient};
+use crate::tg_handler::{NewProcess, ProcessResult, ProcessStart, TGClient, start_process};
+use crate::ui_components::TGKeys;
 use crate::ui_components::processor::{
-    check_version, download_font, AppState, CounterCounts, ParsedChat, ProcessState, TabState,
+    AppState, CounterCounts, ParsedChat, ProcessState, TabState, check_version, download_font,
 };
 use crate::ui_components::tab_ui::{
     BlacklistData, ChartsData, CounterData, SessionData, UserTableData, WhitelistData,
 };
 use crate::ui_components::widgets::AnimatedLabel;
-use crate::ui_components::TGKeys;
 use crate::utils::{
     find_session_files, get_api_keys, get_font_data, get_runtime, last_theme, save_theme,
     theme_hover_text,

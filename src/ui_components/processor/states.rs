@@ -1,4 +1,4 @@
-use eframe::egui::{vec2, Vec2};
+use eframe::egui::{Vec2, vec2};
 use grammers_client::types::Chat;
 use serde::{Deserialize, Serialize};
 use std::fmt::{self, Display};
@@ -97,7 +97,7 @@ impl Display for ProcessState {
         match self {
             ProcessState::Idle => write!(f, "Status: Idle"),
             ProcessState::InitialClientConnectionSuccessful(text) => {
-                write!(f, "Status: {text}", )
+                write!(f, "Status: {text}",)
             }
             ProcessState::Counting(count) => {
                 write!(f, "Status: Checking messages")?;
@@ -106,7 +106,9 @@ impl Display for ProcessState {
                 }
                 Ok(())
             }
-            ProcessState::InvalidStartChat => write!(f, "Status: Could not detect any valid chat details"),
+            ProcessState::InvalidStartChat => {
+                write!(f, "Status: Could not detect any valid chat details")
+            }
             ProcessState::DataCopied => {
                 write!(f, "Status: Selected table data copied.",)
             }
@@ -126,32 +128,71 @@ impl Display for ProcessState {
             }
             ProcessState::SendingTGCode => write!(f, "Status: Trying to send Telegram login code"),
             ProcessState::TGCodeSent => write!(f, "Status: Telegram code was sent"),
-            ProcessState::LogInWithCode => write!(f, "Status: Trying to login to the session with the code"),
-            ProcessState::LogInWithPassword => write!(f, "Trying to login to the session with the password"),
+            ProcessState::LogInWithCode => {
+                write!(f, "Status: Trying to login to the session with the code")
+            }
+            ProcessState::LogInWithPassword => {
+                write!(f, "Trying to login to the session with the password")
+            }
             ProcessState::LoggedIn(name) => write!(f, "Status: Logged in session {name}"),
             ProcessState::InvalidTGCode => write!(f, "Status: Invalid TG Code given"),
             ProcessState::InvalidPassword => write!(f, "Status: Invalid password given"),
-            ProcessState::NotSignedUp => write!(f, "Status: Account not signed up with this phone number"),
+            ProcessState::NotSignedUp => {
+                write!(f, "Status: Account not signed up with this phone number")
+            }
             ProcessState::UnknownError => write!(f, "Status: Unknown error acquired"),
-            ProcessState::EmptySelectedSession => write!(f, "Status: No session is selected. Create a new session from the Session tab"),
-            ProcessState::InvalidPhoneOrAPI => write!(f, "Status: Unknown error acquired. Possibly invalid phone number given or API keys are invalid"),
-            ProcessState::InvalidAPIKeys => write!(f, "Status: Failed to parse saved API keys. Are the API keys valid?"),
-            ProcessState::PasswordRequired => write!(f, "Status: Account requires a password authentication"),
-            ProcessState::FloodWait => write!(f, "Status: Flood wait triggered. Will resume again soon"),
+            ProcessState::EmptySelectedSession => write!(
+                f,
+                "Status: No session is selected. Create a new session from the Session tab"
+            ),
+            ProcessState::InvalidPhoneOrAPI => write!(
+                f,
+                "Status: Unknown error acquired. Possibly invalid phone number given or API keys are invalid"
+            ),
+            ProcessState::InvalidAPIKeys => write!(
+                f,
+                "Status: Failed to parse saved API keys. Are the API keys valid?"
+            ),
+            ProcessState::PasswordRequired => {
+                write!(f, "Status: Account requires a password authentication")
+            }
+            ProcessState::FloodWait => {
+                write!(f, "Status: Flood wait triggered. Will resume again soon")
+            }
             ProcessState::UsersWhitelisted(num) => write!(f, "Status: Whitelisted {num} users"),
             ProcessState::UsersBlacklisted(num) => write!(f, "Status: Blacklisted {num} users"),
-            ProcessState::LoadedWhitelistedUsers(success, failed) => write!(f, "Status: Loaded {success} whitelisted users. Failed to load {failed} users"),
-            ProcessState::LoadedBlacklistedUsers(success, failed) => write!(f, "Status: Loaded {success} blacklisted users. Failed to load {failed} users"),
-            ProcessState::FailedLoadWhitelistedUsers => write!(f, "Status: Failed to load whitelisted users due to invalid saved data. Old data has been removed"),
-            ProcessState::FailedLoadBlacklistedUsers => write!(f, "Status: Failed to load blacklisted users due to invalid saved data. Old data has been removed"),
-            ProcessState::WhitelistedUserRemoved(num) => write!(f, "Status: {num} whitelisted users removed"),
-            ProcessState::BlacklistedUserRemoved(num) => write!(f, "Status: {num} blacklisted users removed"),
+            ProcessState::LoadedWhitelistedUsers(success, failed) => write!(
+                f,
+                "Status: Loaded {success} whitelisted users. Failed to load {failed} users"
+            ),
+            ProcessState::LoadedBlacklistedUsers(success, failed) => write!(
+                f,
+                "Status: Loaded {success} blacklisted users. Failed to load {failed} users"
+            ),
+            ProcessState::FailedLoadWhitelistedUsers => write!(
+                f,
+                "Status: Failed to load whitelisted users due to invalid saved data. Old data has been removed"
+            ),
+            ProcessState::FailedLoadBlacklistedUsers => write!(
+                f,
+                "Status: Failed to load blacklisted users due to invalid saved data. Old data has been removed"
+            ),
+            ProcessState::WhitelistedUserRemoved(num) => {
+                write!(f, "Status: {num} whitelisted users removed")
+            }
+            ProcessState::BlacklistedUserRemoved(num) => {
+                write!(f, "Status: {num} blacklisted users removed")
+            }
             ProcessState::AllWhitelistRemoved => write!(f, "Status: All whitelisted users removed"),
             ProcessState::AllBlacklistRemoved => write!(f, "Status: All blacklisted users removed"),
             ProcessState::AddedToWhitelist => write!(f, "Status: User added to whitelist"),
             ProcessState::AddedToBlacklist => write!(f, "Status: User added to blacklist"),
-            ProcessState::LatestMessageLoadingFailed => write!(f, "Status: Failed to get the latest message"),
-            ProcessState::DataExported(location) => write!(f, "Status: Data exported to {location}"),
+            ProcessState::LatestMessageLoadingFailed => {
+                write!(f, "Status: Failed to get the latest message")
+            }
+            ProcessState::DataExported(location) => {
+                write!(f, "Status: Data exported to {location}")
+            }
         }
     }
 }

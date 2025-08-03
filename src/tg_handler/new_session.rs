@@ -4,8 +4,8 @@ use grammers_client::{Client, Config, FixedReconnect, InitParams, SignInError};
 use grammers_session::Session;
 use log::{error, info};
 use std::fs;
-use std::sync::mpsc::Sender;
 use std::sync::Arc;
+use std::sync::mpsc::Sender;
 use tokio::sync::Mutex;
 
 use crate::tg_handler::{ProcessError, ProcessResult, TGClient};

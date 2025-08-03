@@ -8,8 +8,8 @@ use log::{error, info};
 use std::collections::HashSet;
 
 use crate::tg_handler::ProcessStart;
-use crate::ui_components::processor::{ColumnName, PackedWhitelistedUser, ProcessState};
 use crate::ui_components::MainWindow;
+use crate::ui_components::processor::{ColumnName, PackedWhitelistedUser, ProcessState};
 use crate::utils::{get_whitelisted, save_whitelisted_users, separate_whitelist_by_seen};
 
 #[derive(Default)]
