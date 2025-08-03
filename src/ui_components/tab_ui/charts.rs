@@ -1,8 +1,9 @@
 use chrono::{Datelike, Days, Duration, Months, NaiveDate, NaiveDateTime, Timelike, Weekday};
-use eframe::egui::{Align, Button, ComboBox, Grid, Key, Layout, RichText, Ui};
-use egui_dropdown::DropDownBox;
+use eframe::egui::{CentralPanel, ComboBox, Id, Key, Modal, ScrollArea, TopBottomPanel, Ui};
 use egui_extras::DatePickerButton;
 use egui_plot::{Bar, BarChart, Legend, Plot, PlotPoint};
+use nucleo_matcher::pattern::{CaseMatching, Normalization, Pattern};
+use nucleo_matcher::Matcher;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use strum::IntoEnumIterator;
 
@@ -13,13 +14,14 @@ use crate::utils::{time_to_string, weekday_num_to_string};
 
 #[derive(Default)]
 pub struct ChartsData {
-    available_users: BTreeSet<String>,
-    dropdown_user: String,
+    matcher: Matcher,
+    search_text: String,
+    modal_open: bool,
+    available_users: BTreeMap<String, bool>,
     chart_type: ChartType,
     last_chart_type: ChartType,
     chart_timing: ChartTiming,
     added_to_chart: BTreeSet<String>,
-    button_sizes: HashMap<String, Option<f32>>,
     hourly_message: BTreeMap<NaiveDateTime, HashMap<String, u64>>,
     daily_message: BTreeMap<NaiveDateTime, HashMap<String, u64>>,
     weekly_message: BTreeMap<NaiveDateTime, HashMap<String, u64>>,
@@ -47,9 +49,7 @@ impl ChartsData {
     /// Reset chart data
     pub fn reset_chart(&mut self) {
         self.available_users.clear();
-        self.dropdown_user.clear();
         self.added_to_chart.clear();
-        self.button_sizes.clear();
         self.last_day = HashMap::new();
         self.last_hour = HashMap::new();
         self.last_month = HashMap::new();
@@ -76,31 +76,31 @@ impl ChartsData {
         }
 
         // These two are added to the chart by default
-        self.dropdown_user = "Show total data".to_string();
-        self.add_to_chart();
-        self.dropdown_user = "Show whitelisted data".to_string();
-        self.add_to_chart();
+        self.added_to_chart.insert("Show total data".to_string());
+        self.added_to_chart
+            .insert("Show whitelisted data".to_string());
+        self.available_users
+            .insert("Show total data".to_string(), true);
+        self.available_users
+            .insert("Show whitelisted data".to_string(), true);
+
         self.date_nav = DateNavigator::default();
     }
     /// Adds the user specified in the text edit in the chart
-    fn add_to_chart(&mut self) {
-        self.added_to_chart.insert(self.dropdown_user.clone());
-        self.available_users.remove(&self.dropdown_user);
-        self.button_sizes.insert(self.dropdown_user.clone(), None);
-        self.dropdown_user.clear();
+    fn add_to_chart(&mut self, to_add: String) {
+        self.added_to_chart.insert(to_add);
         self.reset_saved_bars();
     }
 
     /// Removes the user that was clicked on from the chart
     fn remove_from_chart(&mut self, user: &str) {
         self.added_to_chart.remove(user);
-        self.available_users.insert(user.to_string());
         self.reset_saved_bars();
     }
 
     /// Adds a user available for adding in the chart
     pub fn add_user(&mut self, user: String, user_id: i64) {
-        self.available_users.insert(user.clone());
+        self.available_users.insert(user.clone(), false);
         self.user_ids.insert(user, user_id);
     }
 
@@ -242,6 +242,72 @@ impl ChartsData {
         self.daily_labels.clear();
     }
 
+    fn show_modal_popup(&mut self, ui: &mut Ui) {
+        let response = Modal::new(Id::new("customize_view")).show(ui.ctx(), |ui| {
+            ui.set_width(300.0);
+            ui.set_height(300.0);
+            TopBottomPanel::top("customize_top_view").show_inside(ui, |ui| {
+                ui.vertical_centered(|ui| {
+                    ui.heading("Customize View");
+                });
+            });
+
+            TopBottomPanel::bottom(Id::new("customize_bottom_view")).show_inside(ui, |ui| {
+                ui.add_space(5.0);
+                ui.vertical_centered_justified(|ui| {
+                    if ui.button("Confirm").clicked() {
+                        self.modal_open = false;
+                    }
+                })
+            });
+
+            CentralPanel::default().show_inside(ui, |ui| {
+                ui.text_edit_singleline(&mut self.search_text);
+
+                ScrollArea::vertical().show(ui, |ui| {
+                    let all_keys = self.available_users.keys().cloned().collect::<Vec<_>>();
+
+                    if self.search_text.is_empty() {
+                        for val in all_keys {
+                            ui.horizontal(|ui| {
+                                ui.checkbox(self.available_users.get_mut(&val).unwrap(), val);
+                                ui.allocate_space(ui.available_size());
+                            });
+                        }
+                    } else {
+                        let pattern = Pattern::parse(
+                            &self.search_text,
+                            CaseMatching::Ignore,
+                            Normalization::Smart,
+                        );
+                        let matches = pattern.match_list(all_keys.iter(), &mut self.matcher);
+
+                        for (val, _) in matches {
+                            ui.horizontal(|ui| {
+                                ui.checkbox(self.available_users.get_mut(val).unwrap(), val);
+                                ui.allocate_space(ui.available_size());
+                            });
+                        }
+                    }
+                });
+            });
+        });
+
+        if response.should_close() {
+            self.modal_open = false;
+        }
+
+        if !self.modal_open {
+            for (key, val) in self.available_users.clone() {
+                if val {
+                    self.add_to_chart(key);
+                } else {
+                    self.remove_from_chart(&key);
+                }
+            }
+        }
+    }
+
     /// Whether total message and whitelist message are added to the chart
     fn message_whitelist_added(&self, row_len: usize) -> (bool, bool) {
         // If there are no whitelisted users, this will be considered as not-shown. Adds extra bars
@@ -325,6 +391,10 @@ impl MainWindow {
                 ChartType::ActiveUserWeekDay,
                 ChartType::ActiveUserWeekDay.to_string(),
             ).on_hover_text("Chart displaying the total count of active users for each day of the week.");
+            ui.separator();
+            if ui.button("Customize View").clicked() {
+                self.chart().modal_open = true;
+            }
         });
         if not_weekday_chart {
             ui.separator();
@@ -357,107 +427,9 @@ impl MainWindow {
         } else {
             ui.separator();
         }
-        if !self.chart_i().available_users.is_empty() {
-            Grid::new("Chart Grid")
-                .num_columns(1)
-                .spacing([5.0, 10.0])
-                .show(ui, |ui| {
-                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        let add_button = Button::new("Add to chart");
 
-                        if self.chart_i().dropdown_user.is_empty()
-                            || !self
-                                .chart_i()
-                                .available_users
-                                .contains(&self.chart_i().dropdown_user)
-                        {
-                            ui.add_enabled(false, add_button);
-                        } else if ui.add(add_button).on_hover_text("Add the selected user to the chart. If the UI is lagging, removing a few values will help").clicked() {
-                            self.chart().add_to_chart();
-                        };
-
-                        let available_users = self.chart_i().available_users.clone();
-                        ui.add_sized(
-                            ui.available_size(),
-                            DropDownBox::from_iter(
-                                &available_users,
-                                "DropDown",
-                                &mut self.chart().dropdown_user,
-                                |ui, text| ui.selectable_label(false, text),
-                            )
-                            .hint_text("Add a user to the chart"),
-                        )
-                    });
-                });
-        }
-
-        if !self.chart().added_to_chart.is_empty() {
-            ui.separator();
-
-            ui.vertical(|ui| {
-                let mut to_add: Vec<String> = Vec::new();
-                let mut already_added = 0.0;
-                let max_size = ui.available_width();
-                for (index, user) in self.chart().added_to_chart.clone().iter().enumerate() {
-                    // Check if the button size is saved previously or try to estimate a size
-                    let button_size =
-                        if let Some(size) = self.chart().button_sizes.get(user).unwrap() {
-                            size.to_owned()
-                        } else {
-                            // Magic math to calculate size taken somewhere from the egui source code
-                            (user.len() as f32 * (ui.style().spacing.button_padding.x * 2.0))
-                                + ui.spacing().item_spacing.x
-                        };
-                    already_added += button_size;
-                    to_add.push(user.to_string());
-
-                    // When total size is above the max width, place the buttons in the horizontal layout
-                    if already_added >= max_size {
-                        ui.horizontal(|ui| {
-                            // If max size is 500, after the latest addition it became 550, the last button should not be in this layout
-                            // Pop it and use it in the next horizontal layout
-                            let last_value = to_add.pop().unwrap();
-                            for button in &to_add {
-                                let text_data = RichText::new(button);
-
-                                let resp = ui
-                                    .button(text_data)
-                                    .on_hover_text("Click to remove from chart");
-
-                                if resp.clicked() {
-                                    self.chart().remove_from_chart(button);
-                                }
-
-                                *self.chart().button_sizes.get_mut(button).unwrap() =
-                                    Some(resp.rect.width() + ui.spacing().item_spacing.x);
-                            }
-                            to_add.clear();
-                            to_add.push(last_value);
-                            // The size of the last value will be used for the next horizontal layout
-                            already_added = button_size;
-                        });
-                    }
-
-                    // If any pending button remains example the max length of the width was not reached, add them
-                    if index == self.chart().added_to_chart.len() - 1 {
-                        ui.horizontal(|ui| {
-                            for button in &to_add {
-                                let text_data = RichText::new(button);
-
-                                let resp = ui
-                                    .button(text_data)
-                                    .on_hover_text("Click to remove from chart");
-                                if resp.clicked() {
-                                    self.chart().remove_from_chart(button);
-                                }
-                                *self.chart().button_sizes.get_mut(button).unwrap() =
-                                    Some(resp.rect.width() + ui.spacing().item_spacing.x);
-                            }
-                        });
-                    }
-                }
-            });
-            ui.separator();
+        if self.chart().modal_open {
+            self.chart().show_modal_popup(ui);
         }
 
         // Don't show any date stuff if it's a weekday chart
@@ -984,15 +956,16 @@ impl MainWindow {
         // even if they are already in the list
         if show_whitelisted_message {
             if let Some(whitelist_bar) = bar_list.remove("Show whitelisted data") {
-                let mut whitelist_chart = BarChart::new(whitelist_bar)
+                let mut whitelist_chart = BarChart::new("Whitelist", whitelist_bar)
                     .width(1.0)
                     .name(whitelist_data_name);
 
                 if show_total_message {
                     if let Some(total_message_bars) = bar_list.remove("Show total data") {
-                        let total_message_chart = BarChart::new(total_message_bars)
-                            .width(1.0)
-                            .name(total_data_name);
+                        let total_message_chart =
+                            BarChart::new("Total message", total_message_bars)
+                                .width(1.0)
+                                .name(total_data_name);
 
                         whitelist_chart = whitelist_chart.stack_on(&[&total_message_chart]);
                         all_charts.push(total_message_chart);
@@ -1002,7 +975,7 @@ impl MainWindow {
             }
         } else if show_total_message {
             if let Some(total_message_bars) = bar_list.remove("Show total data") {
-                let total_message_chart = BarChart::new(total_message_bars)
+                let total_message_chart = BarChart::new("Total message", total_message_bars)
                     .width(1.0)
                     .name(total_data_name);
                 all_charts.push(total_message_chart);
@@ -1018,7 +991,7 @@ impl MainWindow {
             // The target is the bottom chart is total message => whitelist => the rest of the users
             if !bar_list.is_empty() {
                 for (name, bar) in bar_list {
-                    let current_chart = BarChart::new(bar).width(1.0).name(name);
+                    let current_chart = BarChart::new(&name, bar).width(1.0).name(name);
 
                     if all_charts.is_empty() {
                         all_charts.push(current_chart);
