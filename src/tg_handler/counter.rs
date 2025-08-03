@@ -88,10 +88,7 @@ impl TGClient {
         let end_at = end_num.unwrap_or(1);
         let mut start_at = start_num.unwrap_or(-1);
 
-        info!(
-            "Starting message num {}, ending message num {}",
-            start_at, end_at
-        );
+        info!("Starting message num {start_at}, ending message num {end_at}");
 
         let last_sent = Arc::new(Mutex::new(Some(Instant::now())));
 
@@ -101,24 +98,26 @@ impl TGClient {
 
         // Every 500 ms, check when the last communication was made with the GUI.
         // If over 500, let the GUI side know that a flood wait was triggered
-        thread::spawn(move || loop {
-            sleep(Duration::from_millis(500));
+        thread::spawn(move || {
+            loop {
+                sleep(Duration::from_millis(500));
 
-            let last_sent = last_sent_clone.lock().unwrap();
+                let last_sent = last_sent_clone.lock().unwrap();
 
-            if let Some(last_sent) = *last_sent {
-                let time_passed = last_sent.elapsed().as_millis();
-                if time_passed > 500 && time_passed < 1050 {
-                    sender.send(ProcessResult::FloodWait).unwrap();
-                    context.request_repaint();
-                };
+                if let Some(last_sent) = *last_sent {
+                    let time_passed = last_sent.elapsed().as_millis();
+                    if time_passed > 500 && time_passed < 1050 {
+                        sender.send(ProcessResult::FloodWait).unwrap();
+                        context.request_repaint();
+                    }
 
-                // stop this thread if no activity for over 60 seconds
-                if time_passed > 60000 {
+                    // stop this thread if no activity for over 60 seconds
+                    if time_passed > 60000 {
+                        break;
+                    }
+                } else {
                     break;
                 }
-            } else {
-                break;
             }
         });
 

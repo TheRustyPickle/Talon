@@ -4,10 +4,10 @@ mod utils;
 
 use crate::ui_components::MainWindow;
 use dirs::data_local_dir;
-use eframe::{egui, NativeOptions};
-use egui::{vec2, ViewportBuilder};
+use eframe::{NativeOptions, egui};
+use egui::{ViewportBuilder, vec2};
 use env::set_current_dir;
-use log::{info, LevelFilter};
+use log::{LevelFilter, info};
 use std::env;
 use std::fs;
 
@@ -25,7 +25,7 @@ fn main() {
         builder
             .filter_module(env!("CARGO_BIN_NAME"), LevelFilter::Info)
             .init();
-    };
+    }
 
     let working_path = data_local_dir();
 

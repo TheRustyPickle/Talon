@@ -1,6 +1,4 @@
-use eframe::egui::{
-    Align, Button, Grid, Label, Layout, Response, RichText, SelectableLabel, Sense, TextEdit, Ui,
-};
+use eframe::egui::{Align, Button, Grid, Label, Layout, Response, RichText, Sense, TextEdit, Ui};
 use egui_extras::Column;
 use egui_selectable_table::{
     ColumnOperations, ColumnOrdering, SelectableRow, SelectableTable, SortOrder,
@@ -10,8 +8,8 @@ use log::{error, info};
 use std::collections::HashSet;
 
 use crate::tg_handler::ProcessStart;
-use crate::ui_components::processor::{ColumnName, PackedBlacklistedUser, ProcessState};
 use crate::ui_components::MainWindow;
+use crate::ui_components::processor::{ColumnName, PackedBlacklistedUser, ProcessState};
 use crate::utils::{get_blacklisted, save_blacklisted_users, separate_blacklist_by_seen};
 
 #[derive(Default)]
@@ -77,18 +75,18 @@ impl ColumnOperations<BlackListRowData, ColumnName, Config> for ColumnName {
         let mut label = ui
             .add_sized(
                 ui.available_size(),
-                SelectableLabel::new(is_selected, &row_text),
+                Button::selectable(is_selected, &row_text),
             )
             .interact(Sense::drag());
 
         if show_tooltip {
             label = label.on_hover_text(row_text);
-        };
+        }
         label.context_menu(|ui| {
             if ui.button("Deleted Selected").clicked() {
                 table.config.deleted_selected = true;
-                ui.close_menu();
-            };
+                ui.close();
+            }
         });
         label
     }
@@ -246,7 +244,7 @@ impl MainWindow {
             let deleted = self.blacklist.remove_selected();
             let total_to_remove = deleted.len();
             self.process_state = ProcessState::BlacklistedUserRemoved(total_to_remove);
-        };
+        }
 
         Grid::new("blacklist Grid")
             .num_columns(2)
@@ -291,7 +289,7 @@ then right click on User Table to blacklist",
                 .clicked()
             {
                 self.blacklist.table.select_all();
-            };
+            }
             if ui
                 .button("Delete Selected")
                 .on_hover_text("Delete selected users from blacklist")
@@ -300,7 +298,7 @@ then right click on User Table to blacklist",
                 let deleted = self.blacklist.remove_selected();
                 let total_to_remove = deleted.len();
                 self.process_state = ProcessState::BlacklistedUserRemoved(total_to_remove);
-            };
+            }
             if ui
                 .button("Delete All")
                 .on_hover_text("Delete all blacklisted users")
@@ -308,7 +306,7 @@ then right click on User Table to blacklist",
             {
                 let _ = self.blacklist.remove_all();
                 self.process_state = ProcessState::AllBlacklistRemoved;
-            };
+            }
         });
 
         let column_size = (ui.available_width() - 20.0) / 3.0;

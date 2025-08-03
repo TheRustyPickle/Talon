@@ -1,8 +1,8 @@
-use eframe::egui::{vec2, Align, Button, CentralPanel, Context, Grid, Label, Layout, TextEdit};
+use eframe::egui::{Align, Button, CentralPanel, Context, Grid, Label, Layout, TextEdit, vec2};
 use serde::{Deserialize, Serialize};
 
-use crate::ui_components::processor::AppState;
 use crate::ui_components::MainWindow;
+use crate::ui_components::processor::AppState;
 use crate::utils::save_api_keys;
 
 #[derive(Deserialize, Serialize, Default)]
@@ -30,7 +30,7 @@ impl MainWindow {
                     ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
                         if ui.link(tg_link).clicked() {
                             open::that(tg_link).unwrap();
-                        };
+                        }
                     });
                     ui.end_row();
 

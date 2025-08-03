@@ -1,4 +1,4 @@
-use eframe::{egui, App, CreationContext, Frame};
+use eframe::{App, CreationContext, Frame, egui};
 use egui::{
     Align, Button, CentralPanel, Context, CornerRadius, FontData, FontDefinitions, FontFamily, Id,
     Layout, Modal, ScrollArea, Spinner, ThemePreference, TopBottomPanel, ViewportCommand, Visuals,
@@ -8,20 +8,20 @@ use log::info;
 use std::collections::{BTreeMap, HashMap};
 use std::slice::IterMut;
 use std::sync::atomic::AtomicBool;
-use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::mpsc::{Receiver, Sender, channel};
 use std::sync::{Arc, Mutex};
 use strum::IntoEnumIterator;
 use tokio::runtime::Runtime;
 
-use crate::tg_handler::{start_process, NewProcess, ProcessResult, ProcessStart, TGClient};
+use crate::tg_handler::{NewProcess, ProcessResult, ProcessStart, TGClient, start_process};
+use crate::ui_components::TGKeys;
 use crate::ui_components::processor::{
-    check_version, download_font, AppState, CounterCounts, ParsedChat, ProcessState, TabState,
+    AppState, CounterCounts, ParsedChat, ProcessState, TabState, check_version, download_font,
 };
 use crate::ui_components::tab_ui::{
     BlacklistData, ChartsData, CounterData, SessionData, UserTableData, WhitelistData,
 };
 use crate::ui_components::widgets::AnimatedLabel;
-use crate::ui_components::TGKeys;
 use crate::utils::{
     find_session_files, get_api_keys, get_font_data, get_runtime, last_theme, save_theme,
     theme_hover_text,
@@ -68,7 +68,7 @@ impl MainWindow {
             cc.egui_ctx
                 .options_mut(|a| a.theme_preference = ThemePreference::Dark);
             animator.theme_1_to_2 = false;
-        };
+        }
         let (sender, receiver) = channel();
 
         Self {
@@ -110,7 +110,7 @@ impl App for MainWindow {
             for (_, client) in self.tg_clients.clone() {
                 if client.is_temporary() {
                     let joiner = self.runtime.spawn(async move {
-                        client.start_process(ProcessStart::SessionLogout).await
+                        client.start_process(ProcessStart::SessionLogout).await;
                     });
                     joins.push(joiner);
                 }
@@ -144,7 +144,7 @@ impl App for MainWindow {
                     .show_separator_line(true)
                     .show(ctx, |ui| {
                         if self.theme_animator.anim_id.is_none() {
-                            self.theme_animator.create_id(ui)
+                            self.theme_animator.create_id(ui);
                         } else {
                             self.theme_animator.animate(ctx);
                         }
@@ -172,7 +172,7 @@ impl App for MainWindow {
                                 self.theme_animator.start();
                                 self.is_light_theme = !self.is_light_theme;
                                 save_theme(self.is_light_theme);
-                            };
+                            }
 
                             let hover_position = ui.make_persistent_id("tab_hover");
                             let selected_position = ui.make_persistent_id("tab_selected");
@@ -195,7 +195,7 @@ impl App for MainWindow {
                                 if resp.clicked() {
                                     let window_size = val.window_size();
                                     ctx.send_viewport_cmd(ViewportCommand::InnerSize(window_size));
-                                    self.tab_state = val
+                                    self.tab_state = val;
                                 }
                             }
                         });
@@ -212,7 +212,7 @@ impl App for MainWindow {
                                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                                     ui.add(Spinner::new());
                                 });
-                            };
+                            }
                         });
                         ui.add_space(0.5);
                     });
@@ -226,7 +226,15 @@ impl App for MainWindow {
                         TabState::Session => self.show_session_ui(ui),
                     }
 
-                    if !self.existing_sessions_checked {
+                    if self.existing_sessions_checked {
+                        // At each UI loop, check on the receiver channel to check if there is anything
+                        // limit total number of messages to check on the receiver to prevent frame freeze
+                        for _ in 0..self.counter.get_comm_limit() {
+                            if !self.check_receiver() {
+                                break;
+                            }
+                        }
+                    } else {
                         self.existing_sessions_checked = true;
                         let existing_sessions = find_session_files();
                         if !existing_sessions.is_empty() {
@@ -246,14 +254,6 @@ impl App for MainWindow {
                         self.runtime.spawn(async move {
                             check_version(version_body).await;
                         });
-                    } else {
-                        // At each UI loop, check on the receiver channel to check if there is anything
-                        // limit total number of messages to check on the receiver to prevent frame freeze
-                        for _ in 0..self.counter.get_comm_limit() {
-                            if !self.check_receiver() {
-                                break;
-                            }
-                        }
                     }
 
 

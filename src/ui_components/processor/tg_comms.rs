@@ -3,8 +3,8 @@ use log::{error, info};
 use std::sync::atomic::Ordering;
 
 use crate::tg_handler::{ProcessError, ProcessResult, ProcessStart};
-use crate::ui_components::processor::ProcessState;
 use crate::ui_components::MainWindow;
+use crate::ui_components::processor::ProcessState;
 use crate::utils::to_chart_name;
 
 impl MainWindow {
@@ -34,12 +34,12 @@ impl MainWindow {
                     self.load_blacklisted_users();
                 }
                 ProcessResult::InvalidChat(chat_name) => {
-                    info!("Invalid chat name found: {}", chat_name);
+                    info!("Invalid chat name found: {chat_name}");
                     self.process_state = ProcessState::NonExistingChat(chat_name);
                     self.go_next_or_stop();
                 }
                 ProcessResult::UnauthorizedClient(client_name) => {
-                    info!("{} is not authorized.", client_name);
+                    info!("{client_name} is not authorized.");
                     self.process_state = ProcessState::UnauthorizedClient(client_name);
                     self.stop_process();
                 }
@@ -123,10 +123,10 @@ impl MainWindow {
                     // If current num = 100 and last processed = 105
                     // messages with 101, 102, 103 and 104 are missing/deleted
                     // The current num is already getting processed so subtract 1
-                    let total_deleted = if last_number != -1 {
-                        (last_number - current_message_number) - 1
-                    } else {
+                    let total_deleted = if last_number == -1 {
                         0
+                    } else {
+                        (last_number - current_message_number) - 1
                     };
 
                     self.t_count().add_deleted_message(total_deleted);
@@ -188,7 +188,9 @@ impl MainWindow {
                             self.process_state = ProcessState::NotSignedUp;
                         }
                         ProcessError::UnknownError(e) => {
-                            error!("Unknown error encountered while trying to complete the process. {e}");
+                            error!(
+                                "Unknown error encountered while trying to complete the process. {e}"
+                            );
                             self.process_state = ProcessState::UnknownError;
                         }
                         ProcessError::InvalidPassword => {
@@ -366,7 +368,7 @@ impl MainWindow {
                     let total_session = self.tg_clients.len();
                     let per_session_value = total_to_count / total_session as i32;
 
-                    info!("Each session to process {}~ messages", per_session_value);
+                    info!("Each session to process {per_session_value}~ messages");
 
                     self.counter.set_session_count(total_session);
 

@@ -1,11 +1,11 @@
 use eframe::egui::Context;
-use grammers_client::types::Chat;
 use grammers_client::Client;
+use grammers_client::types::Chat;
 use log::{error, info};
 use std::sync::mpsc::Sender;
 
 use crate::tg_handler::{
-    connect_to_session, send_login_code, NewProcess, ProcessError, ProcessResult, ProcessStart,
+    NewProcess, ProcessError, ProcessResult, ProcessStart, connect_to_session, send_login_code,
 };
 
 #[derive(Clone)]
@@ -99,7 +99,7 @@ impl TGClient {
             .await
             .map_err(ProcessError::UnknownError)?;
 
-        info!("Client authorization status: {}", authorized);
+        info!("Client authorization status: {authorized}");
 
         if !authorized {
             self.send(ProcessResult::UnauthorizedClient(self.name()));

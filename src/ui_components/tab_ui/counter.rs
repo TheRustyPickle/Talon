@@ -1,13 +1,13 @@
 use eframe::egui::{
-    vec2, Align, Button, ComboBox, Grid, Label, Layout, ProgressBar, TextEdit, Ui, ViewportCommand,
+    Align, Button, ComboBox, Grid, Label, Layout, ProgressBar, TextEdit, Ui, ViewportCommand, vec2,
 };
 use log::info;
 use std::collections::HashMap;
 use std::sync::atomic::Ordering;
 
 use crate::tg_handler::ProcessStart;
-use crate::ui_components::processor::{CounterCounts, ParsedChat, ProcessState};
 use crate::ui_components::MainWindow;
+use crate::ui_components::processor::{CounterCounts, ParsedChat, ProcessState};
 use crate::utils::{chat_to_text, parse_chat_details};
 
 const LIMIT_SELECTION: [&str; 5] = ["30", "40", "50", "80", "100"];
@@ -276,7 +276,7 @@ impl MainWindow {
                     if start_button.clicked() {
                         self.start_counting();
                     }
-                };
+                }
             });
         });
 

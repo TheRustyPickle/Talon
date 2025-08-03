@@ -1,7 +1,7 @@
 [package]
 name = "talon-gui"
-version = "1.1.0"
-edition = "2021"
+version = "1.2.0"
+edition = "2024"
 authors = ["TheRustyPickle <rusty.pickle94@gmail.com>"]
 readme = "README.md"
 description = """
@@ -28,26 +28,26 @@ grammers-crypto = "=0.7.0"
 grammers-tl-gen = "=0.7.0"
 grammers-tl-types = "=0.7.0"
 grammers-mtsender = "=0.7.0"
-tokio = { version = "1.44.2", features = ["rt-multi-thread"] }
+tokio = { version = "1.47.0", features = ["rt-multi-thread"] }
 log = "0.4.27"
 pretty_env_logger = "0.5.0"
 serde = { version = "1.0.219", features = ["derive"] }
-serde_json = "1.0.140"
+serde_json = "1.0.141"
 dirs = "6.0.0"
 open = "5.3.2"
-reqwest = { version = "0.12.15", features = ["json"] }
-eframe = "0.31.1"
-egui_extras = { version = "0.31.1", default-features = false, features = ["datepicker"] }
-egui_plot = "0.31.0"
-egui-dropdown = "0.13.0"
-egui-theme-lerp = "0.2.0"
-chrono = { version = "0.4.40", features = ["serde"] }
+reqwest = { version = "0.12.22", features = ["json"] }
+eframe = "0.32.0"
+egui_extras = { version = "0.32.0", default-features = false, features = ["datepicker"] }
+egui_plot = "0.33.0"
+egui-theme-lerp = "0.3.0"
+chrono = { version = "0.4.41", features = ["serde"] }
 semver = "1.0.26"
 rayon = "1.10.0"
 csv = "1.3.1"
-strum = "0.27.1"
-strum_macros = "0.27.1"
-egui-selectable-table = "0.2.0"
+strum = "0.27.2"
+strum_macros = "0.27.2"
+egui-selectable-table = "0.3.0"
+nucleo-matcher = "0.3.1"
 
 # The profile that 'cargo dist' will build with
 [profile.dist]

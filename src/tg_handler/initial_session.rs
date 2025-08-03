@@ -42,7 +42,7 @@ pub async fn connect_to_session(
         .await;
 
         let Ok(client) = client else {
-            info!("Failed to connect to session {}", name_without_session);
+            info!("Failed to connect to session {name_without_session}");
             failed_session.push(name_without_session);
             continue;
         };
@@ -52,18 +52,12 @@ pub async fn connect_to_session(
         let authorized = client.is_authorized().await;
 
         let Ok(authorized) = authorized else {
-            info!(
-                "Failed to determine session authorization status {}",
-                name_without_session
-            );
+            info!("Failed to determine session authorization status {name_without_session}");
             failed_session.push(name_without_session);
             continue;
         };
 
-        info!(
-            "Session {} authorization status: {}",
-            name_without_session, authorized
-        );
+        info!("Session {name_without_session} authorization status: {authorized}");
 
         if !authorized {
             failed_session.push(name_without_session);
