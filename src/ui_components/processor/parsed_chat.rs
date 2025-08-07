@@ -27,10 +27,10 @@ impl ParsedChat {
     }
 
     pub fn set_end_point(&mut self, point: i32) -> bool {
-        if let Some(start) = self.start_point {
-            if point >= start {
-                return false;
-            }
+        if let Some(start) = self.start_point
+            && point >= start
+        {
+            return false;
         }
         self.end_point = Some(point);
         true

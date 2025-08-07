@@ -984,26 +984,25 @@ impl MainWindow {
                     .width(1.0)
                     .name(whitelist_data_name);
 
-                if show_total_message {
-                    if let Some(total_message_bars) = bar_list.remove("Show total data") {
-                        let total_message_chart =
-                            BarChart::new("Total message", total_message_bars)
-                                .width(1.0)
-                                .name(total_data_name);
+                if show_total_message
+                    && let Some(total_message_bars) = bar_list.remove("Show total data")
+                {
+                    let total_message_chart = BarChart::new("Total message", total_message_bars)
+                        .width(1.0)
+                        .name(total_data_name);
 
-                        whitelist_chart = whitelist_chart.stack_on(&[&total_message_chart]);
-                        all_charts.push(total_message_chart);
-                    }
+                    whitelist_chart = whitelist_chart.stack_on(&[&total_message_chart]);
+                    all_charts.push(total_message_chart);
                 }
                 all_charts.push(whitelist_chart);
             }
-        } else if show_total_message {
-            if let Some(total_message_bars) = bar_list.remove("Show total data") {
-                let total_message_chart = BarChart::new("Total message", total_message_bars)
-                    .width(1.0)
-                    .name(total_data_name);
-                all_charts.push(total_message_chart);
-            }
+        } else if show_total_message
+            && let Some(total_message_bars) = bar_list.remove("Show total data")
+        {
+            let total_message_chart = BarChart::new("Total message", total_message_bars)
+                .width(1.0)
+                .name(total_data_name);
+            all_charts.push(total_message_chart);
         }
 
         // User data stacking only happens on Message chart

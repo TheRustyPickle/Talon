@@ -25,11 +25,11 @@ pub fn find_session_files() -> Vec<String> {
     let mut sessions = Vec::new();
     if let Ok(entries) = fs::read_dir(".") {
         for entry in entries {
-            if let Ok(file_name) = entry.unwrap().file_name().into_string() {
-                if file_name.ends_with(".session") {
-                    info!("Found existing session file {file_name}");
-                    sessions.push(file_name);
-                }
+            if let Ok(file_name) = entry.unwrap().file_name().into_string()
+                && file_name.ends_with(".session")
+            {
+                info!("Found existing session file {file_name}");
+                sessions.push(file_name);
             }
         }
     }
@@ -202,10 +202,11 @@ pub fn get_api_keys() -> Option<TGKeys> {
             .expect("Failed to read file");
 
         let result = serde_json::from_str::<TGKeys>(&contents);
-        if let Ok(result) = result {
-            if !result.api_id.is_empty() && !result.api_hash.is_empty() {
-                to_return = Some(result);
-            }
+        if let Ok(result) = result
+            && !result.api_id.is_empty()
+            && !result.api_hash.is_empty()
+        {
+            to_return = Some(result);
         }
     }
 
@@ -267,14 +268,12 @@ pub fn save_whitelisted_users(packed_chats: Vec<PackedWhitelistedUser>, overwrit
 
     let file = File::open(&whitelist_path);
 
-    if !overwrite {
-        if let Ok(mut file) = file {
-            let mut contents = String::new();
-            file.read_to_string(&mut contents)
-                .expect("Failed to read file");
+    if !overwrite && let Ok(mut file) = file {
+        let mut contents = String::new();
+        file.read_to_string(&mut contents)
+            .expect("Failed to read file");
 
-            existing_data = serde_json::from_str(&contents).unwrap();
-        }
+        existing_data = serde_json::from_str(&contents).unwrap();
     }
 
     existing_data.extend(packed_chats);
@@ -295,14 +294,12 @@ pub fn save_blacklisted_users(packed_chats: Vec<PackedBlacklistedUser>, overwrit
 
     let file = File::open(&whitelist_path);
 
-    if !overwrite {
-        if let Ok(mut file) = file {
-            let mut contents = String::new();
-            file.read_to_string(&mut contents)
-                .expect("Failed to read file");
+    if !overwrite && let Ok(mut file) = file {
+        let mut contents = String::new();
+        file.read_to_string(&mut contents)
+            .expect("Failed to read file");
 
-            existing_data = serde_json::from_str(&contents).unwrap();
-        }
+        existing_data = serde_json::from_str(&contents).unwrap();
     }
 
     existing_data.extend(packed_chats);
