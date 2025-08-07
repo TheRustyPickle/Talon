@@ -20,6 +20,8 @@ pub struct ChartsData {
     search_text: String,
     modal_open: bool,
     available_users: BTreeMap<String, bool>,
+    filtered_users: BTreeSet<String>,
+    use_filtered_users: bool,
     chart_type: ChartType,
     last_chart_type: ChartType,
     chart_timing: ChartTiming,
@@ -246,8 +248,8 @@ impl ChartsData {
 
     fn show_modal_popup(&mut self, ui: &mut Ui) {
         let response = Modal::new(Id::new("customize_view")).show(ui.ctx(), |ui| {
-            ui.set_width(300.0);
-            ui.set_height(300.0);
+            ui.set_width(400.0);
+            ui.set_height(350.0);
             TopBottomPanel::top("customize_top_view").show_inside(ui, |ui| {
                 ui.vertical_centered(|ui| {
                     ui.heading("Customize View");
@@ -265,32 +267,47 @@ impl ChartsData {
             });
 
             CentralPanel::default().show_inside(ui, |ui| {
-                let text_edit =
-                    TextEdit::singleline(&mut self.search_text).hint_text("Search user");
+                ui.horizontal(|ui| {
+                    let text_edit =
+                        TextEdit::singleline(&mut self.search_text).hint_text("Search user");
 
-                ui.add(text_edit);
+                    ui.add(text_edit);
 
-                ScrollArea::vertical().show(ui, |ui| {
-                    let all_keys = self.available_users.keys().cloned().collect::<Vec<_>>();
+                    if ui.button("Search").clicked() {
+                        self.use_filtered_users = true;
+                        self.filtered_users.clear();
 
-                    if self.search_text.is_empty() {
-                        for val in all_keys {
-                            ui.horizontal(|ui| {
-                                ui.checkbox(self.available_users.get_mut(&val).unwrap(), val);
-                                ui.allocate_space(ui.available_size());
-                            });
-                        }
-                    } else {
+                        let all_keys = self.available_users.keys().cloned().collect::<Vec<_>>();
                         let pattern = Pattern::parse(
                             &self.search_text,
                             CaseMatching::Ignore,
                             Normalization::Smart,
                         );
-                        let matches = pattern.match_list(all_keys.iter(), &mut self.matcher);
+                        let matches = pattern.match_list(all_keys, &mut self.matcher);
 
                         for (val, _) in matches {
+                            self.filtered_users.insert(val);
+                        }
+                    }
+
+                    if ui.button("Clear").clicked() {
+                        self.use_filtered_users = false;
+                    }
+                });
+
+                ScrollArea::vertical().show(ui, |ui| {
+                    if self.use_filtered_users {
+                        for val in &self.filtered_users {
                             ui.horizontal(|ui| {
                                 ui.checkbox(self.available_users.get_mut(val).unwrap(), val);
+                                ui.allocate_space(ui.available_size());
+                            });
+                        }
+                    } else {
+                        let all_keys = self.available_users.keys().cloned().collect::<Vec<_>>();
+                        for val in all_keys {
+                            ui.horizontal(|ui| {
+                                ui.checkbox(self.available_users.get_mut(&val).unwrap(), val);
                                 ui.allocate_space(ui.available_size());
                             });
                         }

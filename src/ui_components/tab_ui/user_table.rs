@@ -1,5 +1,5 @@
 use chrono::{NaiveDate, NaiveDateTime};
-use eframe::egui::{Align, Button, ComboBox, Key, Layout, Response, RichText, Sense, Ui};
+use eframe::egui::{Align, Button, ComboBox, Key, Layout, Response, RichText, Sense, TextEdit, Ui};
 use egui_extras::{Column, DatePickerButton};
 use egui_selectable_table::{
     ColumnOperations, ColumnOrdering, SelectableRow, SelectableTable, SortOrder,
@@ -24,6 +24,7 @@ pub struct Config {
     whitelist_rows: bool,
     blacklisted_rows: bool,
     copy_selected: bool,
+    select_all_rows: bool,
 }
 
 #[derive(Clone, Serialize)]
@@ -124,6 +125,7 @@ impl ColumnOperations<UserRowData, ColumnName, Config> for ColumnName {
             .on_hover_text(hover_text);
         Some(response)
     }
+
     fn create_table_row(
         &self,
         ui: &mut Ui,
@@ -180,6 +182,10 @@ impl ColumnOperations<UserRowData, ColumnName, Config> for ColumnName {
 
             if ui.button("Blacklist selected rows").clicked() {
                 table.config.blacklisted_rows = true;
+                ui.close();
+            }
+            if ui.button("Select all rows").clicked() {
+                table.config.select_all_rows = true;
                 ui.close();
             }
         });
@@ -278,6 +284,7 @@ pub struct UserTableData {
     total_message: u32,
     total_whitelisted_message: u32,
     reload_count: u8,
+    search_query: String,
 }
 
 impl Default for UserTableData {
@@ -285,7 +292,9 @@ impl Default for UserTableData {
         let table = SelectableTable::new(ColumnName::iter().collect())
             .auto_scroll()
             .serial_column()
-            .horizontal_scroll();
+            .horizontal_scroll()
+            .no_ctrl_a_capture();
+
         Self {
             user_data: HashMap::new(),
             table,
@@ -294,6 +303,7 @@ impl Default for UserTableData {
             total_message: 0,
             total_whitelisted_user: 0,
             reload_count: 0,
+            search_query: String::new(),
         }
     }
 }
@@ -619,6 +629,41 @@ impl MainWindow {
             });
         });
 
+        ui.separator();
+
+        ui.add_enabled_ui(date_enabled, |ui| {
+            ui.horizontal(|ui| {
+                let text_box = TextEdit::singleline(&mut self.table().search_query)
+                    .hint_text("Search by name, username or user ID");
+                ui.add(text_box);
+
+                if ui
+                    .button("Search")
+                    .on_hover_text("Filter rows that match the search query")
+                    .clicked()
+                {
+                    let column_list =
+                        vec![ColumnName::Name, ColumnName::Username, ColumnName::UserID];
+
+                    let search_query = self.table_i().search_query.clone();
+
+                    self.table()
+                        .table
+                        .search_and_show(&column_list, &search_query, None, None);
+                }
+                if ui
+                    .button("Clear")
+                    .on_hover_text("Clear search result")
+                    .clicked()
+                {
+                    self.table().table.recreate_rows();
+                    self.table().search_query.clear();
+                }
+            });
+        });
+
+        ui.separator();
+
         // Monitor for H and L key presses
         if date_enabled {
             let is_ctrl_pressed = ui.ctx().input(|i| i.modifiers.ctrl);
@@ -646,6 +691,7 @@ impl MainWindow {
         let to_whitelist_selected = self.table().table.config.whitelist_rows;
         let to_blacklist_selected = self.table().table.config.blacklisted_rows;
         let to_copy = self.table().table.config.copy_selected;
+        let to_select_all = self.table().table.config.select_all_rows;
 
         if to_whitelist_selected {
             self.table().table.config.whitelist_rows = false;
@@ -660,6 +706,11 @@ impl MainWindow {
         if to_copy {
             self.table().table.config.copy_selected = false;
             self.copy_selected_cells(ui);
+        }
+
+        if to_select_all {
+            self.table().table.config.select_all_rows = false;
+            self.table().table.select_all();
         }
 
         self.table().table.show_ui(ui, |builder| {

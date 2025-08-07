@@ -360,7 +360,7 @@ Login to one or more accounts multiple times with different session names!",
                     |i| LIMIT_SELECTION[i],
                 )
                 .on_hover_text(
-                    "When counting how many messages to count in each frame load? Default: 20
+                    "When counting how many messages to count in each frame load? Default: 100
 
 Higher can increase the counting speed but flood wait will also be more
 visible in the UI.

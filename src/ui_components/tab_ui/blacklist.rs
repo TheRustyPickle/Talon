@@ -123,6 +123,7 @@ pub struct BlacklistData {
     target_username: String,
     failed_blacklist: i32,
     all_ids: HashSet<i64>,
+    search_query: String,
 }
 impl Default for BlacklistData {
     fn default() -> Self {
@@ -134,12 +135,15 @@ impl Default for BlacklistData {
         .auto_scroll()
         .select_full_row()
         .serial_column()
+        .no_ctrl_a_capture()
         .auto_reload(1);
+
         Self {
             table,
             target_username: String::new(),
             failed_blacklist: 0,
             all_ids: HashSet::new(),
+            search_query: String::new(),
         }
     }
 }
@@ -280,9 +284,38 @@ then right click on User Table to blacklist",
             }
         });
 
-        ui.add_space(40.0);
+        ui.add_space(20.0);
 
         ui.horizontal(|ui| {
+            let text_box = TextEdit::singleline(&mut self.blacklist.search_query)
+                .hint_text("Search by name, username or user ID");
+            ui.add(text_box);
+
+            if ui
+                .button("Search")
+                .on_hover_text("Filter rows that match the search query")
+                .clicked()
+            {
+                let column_list = vec![ColumnName::Name, ColumnName::Username, ColumnName::UserID];
+
+                let search_query = self.blacklist.search_query.clone();
+
+                self.blacklist
+                    .table
+                    .search_and_show(&column_list, &search_query, None, None);
+            }
+            if ui
+                .button("Clear")
+                .on_hover_text("Clear search result")
+                .clicked()
+            {
+                self.blacklist.table.recreate_rows();
+                self.blacklist.search_query.clear();
+            }
+
+            ui.separator();
+
+
             if ui
                 .button("Select All")
                 .on_hover_text("Select all users. Also usable with CTRL + A. Use CTRL + mouse click for manual selection")
@@ -308,6 +341,8 @@ then right click on User Table to blacklist",
                 self.process_state = ProcessState::AllBlacklistRemoved;
             }
         });
+
+        ui.separator();
 
         let column_size = (ui.available_width() - 20.0) / 3.0;
         self.blacklist.table.show_ui(ui, |table| {
