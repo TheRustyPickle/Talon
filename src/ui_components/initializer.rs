@@ -468,11 +468,11 @@ impl MainWindow {
         &mut self.counter.counts[ongoing]
     }
 
-    pub fn chart_all(&mut self) -> IterMut<ChartsData> {
+    pub fn chart_all(&mut self) -> IterMut<'_, ChartsData> {
         self.chart.iter_mut()
     }
 
-    pub fn table_all(&mut self) -> IterMut<UserTableData> {
+    pub fn table_all(&mut self) -> IterMut<'_, UserTableData> {
         self.table.iter_mut()
     }
 }

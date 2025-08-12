@@ -344,7 +344,7 @@ impl MainWindow {
                     let chart_name = to_chart_name(username.clone(), &full_name, user_id);
 
                     for chart in self.chart_all() {
-                        chart.clear_blacklisted(&[chart_name.clone()]);
+                        chart.clear_blacklisted(std::slice::from_ref(&chart_name));
                     }
 
                     for table in self.table_all() {

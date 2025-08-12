@@ -26,25 +26,25 @@ impl DatePickerHandler {
     }
     /// Verify whether the current From and To dates have changed
     pub fn check_date_change(&mut self) -> bool {
-        if let Some(d) = self.last_from {
-            if d != self.from {
-                if self.from > self.to {
-                    self.from = self.to;
-                }
-
-                self.last_from = Some(self.from);
-                return true;
+        if let Some(d) = self.last_from
+            && d != self.from
+        {
+            if self.from > self.to {
+                self.from = self.to;
             }
+
+            self.last_from = Some(self.from);
+            return true;
         }
-        if let Some(d) = self.last_to {
-            if d != self.to {
-                if self.to < self.from {
-                    self.to = self.from;
-                }
-
-                self.last_to = Some(self.to);
-                return true;
+        if let Some(d) = self.last_to
+            && d != self.to
+        {
+            if self.to < self.from {
+                self.to = self.from;
             }
+
+            self.last_to = Some(self.to);
+            return true;
         }
         false
     }

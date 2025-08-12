@@ -124,6 +124,7 @@ pub struct WhitelistData {
     target_username: String,
     failed_whitelist: i32,
     all_ids: HashSet<i64>,
+    search_query: String,
 }
 
 impl Default for WhitelistData {
@@ -136,12 +137,14 @@ impl Default for WhitelistData {
         .auto_scroll()
         .select_full_row()
         .serial_column()
+        .no_ctrl_a_capture()
         .auto_reload(1);
         Self {
             table,
             target_username: String::new(),
             failed_whitelist: 0,
             all_ids: HashSet::new(),
+            search_query: String::new(),
         }
     }
 }
@@ -286,9 +289,44 @@ then right click on User Table to whitelist",
             }
         });
 
-        ui.add_space(40.0);
+        ui.add_space(20.0);
+
+        let column_size = (ui.available_width() - 20.0) / 3.0;
 
         ui.horizontal(|ui| {
+            let text_box = TextEdit::singleline(&mut self.whitelist.search_query)
+                .hint_text("Search by name, username or user ID");
+            ui.add(text_box);
+
+            if ui
+                .button("Search")
+                .on_hover_text("Filter rows that match the search query")
+                .clicked()
+            {
+                let search_query = self.whitelist.search_query.clone();
+
+                if search_query.is_empty() {
+                    self.whitelist.table.recreate_rows();
+                    self.whitelist.search_query.clear();
+                } else {
+                    let column_list = vec![ColumnName::Name, ColumnName::Username, ColumnName::UserID];
+
+                    self.whitelist
+                        .table
+                        .search_and_show(&column_list, &search_query, None, None);
+                }
+            }
+            if ui
+                .button("Clear")
+                .on_hover_text("Clear search result")
+                .clicked()
+            {
+                self.whitelist.table.recreate_rows();
+                self.whitelist.search_query.clear();
+            }
+
+            ui.separator();
+
             if ui
                 .button("Select All")
                 .on_hover_text("Select all users. Also usable with CTRL + A. Use CTRL + mouse click for manual selection")
@@ -321,7 +359,7 @@ then right click on User Table to whitelist",
             }
         });
 
-        let column_size = (ui.available_width() - 20.0) / 3.0;
+        ui.separator();
         self.whitelist.table.show_ui(ui, |table| {
             table
                 .striped(true)
