@@ -642,14 +642,19 @@ impl MainWindow {
                     .on_hover_text("Filter rows that match the search query")
                     .clicked()
                 {
-                    let column_list =
-                        vec![ColumnName::Name, ColumnName::Username, ColumnName::UserID];
+                    if self.table().search_query.is_empty() {
+                        self.table().table.recreate_rows();
+                        self.table().search_query.clear();
+                    } else {
+                        let column_list =
+                            vec![ColumnName::Name, ColumnName::Username, ColumnName::UserID];
 
-                    let search_query = self.table_i().search_query.clone();
+                        let search_query = self.table_i().search_query.clone();
 
-                    self.table()
-                        .table
-                        .search_and_show(&column_list, &search_query, None, None);
+                        self.table()
+                            .table
+                            .search_and_show(&column_list, &search_query, None, None);
+                    }
                 }
                 if ui
                     .button("Clear")

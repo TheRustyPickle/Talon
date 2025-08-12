@@ -296,13 +296,19 @@ then right click on User Table to blacklist",
                 .on_hover_text("Filter rows that match the search query")
                 .clicked()
             {
-                let column_list = vec![ColumnName::Name, ColumnName::Username, ColumnName::UserID];
-
                 let search_query = self.blacklist.search_query.clone();
 
-                self.blacklist
-                    .table
-                    .search_and_show(&column_list, &search_query, None, None);
+                if search_query.is_empty() {
+                    self.blacklist.table.recreate_rows();
+                    self.blacklist.search_query.clear();
+                } else {
+                    let column_list = vec![ColumnName::Name, ColumnName::Username, ColumnName::UserID];
+
+                    self.blacklist
+                        .table
+                        .search_and_show(&column_list, &search_query, None, None);
+                }
+
             }
             if ui
                 .button("Clear")
