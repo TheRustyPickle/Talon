@@ -187,7 +187,7 @@ impl App for MainWindow {
                                     selected_position,
                                     hover_position,
                                     70.0,
-                                    15.5,
+                                    20.0,
                                     Some(CornerRadius::ZERO),
                                     (first_val, true),
                                 ));
