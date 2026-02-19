@@ -49,8 +49,8 @@ pub struct UserRowData {
 impl ColumnOperations<UserRowData, ColumnName, Config> for ColumnName {
     fn column_text(&self, row: &UserRowData) -> String {
         match self {
-            ColumnName::Name => row.name.to_string(),
-            ColumnName::Username => row.username.to_string(),
+            ColumnName::Name => row.name.clone(),
+            ColumnName::Username => row.username.clone(),
             ColumnName::UserID => row.id.to_string(),
             ColumnName::TotalMessage => row.total_message.to_string(),
             ColumnName::TotalWord => row.total_word.to_string(),

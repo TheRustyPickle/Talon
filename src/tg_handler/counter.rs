@@ -36,7 +36,7 @@ impl TGCountData {
     }
 
     pub fn name(&self) -> String {
-        self.name.to_string()
+        self.name.clone()
     }
     pub fn message(&self) -> &Message {
         &self.message

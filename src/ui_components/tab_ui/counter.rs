@@ -149,7 +149,7 @@ impl CounterData {
         if self.total_parsed_chats() > 0 {
             let mut first_key = String::new();
             for key in self.parsed_chat_list.keys() {
-                first_key = key.to_string();
+                first_key = key.clone();
             }
             let data = self.parsed_chat_list.remove(&first_key).unwrap();
             Some(data)
