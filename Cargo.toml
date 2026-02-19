@@ -1,16 +1,15 @@
 [package]
 name = "talon-gui"
-version = "1.3.0"
+version = "1.3.1"
 edition = "2024"
-authors = ["TheRustyPickle <rusty.pickle94@gmail.com>"]
-readme = "README.md"
 description = """
 On-demand Telegram chat analytic generator
 """
+readme = "README.md"
 homepage = "https://github.com/TheRustyPickle/Talon"
 repository = "https://github.com/TheRustyPickle/Talon"
 license = "MIT"
-keywords = ["telegram", "analytics", "gui", "data", "egui"]
+keywords = ["analytics", "data", "egui", "gui", "telegram"]
 categories = ["gui"]
 exclude = ["/fonts"]
 
@@ -21,33 +20,35 @@ path = "src/main.rs"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+chrono = { version = "0.4.43", features = ["serde"] }
+csv = "1.4.0"
+dirs = "6.0.0"
+eframe = "0.33.3"
+egui_extras = { version = "0.33.3", default-features = false, features = [
+    "datepicker",
+] }
+egui_plot = "0.34.1"
+egui-selectable-table = { version = "0.5.0", features = ["fuzzy-matching"] }
+egui-theme-lerp = "0.4.0"
 grammers-client = "=0.7.0"
-grammers-session = "=0.7.0"
-grammers-mtproto = "=0.7.0"
 grammers-crypto = "=0.7.0"
+grammers-mtproto = "=0.7.0"
+grammers-mtsender = "=0.7.0"
+grammers-session = "=0.7.0"
 grammers-tl-gen = "=0.7.0"
 grammers-tl-types = "=0.7.0"
-grammers-mtsender = "=0.7.0"
-tokio = { version = "1.47.1", features = ["rt-multi-thread"] }
-log = "0.4.27"
+log = "0.4.29"
+nucleo-matcher = "0.3.1"
+open = "5.3.3"
 pretty_env_logger = "0.5.0"
-serde = { version = "1.0.219", features = ["derive"] }
-serde_json = "1.0.142"
-dirs = "6.0.0"
-open = "5.3.2"
-reqwest = { version = "0.12.22", features = ["json"] }
-eframe = "0.32.0"
-egui_extras = { version = "0.32.0", default-features = false, features = ["datepicker"] }
-egui_plot = "0.33.0"
-egui-theme-lerp = "0.3.0"
-chrono = { version = "0.4.41", features = ["serde"] }
-semver = "1.0.26"
-rayon = "1.10.0"
-csv = "1.3.1"
+rayon = "1.11.0"
+reqwest = { version = "0.13.2", features = ["json"] }
+semver = "1.0.27"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
 strum = "0.27.2"
 strum_macros = "0.27.2"
-egui-selectable-table = { version = "0.4.1", features = ["fuzzy-matching"] }
-nucleo-matcher = "0.3.1"
+tokio = { version = "1.49.0", features = ["rt-multi-thread"] }
 
 # The profile that 'cargo dist' will build with
 [profile.dist]
