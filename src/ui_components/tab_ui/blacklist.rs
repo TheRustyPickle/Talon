@@ -20,8 +20,8 @@ struct Config {
 impl ColumnOperations<BlackListRowData, ColumnName, Config> for ColumnName {
     fn column_text(&self, row: &BlackListRowData) -> String {
         match self {
-            ColumnName::Name => row.name.to_string(),
-            ColumnName::Username => row.username.to_string(),
+            ColumnName::Name => row.name.clone(),
+            ColumnName::Username => row.username.clone(),
             ColumnName::UserID => row.id.to_string(),
             _ => unreachable!(),
         }
@@ -185,7 +185,7 @@ impl BlacklistData {
             let hex_value = row.row_data.belongs_to.pack().to_hex();
             packed_chats.push(PackedBlacklistedUser::new(
                 hex_value,
-                row.row_data.seen_by.to_string(),
+                row.row_data.seen_by.clone(),
             ));
         });
 

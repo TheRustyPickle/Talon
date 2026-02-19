@@ -20,7 +20,7 @@ pub struct SessionData {
 
 impl SessionData {
     fn get_session_name(&self) -> String {
-        self.session_name.to_string()
+        self.session_name.clone()
     }
 
     fn get_phone_number(&self) -> String {
@@ -28,7 +28,7 @@ impl SessionData {
     }
 
     fn get_password(&self) -> String {
-        self.tg_password.to_string()
+        self.tg_password.clone()
     }
 
     fn get_is_temporary(&self) -> bool {
@@ -44,7 +44,7 @@ impl SessionData {
     }
 
     fn get_tg_code(&self) -> String {
-        self.tg_code.to_string()
+        self.tg_code.clone()
     }
 
     fn get_tg_code_token(&self) -> Arc<Mutex<LoginToken>> {
