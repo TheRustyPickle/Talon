@@ -1,6 +1,6 @@
 [package]
 name = "talon-gui"
-version = "1.3.1"
+version = "1.3.2"
 edition = "2024"
 description = """
 On-demand Telegram chat analytic generator
