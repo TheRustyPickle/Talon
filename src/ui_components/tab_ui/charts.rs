@@ -1,7 +1,5 @@
 use chrono::{Datelike, Days, Duration, Months, NaiveDate, NaiveDateTime, Timelike, Weekday};
-use eframe::egui::{
-    CentralPanel, ComboBox, Id, Key, Modal, ScrollArea, TextEdit, TopBottomPanel, Ui,
-};
+use eframe::egui::{CentralPanel, ComboBox, Id, Key, Modal, Panel, ScrollArea, TextEdit, Ui};
 use egui_extras::DatePickerButton;
 use egui_plot::{Bar, BarChart, Legend, Plot, PlotPoint};
 use nucleo_matcher::Matcher;
@@ -250,13 +248,13 @@ impl ChartsData {
         let response = Modal::new(Id::new("customize_view")).show(ui.ctx(), |ui| {
             ui.set_width(400.0);
             ui.set_height(350.0);
-            TopBottomPanel::top("customize_top_view").show_inside(ui, |ui| {
+            Panel::top("customize_top_view").show_inside(ui, |ui| {
                 ui.vertical_centered(|ui| {
                     ui.heading("Customize View");
                 });
             });
 
-            TopBottomPanel::bottom(Id::new("customize_bottom_view")).show_inside(ui, |ui| {
+            Panel::bottom(Id::new("customize_bottom_view")).show_inside(ui, |ui| {
                 ui.add_space(5.0);
                 ui.vertical_centered_justified(|ui| {
                     if ui.button("Confirm").clicked() {
