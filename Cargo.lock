@@ -4323,7 +4323,6 @@ dependencies = [
  "nucleo-matcher",
  "open",
  "pretty_env_logger",
- "rayon",
  "reqwest",
  "semver",
  "serde",
