@@ -1,4 +1,4 @@
-use chrono::{Days, Months};
+use jiff::ToSpan;
 
 use crate::ui_components::processor::{DatePickerHandler, NavigationType};
 
@@ -58,7 +58,7 @@ impl DateNavigator {
             return;
         }
 
-        to_date = to_date.checked_add_days(Days::new(1)).unwrap();
+        to_date = to_date.checked_add(1.day()).unwrap();
 
         *self.handler().from() = to_date;
         *self.handler().to() = to_date;
@@ -73,7 +73,7 @@ impl DateNavigator {
             return;
         }
 
-        from_date = from_date.checked_sub_days(Days::new(1)).unwrap();
+        from_date = from_date.checked_sub(1.day()).unwrap();
 
         *self.handler().from() = from_date;
         *self.handler().to() = from_date;
@@ -83,16 +83,16 @@ impl DateNavigator {
         let from_date = self.handler().from;
         let mut to_date = self.handler().to;
 
-        let target_date = to_date.checked_sub_days(Days::new(6)).unwrap();
+        let target_date = to_date.checked_sub(6.days()).unwrap();
 
         if from_date != target_date {
             *self.handler().from() = target_date;
             return;
         }
 
-        to_date = to_date.checked_add_days(Days::new(6)).unwrap();
+        to_date = to_date.checked_add(6.days()).unwrap();
 
-        *self.handler().from() = to_date.checked_sub_days(Days::new(6)).unwrap();
+        *self.handler().from() = to_date.checked_sub(6.days()).unwrap();
         *self.handler().to() = to_date;
     }
 
@@ -100,33 +100,33 @@ impl DateNavigator {
         let mut from_date = self.handler().from;
         let to_date = self.handler().to;
 
-        let target_date = from_date.checked_add_days(Days::new(6)).unwrap();
+        let target_date = from_date.checked_add(6.days()).unwrap();
 
         if to_date != target_date {
             *self.handler().to() = target_date;
             return;
         }
 
-        from_date = from_date.checked_sub_days(Days::new(6)).unwrap();
+        from_date = from_date.checked_sub(6.days()).unwrap();
 
         *self.handler().from() = from_date;
-        *self.handler().to() = from_date.checked_add_days(Days::new(6)).unwrap();
+        *self.handler().to() = from_date.checked_add(6.days()).unwrap();
     }
 
     fn next_month(&mut self) {
         let from_date = self.handler().from;
         let mut to_date = self.handler().to;
 
-        let target_date = to_date.checked_sub_months(Months::new(1)).unwrap();
+        let target_date = to_date.checked_sub(1.month()).unwrap();
 
         if from_date != target_date {
             *self.handler().from() = target_date;
             return;
         }
 
-        to_date = to_date.checked_add_months(Months::new(1)).unwrap();
+        to_date = to_date.checked_add(1.month()).unwrap();
 
-        *self.handler().from() = to_date.checked_sub_months(Months::new(1)).unwrap();
+        *self.handler().from() = to_date.checked_sub(1.month()).unwrap();
         *self.handler().to() = to_date;
     }
 
@@ -134,33 +134,33 @@ impl DateNavigator {
         let mut from_date = self.handler().from;
         let to_date = self.handler().to;
 
-        let target_date = from_date.checked_add_months(Months::new(1)).unwrap();
+        let target_date = from_date.checked_add(1.month()).unwrap();
 
         if to_date != target_date {
             *self.handler().to() = target_date;
             return;
         }
 
-        from_date = from_date.checked_sub_months(Months::new(1)).unwrap();
+        from_date = from_date.checked_sub(1.month()).unwrap();
 
         *self.handler().from() = from_date;
-        *self.handler().to() = from_date.checked_add_months(Months::new(1)).unwrap();
+        *self.handler().to() = from_date.checked_add(1.month()).unwrap();
     }
 
     fn next_year(&mut self) {
         let from_date = self.handler().from;
         let mut to_date = self.handler().to;
 
-        let target_date = to_date.checked_sub_months(Months::new(12)).unwrap();
+        let target_date = to_date.checked_sub(1.year()).unwrap();
 
         if from_date != target_date {
             *self.handler().from() = target_date;
             return;
         }
 
-        to_date = to_date.checked_add_months(Months::new(12)).unwrap();
+        to_date = to_date.checked_add(1.year()).unwrap();
 
-        *self.handler().from() = to_date.checked_sub_months(Months::new(12)).unwrap();
+        *self.handler().from() = to_date.checked_sub(1.year()).unwrap();
         *self.handler().to() = to_date;
     }
 
@@ -168,16 +168,16 @@ impl DateNavigator {
         let mut from_date = self.handler().from;
         let to_date = self.handler().to;
 
-        let target_date = from_date.checked_add_months(Months::new(12)).unwrap();
+        let target_date = from_date.checked_add(1.year()).unwrap();
 
         if to_date != target_date {
             *self.handler().to() = target_date;
             return;
         }
 
-        from_date = from_date.checked_sub_months(Months::new(12)).unwrap();
+        from_date = from_date.checked_sub(1.year()).unwrap();
 
         *self.handler().from() = from_date;
-        *self.handler().to() = from_date.checked_add_months(Months::new(12)).unwrap();
+        *self.handler().to() = from_date.checked_add(1.year()).unwrap();
     }
 }

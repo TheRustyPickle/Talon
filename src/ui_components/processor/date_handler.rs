@@ -1,27 +1,38 @@
-use chrono::NaiveDate;
+use chrono::{Datelike, NaiveDate};
+use jiff::civil::Date;
 
 /// Handler for the `DatePicker` in the UI for data changes
 #[derive(Default)]
 pub struct DatePickerHandler {
     /// The From Date currently selected in the UI
-    pub from: NaiveDate,
+    pub from: Date,
     /// The To Date currently selected in the UI
-    pub to: NaiveDate,
+    pub to: Date,
     /// The last From date selected before the current From date
-    last_from: Option<NaiveDate>,
+    last_from: Option<Date>,
     /// The last To date selected before the current To date
-    last_to: Option<NaiveDate>,
+    last_to: Option<Date>,
     /// The oldest date with at least 1 data point
-    start: Option<NaiveDate>,
+    start: Option<Date>,
     /// The newest date with at least 1 data point
-    end: Option<NaiveDate>,
+    end: Option<Date>,
+}
+
+pub trait NaiveToJiff {
+    fn to_jiff(&self) -> Date;
+}
+
+impl NaiveToJiff for NaiveDate {
+    fn to_jiff(&self) -> Date {
+        Date::new(self.year() as i16, self.month() as i8, self.day() as i8).unwrap()
+    }
 }
 
 impl DatePickerHandler {
-    pub fn from(&mut self) -> &mut NaiveDate {
+    pub fn from(&mut self) -> &mut Date {
         &mut self.from
     }
-    pub fn to(&mut self) -> &mut NaiveDate {
+    pub fn to(&mut self) -> &mut Date {
         &mut self.to
     }
     /// Verify whether the current From and To dates have changed
@@ -60,6 +71,7 @@ impl DatePickerHandler {
     /// Compare the given date with the current Start and End date
     /// to find the oldest and the newest date
     pub fn update_dates(&mut self, date: NaiveDate) {
+        let date = date.to_jiff();
         if self.start.is_none_or(|current| current > date) {
             self.from = date;
             self.start = Some(date);
@@ -75,11 +87,14 @@ impl DatePickerHandler {
 
     /// Whether the given date is whtin the current From and To range
     pub fn within_range(&self, date: NaiveDate) -> bool {
+        let date = date.to_jiff();
+
         date >= self.from && date <= self.to
     }
 
     /// Whether the given date is before the current To range
     pub fn before_to_range(&self, date: NaiveDate) -> bool {
+        let date = date.to_jiff();
         date < self.to
     }
 }

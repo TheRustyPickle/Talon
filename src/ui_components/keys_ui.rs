@@ -1,4 +1,4 @@
-use eframe::egui::{Align, Button, CentralPanel, Context, Grid, Label, Layout, TextEdit, vec2};
+use eframe::egui::{Align, Button, CentralPanel, Grid, Label, Layout, TextEdit, Ui, vec2};
 use serde::{Deserialize, Serialize};
 
 use crate::ui_components::MainWindow;
@@ -12,8 +12,8 @@ pub struct TGKeys {
 }
 
 impl MainWindow {
-    pub fn show_tg_keys_ui(&mut self, ctx: &Context) {
-        CentralPanel::default().show(ctx, |ui| {
+    pub fn show_tg_keys_ui(&mut self, ui: &mut Ui) {
+        CentralPanel::default().show_inside(ui, |ui| {
             let tg_link = "https://my.telegram.org/";
             ui.label("A valid Telegram API key pair is necessary for the app to work properly. \
                 The key will be saved locally and will never be shared. \

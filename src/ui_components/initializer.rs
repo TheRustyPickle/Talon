@@ -1,7 +1,8 @@
+use eframe::egui::{Panel, Ui};
 use eframe::{App, CreationContext, Frame, egui};
 use egui::{
     Align, Button, CentralPanel, Context, CornerRadius, FontData, FontDefinitions, FontFamily, Id,
-    Layout, Modal, ScrollArea, Spinner, ThemePreference, TopBottomPanel, ViewportCommand, Visuals,
+    Layout, Modal, ScrollArea, Spinner, ThemePreference, ViewportCommand, Visuals,
 };
 use egui_theme_lerp::ThemeAnimator;
 use log::info;
@@ -103,9 +104,9 @@ impl MainWindow {
 }
 
 impl App for MainWindow {
-    fn update(&mut self, ctx: &Context, _: &mut Frame) {
+    fn ui(&mut self, ui: &mut Ui, _: &mut Frame) {
         // If asked to close the app, search for any temporary client and if any, logout then close the window
-        if ctx.input(|i| i.viewport().close_requested()) {
+        if ui.ctx().input(|i| i.viewport().close_requested()) {
             let mut joins = Vec::new();
             for (_, client) in self.tg_clients.clone() {
                 if client.is_temporary() {
@@ -128,8 +129,8 @@ impl App for MainWindow {
 
         match self.app_state {
             AppState::LoadingFontsAPI => {
-                ctx.set_pixels_per_point(1.1);
-                self.set_fonts(ctx);
+                ui.set_pixels_per_point(1.1);
+                self.set_fonts(ui);
 
                 // If API keys are found, start the main UI otherwise show the UI to input the API keys
                 if get_api_keys().is_some() {
@@ -138,15 +139,15 @@ impl App for MainWindow {
                     self.app_state = AppState::InputAPIKeys;
                 }
             }
-            AppState::InputAPIKeys => self.show_tg_keys_ui(ctx),
+            AppState::InputAPIKeys => self.show_tg_keys_ui(ui),
             AppState::InitializedUI => {
-                TopBottomPanel::top("top_panel")
+                Panel::top("top_panel")
                     .show_separator_line(true)
-                    .show(ctx, |ui| {
+                    .show_inside(ui, |ui| {
                         if self.theme_animator.anim_id.is_none() {
                             self.theme_animator.create_id(ui);
                         } else {
-                            self.theme_animator.animate(ctx);
+                            self.theme_animator.animate(ui);
                         }
 
                         ui.add_space(4.0);
@@ -194,16 +195,16 @@ impl App for MainWindow {
 
                                 if resp.clicked() {
                                     let window_size = val.window_size();
-                                    ctx.send_viewport_cmd(ViewportCommand::InnerSize(window_size));
+                                    ui.send_viewport_cmd(ViewportCommand::InnerSize(window_size));
                                     self.tab_state = val;
                                 }
                             }
                         });
                         ui.add_space(0.5);
                     });
-                TopBottomPanel::bottom("bottom_panel")
+                Panel::bottom("bottom_panel")
                     .show_separator_line(true)
-                    .show(ctx, |ui| {
+                    .show_inside(ui, |ui| {
                         ui.add_space(4.0);
                         let status_text = self.process_state.to_string();
                         ui.horizontal(|ui| {
@@ -216,7 +217,7 @@ impl App for MainWindow {
                         });
                         ui.add_space(0.5);
                     });
-                CentralPanel::default().show(ctx, |ui| {
+                CentralPanel::default().show_inside(ui, |ui| {
                     match self.tab_state {
                         TabState::Counter => self.show_counter_ui(ui),
                         TabState::UserTable => self.show_user_table_ui(ui),
@@ -240,7 +241,7 @@ impl App for MainWindow {
                         if !existing_sessions.is_empty() {
                             self.is_processing = true;
                             let sender_clone = self.tg_sender.clone();
-                            let ctx_clone = ctx.clone();
+                            let ctx_clone = ui.ctx().clone();
                             self.runtime.spawn(async move {
                                 start_process(
                                     NewProcess::InitialSessionConnect(existing_sessions),
@@ -263,12 +264,12 @@ impl App for MainWindow {
                             ui.set_width(300.0);
                             ui.set_height(300.0);
 
-                            TopBottomPanel::top("version_top_panel").show_inside(ui, |ui| {
+                            Panel::top("version_top_panel").show_inside(ui, |ui| {
                                 ui.vertical_centered(|ui| {
                                     ui.heading("A new version is available");
                                 });
                             });
-                            TopBottomPanel::bottom("version_bottom_panel").show_inside(ui, |ui| {
+                            Panel::bottom("version_bottom_panel").show_inside(ui, |ui| {
                                 ui.horizontal(|ui| {
                                     let available_width = ui.available_width();
                                     let button_width = available_width / 2.0;
