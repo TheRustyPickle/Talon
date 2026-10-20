@@ -1,6 +1,6 @@
 [package]
 name = "talon-gui"
-version = "1.5.0"
+version = "2.0.0"
 edition = "2024"
 description = """
 On-demand Telegram chat analytic generator
@@ -23,13 +23,13 @@ path = "src/main.rs"
 chrono = { version = "0.4.45", features = ["serde"] }
 csv = "1.4.0"
 dirs = "7.0.0"
-eframe = "0.36.1"
-egui_extras = { version = "0.36.1", default-features = false, features = [
+eframe = "0.37.0"
+egui_extras = { version = "0.37.0", default-features = false, features = [
   "datepicker",
 ] }
-egui_plot = "0.37.0"
-egui-selectable-table = { version = "0.8.0", features = ["fuzzy-matching"] }
-egui-theme-lerp = "0.7.0"
+egui_plot = "0.38.0"
+egui-selectable-table = { version = "0.9.0", features = ["fuzzy-matching", "rayon"] }
+egui-theme-lerp = "0.8.0"
 grammers-client = "=0.7.0"
 grammers-crypto = "=0.7.0"
 grammers-mtproto = "=0.7.0"
@@ -37,18 +37,18 @@ grammers-mtsender = "=0.7.0"
 grammers-session = "=0.7.0"
 grammers-tl-gen = "=0.7.0"
 grammers-tl-types = "=0.7.0"
-jiff = "0.2.35"
+jiff = "0.2.38"
 log = "0.4.34"
 nucleo-matcher = "0.3.1"
-open = "5.4.3"
+open = "5.4.4"
 pretty_env_logger = "0.5.0"
-reqwest = { version = "0.13.4", features = ["json"] }
+reqwest = { version = "0.13.5", features = ["json"] }
 semver = "1.0.28"
 serde = { version = "1.0.229", features = ["derive"] }
-serde_json = "1.0.151"
+serde_json = "1.0.154"
 strum = "0.28.0"
 strum_macros = "0.28.0"
-tokio = { version = "1.53.1", features = ["rt-multi-thread"] }
+tokio = { version = "1.53.3", features = ["rt-multi-thread"] }
 
 # The profile that 'cargo dist' will build with
 [profile.dist]

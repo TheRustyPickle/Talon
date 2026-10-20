@@ -48,9 +48,8 @@ impl TGClient {
                 return Ok(());
             }
         };
-        self.send(ProcessResult::WhiteListUser(UnpackedWhitelistedUser::new(
-            tg_chat,
-            self.name(),
+        self.send(ProcessResult::WhiteListUser(Box::new(
+            UnpackedWhitelistedUser::new(tg_chat, self.name()),
         )));
         Ok(())
     }

@@ -65,5 +65,5 @@ fn parse_github_body(body: &str) -> String {
     let body = body.replace('*', "•");
     let body = body.replace('\r', "");
     let end_point = body.find("## Changes").unwrap();
-    format!("\n{}\n", &body[..end_point].trim())
+    format!("\n{}\n", body[..end_point].trim())
 }

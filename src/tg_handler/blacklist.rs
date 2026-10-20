@@ -48,9 +48,8 @@ impl TGClient {
                 return Ok(());
             }
         };
-        self.send(ProcessResult::BlackListUser(UnpackedBlacklistedUser::new(
-            tg_chat,
-            self.name(),
+        self.send(ProcessResult::BlackListUser(Box::new(
+            UnpackedBlacklistedUser::new(tg_chat, self.name()),
         )));
         Ok(())
     }

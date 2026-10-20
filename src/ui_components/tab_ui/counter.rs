@@ -220,7 +220,7 @@ impl MainWindow {
                         ui.label("Messages Checked:")
                     });
                     ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
-                        ui.label(format!("{}", &mut self.count().total_message));
+                        ui.label(format!("{}", self.count().total_message));
                     });
 
                     ui.end_row();
@@ -229,7 +229,7 @@ impl MainWindow {
                         ui.label("Whitelisted Messages:")
                     });
                     ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
-                        ui.label(format!("{}", &mut self.count().whitelisted_message));
+                        ui.label(format!("{}", self.count().whitelisted_message));
                     });
 
                     ui.end_row();
@@ -238,7 +238,7 @@ impl MainWindow {
                         ui.label("Users Found:")
                     });
                     ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
-                        ui.label(format!("{}", &mut self.count().total_user));
+                        ui.label(format!("{}", self.count().total_user));
                     });
 
                     ui.end_row();
@@ -247,7 +247,7 @@ impl MainWindow {
                         ui.label("Whitelisted Users:")
                     });
                     ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
-                        ui.label(format!("{}", &mut self.count().total_whitelisted()));
+                        ui.label(format!("{}", self.count().total_whitelisted()));
                     });
 
                     ui.end_row();
@@ -256,7 +256,7 @@ impl MainWindow {
                         ui.label("Deleted Message:")
                     });
                     ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
-                        ui.label(format!("{}", &mut self.count().deleted_message));
+                        ui.label(format!("{}", self.count().deleted_message));
                     });
 
                     ui.end_row();

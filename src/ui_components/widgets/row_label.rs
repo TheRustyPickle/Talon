@@ -1,5 +1,5 @@
 use eframe::egui::{
-    Response, Sense, StrokeKind, TextStyle, Ui, Widget, WidgetInfo, WidgetText, WidgetType,
+    Response, Role, Sense, StrokeKind, TextStyle, Ui, Widget, WidgetInfo, WidgetText,
 };
 use eframe::emath::NumExt;
 use eframe::epaint::Color32;
@@ -38,12 +38,7 @@ impl Widget for RowLabel {
         desired_size.y = desired_size.y.at_least(ui.spacing().interact_size.y);
         let (rect, response) = ui.allocate_at_least(desired_size, Sense::click());
         response.widget_info(|| {
-            WidgetInfo::selected(
-                WidgetType::SelectableLabel,
-                ui.is_enabled(),
-                selected,
-                text.text(),
-            )
+            WidgetInfo::selected(Role::Button, ui.is_enabled(), selected, text.text())
         });
 
         if ui.is_rect_visible(response.rect) {

@@ -13,7 +13,7 @@ pub enum ProcessResult {
     InitialSessionSuccess((Vec<TGClient>, Vec<String>, Vec<String>)),
     InvalidChat(String),
     UnauthorizedClient(String),
-    CountingMessage(TGCountData),
+    CountingMessage(Box<TGCountData>),
     CountingEnd((i32, i32)),
     ProcessFailed(ProcessError),
     LoginCodeSent(LoginToken, TGClient),
@@ -22,8 +22,8 @@ pub enum ProcessResult {
     UnpackedWhitelist(Vec<UnpackedWhitelistedUser>, i32),
     UnpackedBlacklist(Vec<UnpackedBlacklistedUser>, i32),
     FloodWait,
-    WhiteListUser(UnpackedWhitelistedUser),
-    BlackListUser(UnpackedBlacklistedUser),
+    WhiteListUser(Box<UnpackedWhitelistedUser>),
+    BlackListUser(Box<UnpackedBlacklistedUser>),
     ChatExists(String, i32, i32),
 }
 
