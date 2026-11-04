@@ -1,4 +1,5 @@
-use grammers_client::types::Message;
+use grammers_client::message::Message;
+use grammers_session::types::PeerRef;
 use log::info;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -10,6 +11,7 @@ use crate::tg_handler::{ProcessError, ProcessResult, TGClient};
 pub struct TGCountData {
     name: String,
     message: Message,
+    sender_ref: Option<PeerRef>,
     start_at: i32,
     end_at: i32,
     multi_session: bool,
@@ -20,6 +22,7 @@ impl TGCountData {
     pub fn new(
         name: String,
         message: Message,
+        sender_ref: Option<PeerRef>,
         start_at: i32,
         end_at: i32,
         last_number: i32,
@@ -28,6 +31,7 @@ impl TGCountData {
         TGCountData {
             name,
             message,
+            sender_ref,
             start_at,
             end_at,
             multi_session,
@@ -38,8 +42,13 @@ impl TGCountData {
     pub fn name(&self) -> String {
         self.name.clone()
     }
+
     pub fn message(&self) -> &Message {
         &self.message
+    }
+
+    pub fn sender_ref(&self) -> Option<PeerRef> {
+        self.sender_ref
     }
 
     pub fn start_at(&self) -> i32 {
@@ -83,7 +92,10 @@ impl TGClient {
             }
         };
 
-        info!("{} exists. Starting iterating messages", tg_chat.name());
+        info!(
+            "{} exists. Starting iterating messages",
+            tg_chat.name().unwrap_or("No Name")
+        );
 
         let end_at = end_num.unwrap_or(1);
         let mut start_at = start_num.unwrap_or(-1);
@@ -122,7 +134,18 @@ impl TGClient {
         });
 
         let mut last_number = -1;
-        let mut iter_message = self.client().iter_messages(tg_chat);
+
+        let peer_ref = tg_chat.to_ref().await;
+
+        let Ok(peer_ref) = peer_ref else {
+            return Err(ProcessError::FailedLatestMessage);
+        };
+
+        let Some(peer_ref) = peer_ref else {
+            return Err(ProcessError::FailedLatestMessage);
+        };
+
+        let mut iter_message = self.client().iter_messages(peer_ref);
 
         // Add 1 to offset because the latest message would start from the offset point - 1 message
         // Add 1 to last_number if the starting message is 100 but does not exist and starts from 99, we want to count that missing message
@@ -149,14 +172,22 @@ impl TGClient {
             }
 
             if message_num <= start_at {
+                // Only possible to get a reference if the sender is usable or cached in the session
+                let sender_ref = match message.sender() {
+                    Some(sender) => sender.to_ref().await.ok().flatten(),
+                    None => None,
+                };
+
                 let count_data = TGCountData::new(
                     self.name(),
                     message,
+                    sender_ref,
                     start_at,
                     end_at,
                     last_number,
                     multi_session,
                 );
+
                 self.send(ProcessResult::CountingMessage(Box::new(count_data)));
                 last_number = message_num;
             }
@@ -206,7 +237,17 @@ impl TGClient {
         let start_point = if let Some(num) = start_point {
             num
         } else {
-            let mut iter_message = self.client().iter_messages(tg_chat).limit(1);
+            let peer_ref = tg_chat.to_ref().await;
+
+            let Ok(peer_ref) = peer_ref else {
+                return Err(ProcessError::FailedLatestMessage);
+            };
+
+            let Some(peer_ref) = peer_ref else {
+                return Err(ProcessError::FailedLatestMessage);
+            };
+
+            let mut iter_message = self.client().iter_messages(peer_ref).limit(1);
 
             if let Some(message) = iter_message
                 .next()

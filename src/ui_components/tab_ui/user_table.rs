@@ -5,7 +5,9 @@ use egui_extras::{Column, DatePickerButton};
 use egui_selectable_table::{
     ColumnOperations, ColumnOrdering, SelectableRow, SelectableTable, SortOrder,
 };
-use grammers_client::types::{Chat, Message};
+use grammers_client::message::Message;
+use grammers_client::peer::Peer;
+use grammers_session::types::PeerRef;
 use log::info;
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
@@ -14,8 +16,7 @@ use strum::IntoEnumIterator;
 
 use crate::ui_components::MainWindow;
 use crate::ui_components::processor::{
-    ColumnName, DateNavigator, NavigationType, PackedBlacklistedUser, PackedWhitelistedUser,
-    ProcessState,
+    ColumnName, DateNavigator, NavigationType, ProcessState, peer_details,
 };
 use crate::ui_components::widgets::{AnimatedLabel, RowLabel};
 use crate::utils::{entry_insert_user, export_table_data, to_chart_name};
@@ -42,7 +43,7 @@ pub struct UserRowData {
     last_seen: NaiveDateTime,
     whitelisted: bool,
     #[serde(skip_serializing)]
-    belongs_to: Option<Chat>,
+    belongs_to: Option<PeerRef>,
     #[serde(skip_serializing)]
     seen_by: String,
 }
@@ -218,7 +219,7 @@ impl UserRowData {
         username: &str,
         id: i64,
         whitelisted: bool,
-        belongs_to: Option<Chat>,
+        belongs_to: Option<PeerRef>,
         date: NaiveDateTime,
         seen_by: String,
     ) -> Self {
@@ -319,56 +320,29 @@ impl UserTableData {
     /// Add a user to the table
     pub fn add_user(
         &mut self,
-        sender: Option<Chat>,
+        sender: Option<&Peer>,
+        sender_ref: Option<PeerRef>,
         date: NaiveDate,
         datetime: NaiveDateTime,
         seen_by: String,
         blacklisted: bool,
     ) -> (i64, String, String) {
-        let mut user_id = 0;
+        let user_id;
         let full_name;
         let username;
-        let mut chat = None;
 
-        if let Some(chat_data) = sender {
-            user_id = chat_data.id();
-            chat = Some(chat_data.clone());
-
-            if let Chat::User(user) = chat_data {
-                // As per grammers lib doc, empty name can be given if it's a deleted account
-                full_name = if user.full_name().is_empty() {
-                    "Deleted Account".to_string()
-                } else {
-                    user.full_name()
-                };
-
-                username = if let Some(name) = user.username() {
-                    name.to_string()
-                } else {
-                    "Empty".to_string()
-                };
-            } else {
-                full_name = if chat_data.name().is_empty() {
-                    "Deleted Account".to_string()
-                } else {
-                    chat_data.name().to_string()
-                };
-
-                username = if let Some(name) = chat_data.username() {
-                    name.to_string()
-                } else {
-                    "Empty".to_string()
-                };
-            }
+        if let Some(peer) = sender {
+            (full_name, username, user_id) = peer_details(peer);
         } else {
-            // If there is no Chat value then it could be an anonymous user
+            // If there is no Peer value then it could be an anonymous user
+            user_id = 0;
             full_name = "Anonymous/Unknown".to_string();
             username = "Empty".to_string();
         }
 
         if !blacklisted {
             let user_row = UserRowData::new(
-                &full_name, &username, user_id, false, chat, datetime, seen_by,
+                &full_name, &username, user_id, false, sender_ref, datetime, seen_by,
             );
 
             entry_insert_user(&mut self.user_data, user_row, user_id, date);
@@ -752,28 +726,25 @@ impl MainWindow {
 
         for selected in &table_selected_rows {
             let row_data = &selected.row_data;
-            if row_data.name != "Anonymous/Unknown" {
+            if row_data.name != "Anonymous/Unknown" && row_data.belongs_to.is_some() {
                 selected_rows.push(row_data);
             }
         }
 
         let total_to_whitelist = selected_rows.len();
-        let mut packed_chats = Vec::new();
-
         let mut all_ids = Vec::new();
+
         for row in selected_rows {
-            let cloned_row = row.clone();
             all_ids.push(row.id);
             self.whitelist.add_to_whitelist(
                 row.name.clone(),
                 row.username.clone(),
                 row.id,
-                row.belongs_to.clone().unwrap(),
+                row.belongs_to.unwrap(),
                 row.seen_by.clone(),
             );
-            let hex_value = cloned_row.belongs_to.unwrap().pack().to_hex();
-            packed_chats.push(PackedWhitelistedUser::new(hex_value, cloned_row.seen_by));
         }
+
         self.table().set_as_whitelisted(&all_ids);
         self.chart().reset_saved_bars();
 
@@ -788,32 +759,27 @@ impl MainWindow {
 
         for selected in &table_selected_rows {
             let row_data = &selected.row_data;
-            if row_data.name != "Anonymous/Unknown" {
+            if row_data.name != "Anonymous/Unknown" && row_data.belongs_to.is_some() {
                 selected_rows.push(row_data);
             }
         }
 
         let total_to_blacklist = selected_rows.len();
-        let mut packed_chats = Vec::new();
-
         let mut all_ids = Vec::new();
         let mut names = Vec::new();
         for row in selected_rows {
             let chart_name = to_chart_name(row.username.clone(), &row.name, row.id);
             names.push(chart_name);
 
-            let cloned_row = row.clone();
             all_ids.push(row.id);
 
             self.blacklist.add_to_blacklist(
                 row.name.clone(),
                 row.username.clone(),
                 row.id,
-                row.belongs_to.clone().unwrap(),
+                row.belongs_to.unwrap(),
                 row.seen_by.clone(),
             );
-            let hex_value = cloned_row.belongs_to.unwrap().pack().to_hex();
-            packed_chats.push(PackedBlacklistedUser::new(hex_value, cloned_row.seen_by));
         }
 
         for chart in self.chart_all() {

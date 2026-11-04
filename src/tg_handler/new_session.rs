@@ -1,7 +1,8 @@
 use eframe::egui::Context;
-use grammers_client::types::{LoginToken, PasswordToken};
-use grammers_client::{Client, Config, FixedReconnect, InitParams, SignInError};
-use grammers_session::Session;
+use grammers_client::client::{LoginToken, PasswordToken};
+use grammers_client::{Client, SignInError};
+use grammers_mtsender::SenderPool;
+use grammers_session::storages::{MemorySession, SqliteSession};
 use log::{error, info};
 use std::fs;
 use std::sync::Arc;
@@ -31,38 +32,32 @@ pub async fn send_login_code(
     let api_hash = api_data.api_hash;
 
     let session = if is_temporary {
-        Session::new()
+        let session = Arc::new(MemorySession::default());
+        SenderPool::new(Arc::clone(&session), api_id)
     } else {
-        let target_path = format!("./{session_name}.session");
+        let target_path = format!("{session_name}.sqlite");
 
         if fs::metadata(&target_path).is_ok() {
-            info!("{target_path} exists. Removing old session file");
-            fs::remove_file(&target_path).unwrap();
+            info!("{target_path} exists. Removing old sqlite file");
+            fs::remove_file(&target_path).expect("Failed to remove old sqlite file");
         }
 
-        Session::load_file_or_create(target_path).unwrap()
+        let session = SqliteSession::open(target_path).await;
+
+        if let Err(e) = session {
+            error!("Failed to create/open session file: {e}");
+            return Err(ProcessError::FileCreationError);
+        }
+
+        let session = Arc::new(session.unwrap());
+
+        SenderPool::new(Arc::clone(&session), api_id)
     };
 
-    let reconnection = Box::leak(Box::new(FixedReconnect {
-        attempts: 10,
-        delay: std::time::Duration::from_secs(1),
-    }));
-
-    let client = Client::connect(Config {
-        session,
-        api_id,
-        api_hash,
-        params: InitParams {
-            reconnection_policy: reconnection,
-            update_queue_limit: Some(1),
-            ..Default::default()
-        },
-    })
-    .await
-    .map_err(|_| ProcessError::AuthorizationError)?;
+    let client = Client::new(session.handle);
 
     let code_token = client
-        .request_login_code(&phone_number)
+        .request_login_code(&phone_number, &api_hash)
         .await
         .map_err(ProcessError::InvalidPhoneOrAPI)?;
 
@@ -85,11 +80,6 @@ impl TGClient {
 
         match result {
             Ok(_) => {
-                if !self.is_temporary() {
-                    info!("Saving session data to a file");
-                    let target_path = format!("./{}.session", self.name());
-                    self.client().session().save_to_file(target_path).unwrap();
-                }
                 self.send(ProcessResult::LoggedIn(self.name()));
             }
             Err(err) => match err {
@@ -99,10 +89,10 @@ impl TGClient {
                 SignInError::PasswordRequired(token) => {
                     self.send(ProcessResult::PasswordRequired(Box::new(token)));
                 }
-                SignInError::SignUpRequired {
-                    terms_of_service: _,
-                } => self.send(ProcessResult::ProcessFailed(ProcessError::NotSignedUp)),
-                SignInError::InvalidPassword => unreachable!(),
+                SignInError::SignUpRequired => {
+                    self.send(ProcessResult::ProcessFailed(ProcessError::NotSignedUp))
+                }
+                SignInError::InvalidPassword(_) => unreachable!(),
                 SignInError::Other(e) => {
                     self.send(ProcessResult::ProcessFailed(ProcessError::UnknownError(e)));
                 }
@@ -115,30 +105,23 @@ impl TGClient {
     /// May continue to fail if the first time password was not correct
     pub async fn sign_in_password(
         &self,
-        token: Arc<Mutex<PasswordToken>>,
+        token: Box<PasswordToken>,
         password: String,
     ) -> Result<(), ProcessError> {
-        let token = token.lock().await.clone();
-
-        let result = self.client().check_password(token, password).await;
+        let result = self.client().check_password(*token, password).await;
 
         match result {
             Ok(_) => {
-                if !self.is_temporary() {
-                    info!("Saving session data to a file");
-                    let target_path = format!("./{}.session", self.name());
-                    self.client().session().save_to_file(target_path).unwrap();
-                }
                 self.send(ProcessResult::LoggedIn(self.name()));
             }
             Err(err) => match err {
                 SignInError::InvalidCode
                 | SignInError::PasswordRequired(_)
-                | SignInError::SignUpRequired {
-                    terms_of_service: _,
-                } => unreachable!(),
-                SignInError::InvalidPassword => {
-                    self.send(ProcessResult::ProcessFailed(ProcessError::InvalidPassword));
+                | SignInError::SignUpRequired => unreachable!(),
+                SignInError::InvalidPassword(new_token) => {
+                    self.send(ProcessResult::ProcessFailed(ProcessError::InvalidPassword(
+                        Box::new(new_token),
+                    )));
                 }
                 SignInError::Other(e) => {
                     self.send(ProcessResult::ProcessFailed(ProcessError::UnknownError(e)));

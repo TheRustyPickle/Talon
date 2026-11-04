@@ -1,5 +1,6 @@
 use chrono::{Local, NaiveDate, NaiveDateTime};
 use egui_selectable_table::SelectableRow;
+use grammers_session::types::PeerRef;
 use log::{error, info};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -15,6 +16,9 @@ use crate::ui_components::processor::{
     ChartTiming, ColumnName, PackedBlacklistedUser, PackedWhitelistedUser, ParsedChat,
 };
 use crate::ui_components::tab_ui::UserRowData;
+
+const WHITELIST_FILE: &str = "whitelist_v2.json";
+const BLACKLIST_FILE: &str = "blacklist_v2.json";
 
 #[derive(Serialize, Deserialize)]
 pub struct IsLightTheme {
@@ -226,10 +230,10 @@ pub fn save_api_keys(api_keys: &TGKeys) {
     }
 }
 
-/// Reads the whitelisted user `PackedChat` Hex IDs and returns them
+/// Reads the whitelisted user `PeerRef` values and returns them
 pub fn get_whitelisted() -> Result<Vec<PackedWhitelistedUser>, Box<dyn Error>> {
     let mut whitelist_path = PathBuf::from(".");
-    whitelist_path.push("whitelist.json");
+    whitelist_path.push(WHITELIST_FILE);
 
     let file = File::open(whitelist_path);
 
@@ -243,10 +247,10 @@ pub fn get_whitelisted() -> Result<Vec<PackedWhitelistedUser>, Box<dyn Error>> {
     }
 }
 
-/// Reads the blacklisted user `PackedChat` Hex IDs and returns them
+/// Reads the blacklisted user `PeerRef` values and returns them
 pub fn get_blacklisted() -> Result<Vec<PackedBlacklistedUser>, Box<dyn Error>> {
     let mut blacklist_path = PathBuf::from(".");
-    blacklist_path.push("blacklist.json");
+    blacklist_path.push(BLACKLIST_FILE);
 
     let file = File::open(blacklist_path);
 
@@ -259,13 +263,13 @@ pub fn get_blacklisted() -> Result<Vec<PackedBlacklistedUser>, Box<dyn Error>> {
         Ok(Vec::new())
     }
 }
-/// Saves `PackedChat` Hex strings to a json file
+/// Saves `PeerRef` values to a json file
 pub fn save_whitelisted_users(packed_chats: Vec<PackedWhitelistedUser>, overwrite: bool) {
     // HashSet to avoid duplicate whitelisted users
     let mut existing_data = HashSet::new();
 
     let mut whitelist_path = PathBuf::from(".");
-    whitelist_path.push("whitelist.json");
+    whitelist_path.push(WHITELIST_FILE);
 
     let file = File::open(&whitelist_path);
 
@@ -285,13 +289,13 @@ pub fn save_whitelisted_users(packed_chats: Vec<PackedWhitelistedUser>, overwrit
     file.write_all(data.as_bytes()).unwrap();
 }
 
-/// Saves `PackedChat` Hex strings to a json file
+/// Saves `PeerRef` values to a json file
 pub fn save_blacklisted_users(packed_chats: Vec<PackedBlacklistedUser>, overwrite: bool) {
     // HashSet to avoid duplicate whitelisted users
     let mut existing_data = HashSet::new();
 
     let mut whitelist_path = PathBuf::from(".");
-    whitelist_path.push("blacklist.json");
+    whitelist_path.push(BLACKLIST_FILE);
 
     let file = File::open(&whitelist_path);
 
@@ -388,25 +392,39 @@ pub fn export_table_data(rows: &Vec<SelectableRow<UserRowData, ColumnName>>, nam
 
 pub fn separate_whitelist_by_seen(
     whitelist_data: Vec<PackedWhitelistedUser>,
-) -> HashMap<String, Vec<String>> {
+) -> HashMap<String, Vec<PeerRef>> {
     let mut separated_data = HashMap::new();
 
     for data in whitelist_data {
+        let Some(peer_ref) = data.peer_ref() else {
+            error!(
+                "Invalid peer id {} found in whitelist, skipping",
+                data.peer_id
+            );
+            continue;
+        };
         let entry = separated_data.entry(data.seen_by).or_insert(Vec::new());
-        entry.push(data.hex_value);
+        entry.push(peer_ref);
     }
 
     separated_data
 }
 
 pub fn separate_blacklist_by_seen(
-    whitelist_data: Vec<PackedBlacklistedUser>,
-) -> HashMap<String, Vec<String>> {
+    blacklist_data: Vec<PackedBlacklistedUser>,
+) -> HashMap<String, Vec<PeerRef>> {
     let mut separated_data = HashMap::new();
 
-    for data in whitelist_data {
+    for data in blacklist_data {
+        let Some(peer_ref) = data.peer_ref() else {
+            error!(
+                "Invalid peer id {} found in blacklist, skipping",
+                data.peer_id
+            );
+            continue;
+        };
         let entry = separated_data.entry(data.seen_by).or_insert(Vec::new());
-        entry.push(data.hex_value);
+        entry.push(peer_ref);
     }
 
     separated_data

@@ -1,6 +1,5 @@
 use eframe::egui::Context;
-use grammers_client::Client;
-use grammers_client::types::Chat;
+use grammers_client::{Client, peer::Peer};
 use log::{error, info};
 use std::sync::mpsc::Sender;
 
@@ -46,12 +45,12 @@ impl TGClient {
                 self.sign_in_password(token, password).await
             }
             ProcessStart::SessionLogout => self.logout().await,
-            ProcessStart::LoadWhitelistedUsers(hex_data) => {
-                self.load_whitelisted_users(hex_data).await
+            ProcessStart::LoadWhitelistedUsers(peer_refs) => {
+                self.load_whitelisted_users(peer_refs).await
             }
             ProcessStart::NewWhitelistUser(name) => self.new_whitelist(name).await,
-            ProcessStart::LoadBlacklistedUsers(hex_data) => {
-                self.load_blacklisted_users(hex_data).await
+            ProcessStart::LoadBlacklistedUsers(peer_refs) => {
+                self.load_blacklisted_users(peer_refs).await
             }
             ProcessStart::NewBlacklistUser(name) => self.new_blacklist(name).await,
             ProcessStart::CheckChatExistence(name, start, end) => {
@@ -109,7 +108,7 @@ impl TGClient {
     }
 
     /// Tries to resolve a username to get a Telegram chat account
-    pub async fn check_username(&self, chat_name: &str) -> Result<Chat, ProcessResult> {
+    pub async fn check_username(&self, chat_name: &str) -> Result<Peer, ProcessResult> {
         let tg_chat = self.client().resolve_username(chat_name).await;
 
         let Ok(tg_chat) = tg_chat else {
@@ -122,7 +121,9 @@ impl TGClient {
             return Err(ProcessResult::InvalidChat(chat_name.to_owned()));
         };
 
-        info!("Target chat {} exist", tg_chat.name());
+        let name = tg_chat.name().unwrap_or("No name");
+
+        info!("Target chat {} exist", name);
 
         Ok(tg_chat)
     }

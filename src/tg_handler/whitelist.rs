@@ -1,35 +1,32 @@
-use grammers_client::types::PackedChat;
+use grammers_session::types::PeerRef;
 use log::{error, info};
 
 use crate::tg_handler::{ProcessError, ProcessResult, TGClient};
 use crate::ui_components::processor::UnpackedWhitelistedUser;
 
 impl TGClient {
-    /// Unpacks existing `PackedChat` hex string and sends it to the GUI
-    pub async fn load_whitelisted_users(&self, hex_data: Vec<String>) -> Result<(), ProcessError> {
-        info!("Starting unpacking chat by {}", self.name());
-        let mut chat_list = Vec::new();
-        let mut failed_chat_num = 0;
+    /// Resolves saved `PeerRef` values and sends them to the GUI
+    pub async fn load_whitelisted_users(
+        &self,
+        peer_refs: Vec<PeerRef>,
+    ) -> Result<(), ProcessError> {
+        info!("Starting resolving peers by {}", self.name());
+        let mut peer_list = Vec::new();
+        let mut failed_peer_num = 0;
 
-        for hex in hex_data {
-            let packed_chat_result = PackedChat::from_hex(&hex);
-
-            if let Ok(packed_chat) = packed_chat_result {
-                let chat = self.client().unpack_chat(packed_chat).await;
-                match chat {
-                    Ok(chat) => chat_list.push(UnpackedWhitelistedUser::new(chat, self.name())),
-                    Err(e) => {
-                        error!("Failed to unpack a chat. Error: {e}");
-                        failed_chat_num += 1;
-                    }
+        for peer_ref in peer_refs {
+            match self.client().resolve_peer(peer_ref).await {
+                Ok(peer) => {
+                    peer_list.push(UnpackedWhitelistedUser::new(&peer, peer_ref, self.name()))
                 }
-            } else {
-                error!("Invalid chat hex found");
-                failed_chat_num += 1;
+                Err(e) => {
+                    error!("Failed to resolve a peer. Error: {e}");
+                    failed_peer_num += 1;
+                }
             }
         }
 
-        self.send(ProcessResult::UnpackedWhitelist(chat_list, failed_chat_num));
+        self.send(ProcessResult::UnpackedWhitelist(peer_list, failed_peer_num));
         Ok(())
     }
 
@@ -48,8 +45,18 @@ impl TGClient {
                 return Ok(());
             }
         };
+
+        let peer_ref = match tg_chat.to_ref().await {
+            Ok(Some(peer_ref)) => peer_ref,
+            _ => {
+                error!("Failed to get a reference of the peer");
+                self.send(ProcessResult::InvalidChat(chat_name));
+                return Ok(());
+            }
+        };
+
         self.send(ProcessResult::WhiteListUser(Box::new(
-            UnpackedWhitelistedUser::new(tg_chat, self.name()),
+            UnpackedWhitelistedUser::new(&tg_chat, peer_ref, self.name()),
         )));
         Ok(())
     }

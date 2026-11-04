@@ -1,5 +1,5 @@
 use eframe::egui::{Align, Button, Checkbox, Context, Grid, Label, Layout, TextEdit, Ui, vec2};
-use grammers_client::types::{LoginToken, PasswordToken};
+use grammers_client::client::{LoginToken, PasswordToken};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -14,7 +14,10 @@ pub struct SessionData {
     tg_code: String,
     tg_password: String,
     is_temporary: bool,
-    password_token: Option<Arc<Mutex<PasswordToken>>>,
+    /// Taken while a sign in attempt is running and handed back on a wrong password
+    password_token: Option<PasswordToken>,
+    /// Whether the account asked for a password, regardless of the token being in flight
+    password_mode: bool,
     tg_code_token: Option<Arc<Mutex<LoginToken>>>,
 }
 
@@ -40,7 +43,8 @@ impl SessionData {
     }
 
     pub fn set_password_token(&mut self, token: PasswordToken) {
-        self.password_token = Some(Arc::new(Mutex::new(token)));
+        self.password_token = Some(token);
+        self.password_mode = true;
     }
 
     fn get_tg_code(&self) -> String {
@@ -51,8 +55,8 @@ impl SessionData {
         self.tg_code_token.clone().unwrap()
     }
 
-    fn get_password_token(&self) -> Arc<Mutex<PasswordToken>> {
-        self.password_token.clone().unwrap()
+    fn take_password_token(&mut self) -> Option<PasswordToken> {
+        self.password_token.take()
     }
 
     pub fn reset_data(&mut self) {
@@ -62,6 +66,7 @@ impl SessionData {
         self.tg_password = String::new();
         self.is_temporary = false;
         self.password_token = None;
+        self.password_mode = false;
         self.tg_code_token = None;
     }
 }
@@ -75,9 +80,11 @@ impl MainWindow {
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     ui.add(Label::new("Session Name:"));
                 });
+
                 let text_edit = TextEdit::singleline(&mut self.session.session_name)
                     .hint_text("My TG Session Name");
-                if self.session.tg_code_token.is_some() || self.session.password_token.is_some() {
+
+                if self.session.tg_code_token.is_some() || self.session.password_mode {
                     ui.add_enabled(false, text_edit.min_size(ui.available_size()));
                 } else {
                     let hover_text = if self.session.is_temporary {
@@ -99,8 +106,7 @@ impl MainWindow {
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     let text_edit = TextEdit::singleline(&mut self.session.phone_number)
                         .hint_text("International format: +1234567890");
-                    if self.session.password_token.is_some() || self.session.tg_code_token.is_some()
-                    {
+                    if self.session.password_mode || self.session.tg_code_token.is_some() {
                         ui.add_enabled(false, text_edit.min_size(ui.available_size()));
                     } else {
                         ui.add_sized(ui.available_size(), text_edit).on_hover_text(
@@ -117,7 +123,7 @@ impl MainWindow {
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     let button = Button::new("Send Code");
                     if self.session.phone_number.is_empty()
-                        || self.session.password_token.is_some()
+                        || self.session.password_mode
                         || self.session.session_name.is_empty()
                         || self.is_processing
                     {
@@ -150,7 +156,7 @@ impl MainWindow {
                     let text_edit = TextEdit::singleline(&mut self.session.tg_password)
                         .password(true)
                         .hint_text("Your Telegram login password");
-                    if self.session.password_token.is_some() {
+                    if self.session.password_mode {
                         ui.add_sized(ui.available_size(), text_edit)
                             .on_hover_text("Telegram login password");
                     } else {
@@ -203,7 +209,9 @@ If yes, it will try to log out before the app is closed and no session file will
                 || self.session.phone_number.is_empty()
                 || self.session.session_name.is_empty()
                 || self.session.tg_code.is_empty()
-                || (self.session.password_token.is_some() && self.session.tg_password.is_empty())
+                || (self.session.password_mode
+                    && (self.session.password_token.is_none()
+                        || self.session.tg_password.is_empty()))
             {
                 ui.add_enabled(false, button);
             } else if ui
@@ -211,7 +219,7 @@ If yes, it will try to log out before the app is closed and no session file will
                 .on_hover_text("Try to create a new session with the Telegram login info")
                 .clicked()
             {
-                if self.session.password_token.is_some() {
+                if self.session.password_mode {
                     self.sign_in_password();
                 } else {
                     self.sign_in_code();
@@ -263,12 +271,14 @@ If yes, it will try to log out before the app is closed and no session file will
         self.process_state = ProcessState::LogInWithPassword;
 
         let password = self.session.get_password();
-        let token = self.session.get_password_token();
+        let Some(token) = self.session.take_password_token() else {
+            return;
+        };
 
         let client = self.incomplete_tg_client.clone().unwrap();
         self.runtime.spawn(async move {
             client
-                .start_process(ProcessStart::SignInPasswords(token, password))
+                .start_process(ProcessStart::SignInPasswords(Box::new(token), password))
                 .await;
         });
     }

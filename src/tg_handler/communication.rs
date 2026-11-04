@@ -1,6 +1,6 @@
-use grammers_client::types::iter_buffer::InvocationError;
-use grammers_client::types::{LoginToken, PasswordToken};
-use grammers_mtsender::AuthorizationError;
+use grammers_client::InvocationError;
+use grammers_client::client::{LoginToken, PasswordToken};
+use grammers_session::types::PeerRef;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use tokio::sync::Mutex;
@@ -29,12 +29,11 @@ pub enum ProcessResult {
 
 #[derive(Debug)]
 pub enum ProcessError {
-    AuthorizationError,
     FileCreationError,
     InvalidTGCode,
-    InvalidPassword,
+    InvalidPassword(Box<PasswordToken>),
     NotSignedUp,
-    InvalidPhoneOrAPI(AuthorizationError),
+    InvalidPhoneOrAPI(InvocationError),
     InvalidAPIKeys,
     FailedLatestMessage,
     UnknownError(InvocationError),
@@ -45,10 +44,10 @@ pub enum ProcessStart {
     /// Start chat, start num, end num, multi session, whether to cancel
     StartCount(String, Option<i32>, Option<i32>, bool, Arc<AtomicBool>),
     SignInCode(Arc<Mutex<LoginToken>>, String),
-    SignInPasswords(Arc<Mutex<PasswordToken>>, String),
+    SignInPasswords(Box<PasswordToken>, String),
     SessionLogout,
-    LoadWhitelistedUsers(Vec<String>),
-    LoadBlacklistedUsers(Vec<String>),
+    LoadWhitelistedUsers(Vec<PeerRef>),
+    LoadBlacklistedUsers(Vec<PeerRef>),
     NewWhitelistUser(String),
     NewBlacklistUser(String),
     /// Start chat, start num, end num

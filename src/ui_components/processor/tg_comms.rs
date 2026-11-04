@@ -1,11 +1,11 @@
-use chrono::{Local, TimeZone};
+use chrono::{DateTime, Local, TimeZone};
 use log::{error, info};
 use std::fmt::Write as _;
 use std::sync::atomic::Ordering;
 
 use crate::tg_handler::{ProcessError, ProcessResult, ProcessStart};
 use crate::ui_components::MainWindow;
-use crate::ui_components::processor::ProcessState;
+use crate::ui_components::processor::{ProcessState, peer_details};
 use crate::utils::to_chart_name;
 
 impl MainWindow {
@@ -75,19 +75,27 @@ impl MainWindow {
                     let last_number = count_data.last_number();
                     let multi_session = count_data.multi_session();
 
-                    let message_sent_at = message.date().naive_utc();
+                    let sent_at = message.date();
+                    let message_sent_at = DateTime::from_timestamp(
+                        sent_at.as_second(),
+                        sent_at.subsec_nanosecond() as u32,
+                    )
+                    .unwrap_or_default()
+                    .naive_utc();
+
                     let local_time_date = Local.from_utc_datetime(&message_sent_at).date_naive();
                     let local_time_datetime =
                         Local.from_utc_datetime(&message_sent_at).naive_local();
 
                     let sender = message.sender();
 
-                    let user_id = if let Some(c) = &sender { c.id() } else { 0 };
+                    let user_id = sender.map_or(0, |peer| peer_details(peer).2);
 
                     let blacklisted = self.blacklist.is_user_blacklisted(user_id);
 
                     let (user_id, full_name, user_name) = self.t_table().add_user(
                         sender,
+                        count_data.sender_ref(),
                         local_time_date,
                         local_time_datetime,
                         count_data.name(),
@@ -171,10 +179,6 @@ impl MainWindow {
                 }
                 ProcessResult::ProcessFailed(err) => {
                     match err {
-                        ProcessError::AuthorizationError => {
-                            error!("Error acquired while trying to connect to the client");
-                            self.process_state = ProcessState::AuthorizationError;
-                        }
                         ProcessError::FileCreationError => {
                             error!("Error acquired while trying to create/delete the session file");
                             self.process_state = ProcessState::FileCreationFailed;
@@ -193,8 +197,9 @@ impl MainWindow {
                             );
                             self.process_state = ProcessState::UnknownError;
                         }
-                        ProcessError::InvalidPassword => {
+                        ProcessError::InvalidPassword(token) => {
                             error!("Invalid TG Password given for the session");
+                            self.session.set_password_token(*token);
                             self.process_state = ProcessState::InvalidPassword;
                         }
                         ProcessError::InvalidPhoneOrAPI(e) => {
@@ -242,16 +247,11 @@ impl MainWindow {
                 }
                 ProcessResult::UnpackedWhitelist(chats, failed_chats) => {
                     for chat in chats {
-                        let username = if let Some(name) = chat.user_chat.username() {
-                            name.to_string()
-                        } else {
-                            String::from("Empty")
-                        };
                         self.whitelist.add_to_whitelist(
-                            chat.user_chat.name().to_string(),
-                            username,
-                            chat.user_chat.id(),
-                            chat.user_chat,
+                            chat.name,
+                            chat.username,
+                            chat.id,
+                            chat.peer_ref,
                             chat.seen_by,
                         );
                     }
@@ -269,22 +269,14 @@ impl MainWindow {
                     let mut user_ids = Vec::new();
 
                     for chat in chats {
-                        let username = if let Some(name) = chat.user_chat.username() {
-                            name.to_string()
-                        } else {
-                            String::from("Empty")
-                        };
-                        let full_name = chat.user_chat.name().to_string();
-                        let user_id = chat.user_chat.id();
-
-                        names.push(to_chart_name(username.clone(), &full_name, user_id));
-                        user_ids.push(user_id);
+                        names.push(to_chart_name(chat.username.clone(), &chat.name, chat.id));
+                        user_ids.push(chat.id);
 
                         self.blacklist.add_to_blacklist(
-                            full_name,
-                            username,
-                            user_id,
-                            chat.user_chat,
+                            chat.name,
+                            chat.username,
+                            chat.id,
+                            chat.peer_ref,
                             chat.seen_by,
                         );
                     }
@@ -307,20 +299,15 @@ impl MainWindow {
                 }
                 ProcessResult::WhiteListUser(chat) => {
                     self.stop_process();
-                    let user_id = chat.user_chat.id();
+                    let user_id = chat.id;
 
                     info!("Adding {user_id} to whitelist");
 
-                    let username = if let Some(name) = chat.user_chat.username() {
-                        name.to_string()
-                    } else {
-                        String::from("Empty")
-                    };
                     self.whitelist.add_to_whitelist(
-                        chat.user_chat.name().to_string(),
-                        username,
+                        chat.name,
+                        chat.username,
                         user_id,
-                        chat.user_chat,
+                        chat.peer_ref,
                         chat.seen_by,
                     );
                     self.whitelist.clear_text_box();
@@ -331,17 +318,11 @@ impl MainWindow {
                 }
                 ProcessResult::BlackListUser(chat) => {
                     self.stop_process();
-                    let user_id = chat.user_chat.id();
+                    let user_id = chat.id;
 
                     info!("Adding {user_id} to blacklist");
 
-                    let username = if let Some(name) = chat.user_chat.username() {
-                        name.to_string()
-                    } else {
-                        String::from("Empty")
-                    };
-                    let full_name = chat.user_chat.name().to_string();
-                    let chart_name = to_chart_name(username.clone(), &full_name, user_id);
+                    let chart_name = to_chart_name(chat.username.clone(), &chat.name, user_id);
 
                     for chart in self.chart_all() {
                         chart.clear_blacklisted(std::slice::from_ref(&chart_name));
@@ -352,10 +333,10 @@ impl MainWindow {
                     }
 
                     self.blacklist.add_to_blacklist(
-                        full_name,
-                        username,
+                        chat.name,
+                        chat.username,
                         user_id,
-                        chat.user_chat,
+                        chat.peer_ref,
                         chat.seen_by,
                     );
                     self.blacklist.clear_text_box();

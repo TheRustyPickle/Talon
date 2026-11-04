@@ -4,7 +4,7 @@ use egui_extras::Column;
 use egui_selectable_table::{
     ColumnOperations, ColumnOrdering, SelectableRow, SelectableTable, SortOrder,
 };
-use grammers_client::types::Chat;
+use grammers_session::types::PeerRef;
 use log::{error, info};
 use std::collections::HashSet;
 
@@ -103,12 +103,12 @@ struct BlackListRowData {
     name: String,
     username: String,
     id: i64,
-    belongs_to: Chat,
+    belongs_to: PeerRef,
     seen_by: String,
 }
 
 impl BlackListRowData {
-    fn new(name: String, username: String, id: i64, belongs_to: Chat, seen_by: String) -> Self {
+    fn new(name: String, username: String, id: i64, belongs_to: PeerRef, seen_by: String) -> Self {
         BlackListRowData {
             name,
             username,
@@ -156,7 +156,7 @@ impl BlacklistData {
         name: String,
         username: String,
         id: i64,
-        belongs_to: Chat,
+        belongs_to: PeerRef,
         seen_by: String,
     ) {
         let name = if name.is_empty() {
@@ -180,15 +180,14 @@ impl BlacklistData {
 
     /// Save the current row data in the blacklist json
     pub fn save_blacklisted_users(&self, overwrite: bool) {
-        let mut packed_chats = Vec::new();
-
-        self.table.get_all_rows().iter().for_each(|(_id, row)| {
-            let hex_value = row.row_data.belongs_to.pack().to_hex();
-            packed_chats.push(PackedBlacklistedUser::new(
-                hex_value,
-                row.row_data.seen_by.clone(),
-            ));
-        });
+        let packed_chats = self
+            .table
+            .get_all_rows()
+            .values()
+            .filter_map(|row| {
+                PackedBlacklistedUser::new(row.row_data.belongs_to, row.row_data.seen_by.clone())
+            })
+            .collect();
 
         save_blacklisted_users(packed_chats, overwrite);
     }
@@ -381,7 +380,7 @@ then right click on User Table to blacklist",
             return;
         }
 
-        // separate blacklist data by seen_by as the key and hex as the value
+        // separate blacklist data by seen_by as the key and the peer refs as the value
         let separated_data = separate_blacklist_by_seen(all_blacklisted_users.unwrap());
 
         if separated_data.is_empty() {
@@ -389,13 +388,13 @@ then right click on User Table to blacklist",
             return;
         }
 
-        // Open a thread for each unique session found in the blacklist json and pass the relevant hex data to that thread
-        // `hex_data` cannot be empty as the key will only exist if there is at least one hex found
-        for (seen_by, hex_data) in separated_data {
+        // Open a thread for each unique session found in the blacklist json and pass the relevant peer refs to that thread
+        // `peer_refs` cannot be empty as the key will only exist if there is at least one peer ref found
+        for (seen_by, peer_refs) in separated_data {
             let client = self.tg_clients.get(&seen_by);
 
             let Some(tg_client) = client.cloned() else {
-                let total_blacklist = hex_data.len();
+                let total_blacklist = peer_refs.len();
                 error!(
                     "{seen_by} client does not exist! Ignoring {total_blacklist} blacklisted users"
                 );
@@ -409,7 +408,7 @@ then right click on User Table to blacklist",
             };
             self.runtime.spawn(async {
                 tg_client
-                    .start_process(ProcessStart::LoadBlacklistedUsers(hex_data))
+                    .start_process(ProcessStart::LoadBlacklistedUsers(peer_refs))
                     .await;
             });
         }

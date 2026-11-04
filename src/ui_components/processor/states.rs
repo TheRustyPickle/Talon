@@ -1,5 +1,6 @@
 use eframe::egui::{Vec2, vec2};
-use grammers_client::types::Chat;
+use grammers_client::peer::Peer;
+use grammers_session::types::{PeerAuth, PeerId, PeerRef};
 use serde::{Deserialize, Serialize};
 use std::fmt::{self, Display};
 use strum_macros::{Display as sDisplay, EnumIter};
@@ -45,7 +46,6 @@ pub enum ProcessState {
     Counting(u8),
     InvalidStartChat,
     DataCopied,
-    AuthorizationError,
     FileCreationFailed,
     UnauthorizedClient(String),
     NonExistingChat(String),
@@ -111,10 +111,6 @@ impl Display for ProcessState {
             ProcessState::DataCopied => {
                 write!(f, "Status: Selected table data copied.")
             }
-            ProcessState::AuthorizationError => write!(
-                f,
-                "Status: Could not connect to the session. Are your API keys valid?"
-            ),
             ProcessState::FileCreationFailed => {
                 write!(f, "Status: Could not create the session file. Try again")
             }
@@ -271,51 +267,119 @@ impl Display for ChartTiming {
     }
 }
 
+/// Saved form of a `PeerRef`.
 #[derive(Deserialize, Serialize, PartialEq, Eq, Hash)]
 pub struct PackedWhitelistedUser {
-    pub hex_value: String,
+    pub peer_id: i64,
+    pub access_hash: i64,
     pub seen_by: String,
 }
 
 impl PackedWhitelistedUser {
-    pub fn new(hex_value: String, seen_by: String) -> Self {
-        Self { hex_value, seen_by }
+    /// Returns `None` if the peer has no id that can be saved
+    pub fn new(peer: PeerRef, seen_by: String) -> Option<Self> {
+        Some(Self {
+            peer_id: peer.id.bot_api_dialog_id()?,
+            access_hash: peer.auth.hash(),
+            seen_by,
+        })
+    }
+
+    pub fn peer_ref(&self) -> Option<PeerRef> {
+        unpack_peer_ref(self.peer_id, self.access_hash)
     }
 }
 
 pub struct UnpackedWhitelistedUser {
-    pub user_chat: Chat,
+    pub name: String,
+    pub username: String,
+    pub id: i64,
+    pub peer_ref: PeerRef,
     pub seen_by: String,
 }
 
 impl UnpackedWhitelistedUser {
-    pub fn new(user_chat: Chat, seen_by: String) -> Self {
-        Self { user_chat, seen_by }
+    pub fn new(peer: &Peer, peer_ref: PeerRef, seen_by: String) -> Self {
+        let (name, username, id) = peer_details(peer);
+        Self {
+            name,
+            username,
+            id,
+            peer_ref,
+            seen_by,
+        }
     }
 }
 
 #[derive(Deserialize, Serialize, PartialEq, Eq, Hash)]
 pub struct PackedBlacklistedUser {
-    pub hex_value: String,
+    pub peer_id: i64,
+    pub access_hash: i64,
     pub seen_by: String,
 }
 
 impl PackedBlacklistedUser {
-    pub fn new(hex_value: String, seen_by: String) -> Self {
-        Self { hex_value, seen_by }
+    /// Returns `None` if the peer has no id that can be saved
+    pub fn new(peer: PeerRef, seen_by: String) -> Option<Self> {
+        Some(Self {
+            peer_id: peer.id.bot_api_dialog_id()?,
+            access_hash: peer.auth.hash(),
+            seen_by,
+        })
+    }
+
+    pub fn peer_ref(&self) -> Option<PeerRef> {
+        unpack_peer_ref(self.peer_id, self.access_hash)
     }
 }
 
 pub struct UnpackedBlacklistedUser {
-    pub user_chat: Chat,
+    pub name: String,
+    pub username: String,
+    pub id: i64,
+    pub peer_ref: PeerRef,
     pub seen_by: String,
 }
 
 impl UnpackedBlacklistedUser {
-    pub fn new(user_chat: Chat, seen_by: String) -> Self {
-        Self { user_chat, seen_by }
+    pub fn new(peer: &Peer, peer_ref: PeerRef, seen_by: String) -> Self {
+        let (name, username, id) = peer_details(peer);
+        Self {
+            name,
+            username,
+            id,
+            peer_ref,
+            seen_by,
+        }
     }
 }
+
+/// Rebuilds a `PeerRef` from the saved integers
+fn unpack_peer_ref(peer_id: i64, access_hash: i64) -> Option<PeerRef> {
+    Some(PeerRef {
+        id: PeerId::from_bot_api_dialog_id(peer_id)?,
+        auth: PeerAuth::from_hash(access_hash),
+    })
+}
+
+/// Returns the name, username and bare id of a peer
+pub fn peer_details(peer: &Peer) -> (String, String, i64) {
+    // As per grammers lib doc, empty name can be given if it's a deleted account
+    let name = match peer {
+        Peer::User(user) => user.full_name(),
+        _ => peer.name().unwrap_or_default().to_string(),
+    };
+    let name = if name.is_empty() {
+        "Deleted Account".to_string()
+    } else {
+        name
+    };
+
+    let username = peer.username().unwrap_or("Empty").to_string();
+
+    (name, username, peer.id().bare_id().unwrap_or(0))
+}
+
 #[derive(EnumIter, Default, PartialEq, Copy, Clone)]
 pub enum NavigationType {
     #[default]
