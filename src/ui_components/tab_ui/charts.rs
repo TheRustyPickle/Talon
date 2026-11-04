@@ -245,7 +245,7 @@ impl ChartsData {
     }
 
     fn show_modal_popup(&mut self, ui: &mut Ui) {
-        let response = Modal::new(Id::new("customize_view")).show(ui.ctx(), |ui| {
+        let response = Modal::new(Id::unique("customize_view")).show(ui.ctx(), |ui| {
             ui.set_width(400.0);
             ui.set_height(350.0);
             Panel::top("customize_top_view").show(ui, |ui| {
@@ -254,7 +254,7 @@ impl ChartsData {
                 });
             });
 
-            Panel::bottom(Id::new("customize_bottom_view")).show(ui, |ui| {
+            Panel::bottom(Id::unique("customize_bottom_view")).show(ui, |ui| {
                 ui.add_space(5.0);
                 ui.vertical_centered_justified(|ui| {
                     if ui.button("Confirm").clicked() {

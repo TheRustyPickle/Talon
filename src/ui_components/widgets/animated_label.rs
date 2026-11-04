@@ -1,6 +1,6 @@
 use eframe::egui::{
-    CornerRadius, Id, LayerId, Order, Response, Sense, Stroke, StrokeKind, TextStyle, Ui, Vec2,
-    Widget, WidgetInfo, WidgetText, WidgetType,
+    CornerRadius, Id, LayerId, Order, Response, Role, Sense, Stroke, StrokeKind, TextStyle, Ui,
+    Vec2, Widget, WidgetInfo, WidgetText,
 };
 use eframe::emath::GuiRounding;
 
@@ -63,12 +63,7 @@ impl Widget for AnimatedLabel {
         let (rect, response) = ui.allocate_exact_size(desired_size, Sense::click());
 
         response.widget_info(|| {
-            WidgetInfo::selected(
-                WidgetType::SelectableLabel,
-                ui.is_enabled(),
-                selected,
-                text.text(),
-            )
+            WidgetInfo::selected(Role::Button, ui.is_enabled(), selected, text.text())
         });
 
         if ui.is_rect_visible(response.rect) {
@@ -152,7 +147,7 @@ impl Widget for AnimatedLabel {
 
             ui.painter()
                 .clone()
-                .with_layer_id(LayerId::new(Order::Background, Id::new("text_layer")))
+                .with_layer_id(LayerId::new(Order::Background, Id::unique("text_layer")))
                 .galley(text_pos, text_galley, visuals.text_color());
 
             if separator_right {

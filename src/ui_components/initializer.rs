@@ -260,7 +260,7 @@ impl App for MainWindow {
 
                     if self.new_version_body.lock().unwrap().is_some() {
                         let modal_text = self.new_version_body.lock().unwrap().clone().unwrap();
-                        let modal = Modal::new(Id::new("version_modal")).show(ui.ctx(), |ui| {
+                        let modal = Modal::new(Id::unique("version_modal")).show(ui.ctx(), |ui| {
                             ui.set_width(300.0);
                             ui.set_height(300.0);
 

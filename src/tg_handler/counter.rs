@@ -157,7 +157,7 @@ impl TGClient {
                     last_number,
                     multi_session,
                 );
-                self.send(ProcessResult::CountingMessage(count_data));
+                self.send(ProcessResult::CountingMessage(Box::new(count_data)));
                 last_number = message_num;
             }
 
