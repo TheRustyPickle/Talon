@@ -42,9 +42,10 @@ pub async fn connect_to_session(
 
         let session = Arc::new(session.unwrap());
 
-        let pool = SenderPool::new(Arc::clone(&session), api_id);
+        let SenderPool { runner, handle, .. } = SenderPool::new(Arc::clone(&session), api_id);
+        tokio::spawn(runner.run());
 
-        let client = Client::new(pool.handle);
+        let client = Client::new(handle);
 
         info!("Connected to Session {name_without_sqlite} successfully");
 

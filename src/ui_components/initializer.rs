@@ -251,6 +251,7 @@ impl App for MainWindow {
                                 .await;
                             });
                         }
+
                         let version_body = self.new_version_body.clone();
                         self.runtime.spawn(async move {
                             check_version(version_body).await;

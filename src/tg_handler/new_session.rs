@@ -31,7 +31,7 @@ pub async fn send_login_code(
     };
     let api_hash = api_data.api_hash;
 
-    let session = if is_temporary {
+    let pool = if is_temporary {
         let session = Arc::new(MemorySession::default());
         SenderPool::new(Arc::clone(&session), api_id)
     } else {
@@ -54,7 +54,10 @@ pub async fn send_login_code(
         SenderPool::new(Arc::clone(&session), api_id)
     };
 
-    let client = Client::new(session.handle);
+    let SenderPool { runner, handle, .. } = pool;
+    tokio::spawn(runner.run());
+
+    let client = Client::new(handle);
 
     let code_token = client
         .request_login_code(&phone_number, &api_hash)
