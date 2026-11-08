@@ -31,7 +31,7 @@ pub fn find_session_files() -> Vec<String> {
     if let Ok(entries) = fs::read_dir(".") {
         for entry in entries {
             if let Ok(file_name) = entry.unwrap().file_name().into_string()
-                && file_name.ends_with(".session")
+                && file_name.ends_with(".sqlite")
             {
                 info!("Found existing session file {file_name}");
                 sessions.push(file_name);
