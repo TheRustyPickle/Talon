@@ -7,8 +7,8 @@ readme = "README.md"
 homepage = "https://github.com/TheRustyPickle/Talon"
 repository = "https://github.com/TheRustyPickle/Talon"
 license = "MIT"
-keywords = ["analytics", "data", "egui", "gui", "telegram"]
-categories = ["gui"]
+keywords = ["telegram", "analytics", "statistics", "egui", "grammers"]
+categories = ["gui", "visualization"]
 exclude = ["/fonts"]
 
 [[bin]]
