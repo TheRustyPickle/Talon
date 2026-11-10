@@ -1,10 +1,11 @@
 use eframe::egui::{
-    Response, Role, Sense, StrokeKind, TextStyle, Ui, Widget, WidgetInfo, WidgetText,
+    Color32, CornerRadius, Response, Role, Sense, StrokeKind, TextStyle, Ui, Widget, WidgetInfo,
+    WidgetText,
 };
 use eframe::emath::NumExt;
-use eframe::epaint::Color32;
 
-/// Copy of `SelectableLabel` source with minor modifications
+const FADE_TIME: f32 = 0.12;
+
 pub struct RowLabel {
     text: WidgetText,
     selected: bool,
@@ -47,51 +48,58 @@ impl Widget for RowLabel {
                 .align_size_within_rect(text.size(), rect.shrink2(button_padding))
                 .min;
 
-            let visuals = ui.style().interact_selectable(&response, selected);
+            let visuals = ui.visuals();
+            let dark = visuals.dark_mode;
+            let accent = if dark {
+                Color32::from_rgb(232, 140, 90)
+            } else {
+                Color32::from_rgb(214, 106, 52)
+            };
 
-            if selected
-                || response.highlighted()
-                || response.has_focus()
-                || (response.hovered() && !whitelisted)
-            {
-                let rect = rect.expand(visuals.expansion);
+            let hover_t = ui.ctx().animate_bool_with_time(
+                response.id.with("hover"),
+                response.hovered() || response.highlighted() || response.has_focus(),
+                FADE_TIME,
+            );
 
-                ui.painter().rect(
-                    rect,
-                    visuals.corner_radius,
-                    visuals.weak_bg_fill,
-                    visuals.bg_stroke,
-                    StrokeKind::Middle,
-                );
-            } else if response.hovered() && whitelisted {
-                let rect = rect.expand(visuals.expansion);
-                ui.painter().rect(
-                    rect,
-                    visuals.corner_radius,
-                    Color32::from_rgb(255, 127, 80),
-                    visuals.bg_stroke,
-                    StrokeKind::Middle,
-                );
-            } else if whitelisted {
-                let rect = rect.expand(visuals.expansion);
-                let is_dark_theme = ui.visuals().dark_mode;
+            // Cover the spacing between cells so adjacent cells join up
+            let band = rect.expand2(ui.spacing().item_spacing / 2.0);
+            let radius = CornerRadius::same(4);
+            let hover_fill = visuals.widgets.hovered.weak_bg_fill;
 
-                let color = if is_dark_theme {
-                    Color32::from_rgb(168, 100, 66)
+            if whitelisted {
+                let tint = if dark { 0.20 } else { 0.18 };
+                ui.painter()
+                    .rect_filled(band, radius, accent.gamma_multiply(tint));
+            }
+
+            if hover_t > 0.0 && !selected {
+                let fill = if whitelisted {
+                    accent.gamma_multiply(0.18 * hover_t)
                 } else {
-                    Color32::from_rgb(255, 160, 122)
+                    hover_fill.gamma_multiply(hover_t)
                 };
+                ui.painter().rect_filled(band, radius, fill);
+            }
 
-                ui.painter().rect(
-                    rect,
-                    visuals.corner_radius,
-                    color,
-                    visuals.bg_stroke,
-                    StrokeKind::Middle,
+            if selected {
+                let selection = visuals.selection;
+                ui.painter()
+                    .rect_filled(band, radius, selection.bg_fill.gamma_multiply(0.85));
+                ui.painter().rect_stroke(
+                    band,
+                    radius,
+                    eframe::egui::Stroke::new(1.0, selection.stroke.color.gamma_multiply(0.6)),
+                    StrokeKind::Inside,
                 );
             }
 
-            ui.painter().galley(text_pos, text, visuals.text_color());
+            let text_color = if selected {
+                visuals.selection.stroke.color
+            } else {
+                visuals.widgets.inactive.text_color()
+            };
+            ui.painter().galley(text_pos, text, text_color);
         }
 
         response
