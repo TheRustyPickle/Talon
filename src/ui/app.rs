@@ -1,0 +1,520 @@
+use eframe::egui::{Panel, Ui};
+use eframe::{App, CreationContext, Frame, egui};
+use egui::{
+    Align, Button, CentralPanel, Context, FontData, FontDefinitions, FontFamily, Id, Layout, Modal,
+    ProgressBar, ScrollArea, Spinner, ThemePreference, ViewportCommand, Visuals,
+};
+use egui_theme_lerp::ThemeAnimator;
+use log::info;
+use std::collections::{BTreeMap, HashMap};
+use std::slice::IterMut;
+use std::sync::atomic::AtomicBool;
+use std::sync::mpsc::{Receiver, Sender, channel};
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
+use strum::IntoEnumIterator;
+use tokio::runtime::Runtime;
+
+use crate::telegram::{NewProcess, ProcessResult, ProcessStart, TGClient, start_process};
+use crate::ui::TGKeys;
+use crate::ui::services::{check_version, download_font};
+use crate::ui::state::{AppState, CounterCounts, ParsedChat, ProcessState, Severity, TabState};
+use crate::ui::tabs::{
+    BlacklistData, ChartsData, CounterData, SessionData, UserTableData, WhitelistData,
+};
+use crate::ui::widgets::{StatusLine, TabStyle, Tabs};
+use crate::utils::{
+    find_session_files, get_api_keys, get_font_data, get_runtime, last_theme, save_theme,
+    theme_hover_text,
+};
+
+const STATUS_FADE_SECONDS: f64 = 6.0;
+
+pub struct MainWindow {
+    pub app_state: AppState,
+    pub tg_keys: TGKeys,
+    pub counter: CounterData,
+    table: Vec<UserTableData>,
+    chart: Vec<ChartsData>,
+    pub session: SessionData,
+    pub whitelist: WhitelistData,
+    pub blacklist: BlacklistData,
+    tab_state: TabState,
+    pub process_state: ProcessState,
+    pub tg_sender: Sender<ProcessResult>,
+    pub tg_receiver: Receiver<ProcessResult>,
+    pub tg_clients: BTreeMap<String, TGClient>,
+    pub incomplete_tg_client: Option<TGClient>,
+    existing_sessions_checked: bool,
+    status_text: String,
+    status_changed_at: f64,
+    is_light_theme: bool,
+    pub is_processing: bool,
+    new_version_body: Arc<Mutex<Option<String>>>,
+    pub counter_chat_index: usize,
+    pub table_chat_index: usize,
+    pub chart_chat_index: usize,
+    pub initial_chart_reset: bool,
+    pub cancel_count: Arc<AtomicBool>,
+    pub theme_animator: ThemeAnimator,
+    pub runtime: Runtime,
+}
+
+impl MainWindow {
+    /// Success messages go back to idle after a few seconds. Warnings, errors and anything
+    /// that is still running stay until something else replaces them
+    fn fade_status(&mut self, ui: &Ui) {
+        let now = ui.input(|i| i.time);
+        let text = self.process_state.to_string();
+
+        if text != self.status_text {
+            self.status_text = text;
+            self.status_changed_at = now;
+        }
+
+        if self.is_processing || self.process_state.severity() != Severity::Success {
+            return;
+        }
+
+        let remaining = STATUS_FADE_SECONDS - (now - self.status_changed_at);
+
+        if remaining <= 0.0 {
+            self.process_state = ProcessState::Idle;
+        } else {
+            ui.request_repaint_after(Duration::from_secs_f64(remaining));
+        }
+    }
+
+    pub fn new(cc: &CreationContext) -> Self {
+        let last_theme_light = last_theme().unwrap_or_default();
+        let mut animator = ThemeAnimator::new(Visuals::light(), Visuals::dark());
+
+        if last_theme_light {
+            cc.egui_ctx
+                .options_mut(|a| a.theme_preference = ThemePreference::Light);
+            animator.theme_1_to_2 = true;
+        } else {
+            cc.egui_ctx
+                .options_mut(|a| a.theme_preference = ThemePreference::Dark);
+            animator.theme_1_to_2 = false;
+        }
+        let (sender, receiver) = channel();
+
+        Self {
+            app_state: AppState::default(),
+            tg_keys: TGKeys::default(),
+            counter: CounterData::default(),
+            // Default value with an existing one with default
+            table: vec![UserTableData::default()],
+            chart: vec![ChartsData::default()],
+            whitelist: WhitelistData::default(),
+            blacklist: BlacklistData::default(),
+            session: SessionData::default(),
+            tab_state: TabState::Counter,
+            process_state: ProcessState::Idle,
+            tg_sender: sender,
+            tg_receiver: receiver,
+            tg_clients: BTreeMap::new(),
+            incomplete_tg_client: None,
+            existing_sessions_checked: false,
+            status_text: String::new(),
+            status_changed_at: 0.0,
+            is_light_theme: last_theme_light,
+            is_processing: false,
+            new_version_body: Arc::new(Mutex::new(None)),
+            counter_chat_index: 0,
+            table_chat_index: 0,
+            chart_chat_index: 0,
+            initial_chart_reset: false,
+            cancel_count: Arc::new(AtomicBool::new(false)),
+            theme_animator: animator,
+            runtime: get_runtime(),
+        }
+    }
+}
+
+impl App for MainWindow {
+    fn ui(&mut self, ui: &mut Ui, _: &mut Frame) {
+        // If asked to close the app, search for any temporary client and if any, logout then close the window
+        if ui.ctx().input(|i| i.viewport().close_requested()) {
+            let mut joins = Vec::new();
+            for (_, client) in self.tg_clients.clone() {
+                if client.is_temporary() {
+                    let joiner = self.runtime.spawn(async move {
+                        client.start_process(ProcessStart::SessionLogout).await;
+                    });
+                    joins.push(joiner);
+                }
+            }
+
+            while !joins.is_empty() {
+                for (index, join) in joins.iter().enumerate() {
+                    if join.is_finished() {
+                        joins.remove(index);
+                        break;
+                    }
+                }
+            }
+        }
+
+        match self.app_state {
+            AppState::LoadingFontsAPI => {
+                ui.set_pixels_per_point(1.1);
+                self.set_fonts(ui);
+
+                // If API keys are found, start the main UI otherwise show the UI to input the API keys
+                if get_api_keys().is_some() {
+                    self.app_state = AppState::InitializedUI;
+                } else {
+                    self.app_state = AppState::InputAPIKeys;
+                }
+            }
+            AppState::InputAPIKeys => self.show_tg_keys_ui(ui),
+            AppState::InitializedUI => {
+                Panel::top("top_panel")
+                    .show_separator_line(true)
+                    .show(ui, |ui| {
+                        if self.theme_animator.anim_id.is_none() {
+                            self.theme_animator.create_id(ui);
+                        } else {
+                            self.theme_animator.animate(ui);
+                        }
+
+                        ui.add_space(4.0);
+                        ui.horizontal(|ui| {
+                            let hover_text = theme_hover_text(self.is_light_theme);
+                            let theme_emoji = if !self.theme_animator.animation_done {
+                                if self.theme_animator.theme_1_to_2 {
+                                    "☀"
+                                } else {
+                                    "🌙"
+                                }
+                            } else if self.theme_animator.theme_1_to_2 {
+                                "🌙"
+                            } else {
+                                "☀"
+                            };
+
+                            if ui
+                                .add(Button::new(theme_emoji).frame(false))
+                                .on_hover_text(hover_text)
+                                .clicked()
+                            {
+                                self.theme_animator.start();
+                                self.is_light_theme = !self.is_light_theme;
+                                save_theme(self.is_light_theme);
+                            }
+
+                            if let Some(tab) =
+                                Tabs::new("main_tabs", TabState::iter(), &self.tab_state)
+                                    .style(TabStyle::Pill)
+                                    .min_item_width(70.0)
+                                    .centered(true)
+                                    .show(ui)
+                            {
+                                ui.send_viewport_cmd(ViewportCommand::InnerSize(tab.window_size()));
+                                self.tab_state = tab;
+                            }
+                        });
+
+                        ui.add_space(0.5);
+                    });
+
+                Panel::bottom("bottom_panel")
+                    .show_separator_line(true)
+                    .show(ui, |ui| {
+                        ui.add_space(4.0);
+                        self.fade_status(ui);
+
+                        let status_text = self.process_state.to_string();
+                        let dot = self.process_state.severity().dot_color(ui.visuals());
+
+                        // The Scan tab already has its own progress bar
+                        let show_progress =
+                            self.counter.counting() && self.tab_state != TabState::Counter;
+                        let show_spinner = self.is_processing && !self.counter.counting();
+
+                        ui.horizontal(|ui| {
+                            // Right side items are added first so the text takes what is left
+                            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                                if show_progress {
+                                    ui.add(
+                                        ProgressBar::new(self.counter.bar_percentage())
+                                            .desired_width(180.0)
+                                            .show_percentage()
+                                            .animate(true),
+                                    );
+                                } else if show_spinner {
+                                    ui.add(Spinner::new());
+                                }
+
+                                ui.add(StatusLine::new(status_text, dot, ui.available_width()));
+                            });
+                        });
+                        ui.add_space(0.5);
+                    });
+
+                CentralPanel::default().show(ui, |ui| {
+                    match self.tab_state {
+                        TabState::Counter => self.show_counter_ui(ui),
+                        TabState::UserTable => self.show_user_table_ui(ui),
+                        TabState::Charts => self.show_charts_ui(ui),
+                        TabState::Whitelist => self.show_whitelist_ui(ui),
+                        TabState::Blacklist => self.show_blacklist_ui(ui),
+                        TabState::Session => self.show_session_ui(ui),
+                    }
+
+                    if self.existing_sessions_checked {
+                        // At each UI loop, check on the receiver channel to check if there is anything
+                        // limit total number of messages to check on the receiver to prevent frame freeze
+                        for _ in 0..self.counter.get_comm_limit() {
+                            if !self.check_receiver() {
+                                break;
+                            }
+                        }
+                    } else {
+                        self.existing_sessions_checked = true;
+                        let existing_sessions = find_session_files();
+                        if !existing_sessions.is_empty() {
+                            self.is_processing = true;
+                            self.process_state = ProcessState::ConnectingSessions;
+
+                            let sender_clone = self.tg_sender.clone();
+                            let ctx_clone = ui.ctx().clone();
+
+                            self.runtime.spawn(async move {
+                                start_process(
+                                    NewProcess::InitialSessionConnect(existing_sessions),
+                                    sender_clone,
+                                    ctx_clone,
+                                )
+                                .await;
+                            });
+                        }
+
+                        let version_body = self.new_version_body.clone();
+                        self.runtime.spawn(async move {
+                            check_version(version_body).await;
+                        });
+                    }
+
+                    if self.new_version_body.lock().unwrap().is_some() {
+                        let modal_text = self.new_version_body.lock().unwrap().clone().unwrap();
+                        let modal = Modal::new(Id::unique("version_modal")).show(ui.ctx(), |ui| {
+                            ui.set_width(300.0);
+                            ui.set_height(300.0);
+
+                            Panel::top("version_top_panel").show(ui, |ui| {
+                                ui.vertical_centered(|ui| {
+                                    ui.heading("A new version is available");
+                                });
+                            });
+                            Panel::bottom("version_bottom_panel").show(ui, |ui| {
+                                ui.horizontal(|ui| {
+                                    let available_width = ui.available_width();
+                                    let button_width = available_width / 2.0;
+
+                                    if ui
+                                        .add_sized(
+                                            [button_width - 5.0, 15.0],
+                                            Button::new("Update"),
+                                        )
+                                        .clicked()
+                                    {
+                                        let _ = open::that(
+                                            "https://github.com/TheRustyPickle/Talon/releases/latest",
+                                        );
+                                        *self.new_version_body.lock().unwrap() = None;
+                                    }
+
+                                    if ui
+                                        .add_sized([button_width - 5.0, 15.0], Button::new("Close"))
+                                        .clicked()
+                                    {
+                                        *self.new_version_body.lock().unwrap() = None;
+                                    }
+                                });
+                            });
+
+                            CentralPanel::default().show(ui, |ui| {
+                                ScrollArea::vertical().show(ui, |ui| {
+                                    ui.label(modal_text);
+                                });
+                            });
+                        });
+
+                        if modal.should_close() {
+                            *self.new_version_body.lock().unwrap() = None;
+                        }
+                    }
+                });
+            }
+        }
+    }
+}
+
+impl MainWindow {
+    pub fn clear_overlap(&mut self, parsed: &HashMap<String, ParsedChat>) {
+        self.counter_chat_index = 0;
+        self.table_chat_index = 0;
+        self.chart_chat_index = 0;
+        for key in parsed.keys() {
+            if self.counter.contains_chat(key) {
+                let target_index = self.counter.chat_index(key);
+                self.counter.remove_chat(target_index);
+                self.table.remove(target_index);
+                self.chart.remove(target_index);
+            }
+        }
+    }
+    pub fn reset_table(&mut self) {
+        self.table = vec![UserTableData::default()];
+    }
+
+    pub fn reset_counts(&mut self) {
+        self.counter.reset();
+    }
+
+    pub fn reset_chart(&mut self) {
+        let mut chart = ChartsData::default();
+        chart.reset_chart();
+
+        self.chart = vec![chart];
+    }
+
+    /// Only called once after the Start button is pressed for the first time
+    pub fn initial_chart_reset(&mut self) {
+        if !self.initial_chart_reset {
+            self.initial_chart_reset = true;
+            let chart = &mut self.chart[0];
+            chart.reset_chart();
+        }
+    }
+
+    pub fn append_structs(&mut self, amount: usize, previous_amount: usize) {
+        let amount = amount + previous_amount;
+        while self.table.len() != amount {
+            self.table.push(UserTableData::default());
+        }
+
+        while self.chart.len() != amount {
+            let mut chart = ChartsData::default();
+            chart.reset_chart();
+            self.chart.push(chart);
+        }
+
+        while self.counter.counts.len() != amount {
+            self.counter.counts.push(CounterCounts::default());
+        }
+    }
+
+    /// Get all the added session names
+    pub fn get_session_names(&self) -> Vec<String> {
+        self.tg_clients.keys().map(ToString::to_string).collect()
+    }
+
+    /// Set the fonts for egui to use or download them if does not exist
+    pub fn set_fonts(&self, ctx: &Context) {
+        let font_data = get_font_data();
+
+        if let Some((cjk, gentium)) = font_data {
+            // Add the fonts on top of the default ones
+            let font_cjk = Arc::new(FontData::from_owned(cjk));
+            let font_gentium = Arc::new(FontData::from_owned(gentium));
+            let mut font_definitions = FontDefinitions::default();
+
+            font_definitions
+                .font_data
+                .insert("NotoSansCJK".to_owned(), font_cjk);
+            font_definitions
+                .font_data
+                .insert("GentiumBookPlus".to_owned(), font_gentium);
+
+            font_definitions
+                .families
+                .get_mut(&FontFamily::Proportional)
+                .unwrap()
+                .extend(["NotoSansCJK".to_owned(), "GentiumBookPlus".to_owned()]);
+
+            ctx.set_fonts(font_definitions);
+        } else {
+            info!("Could not find font data. Starting download");
+            let ctx_clone = ctx.clone();
+
+            self.runtime.spawn(async move {
+                download_font(ctx_clone).await;
+            });
+        }
+    }
+
+    /// Return the currently selected table data as mutable
+    pub fn table(&mut self) -> &mut UserTableData {
+        if self.counter.total_chats() > 1 {
+            &mut self.table[self.table_chat_index]
+        } else {
+            &mut self.table[0]
+        }
+    }
+
+    /// Return the currently selected table data as reference
+    pub fn table_i(&self) -> &UserTableData {
+        if self.counter.total_chats() > 1 {
+            &self.table[self.table_chat_index]
+        } else {
+            &self.table[0]
+        }
+    }
+
+    /// Returns the target table where new data should be added as mutable
+    pub fn t_table(&mut self) -> &mut UserTableData {
+        let ongoing = self.counter.ongoing_chat();
+        &mut self.table[ongoing]
+    }
+
+    /// Return the currently selected chart data as mutable
+    pub fn chart(&mut self) -> &mut ChartsData {
+        if self.counter.total_chats() > 1 {
+            &mut self.chart[self.chart_chat_index]
+        } else {
+            &mut self.chart[0]
+        }
+    }
+
+    /// Return the currently selected chart data as reference
+    pub fn chart_i(&self) -> &ChartsData {
+        if self.counter.total_chats() > 1 {
+            &self.chart[self.chart_chat_index]
+        } else {
+            &self.chart[0]
+        }
+    }
+
+    /// Returns the target chart where new data should be added as mutable
+    pub fn t_chart(&mut self) -> &mut ChartsData {
+        let ongoing = self.counter.ongoing_chat();
+        &mut self.chart[ongoing]
+    }
+
+    /// Return the currently selected chart data as mutable
+    pub fn count(&mut self) -> &mut CounterCounts {
+        if self.counter.total_chats() > 1 {
+            &mut self.counter.counts[self.counter_chat_index]
+        } else {
+            &mut self.counter.counts[0]
+        }
+    }
+
+    /// Returns the target chart where new data should be added as mutable
+    pub fn t_count(&mut self) -> &mut CounterCounts {
+        let ongoing = self.counter.ongoing_chat();
+        &mut self.counter.counts[ongoing]
+    }
+
+    pub fn chart_all(&mut self) -> IterMut<'_, ChartsData> {
+        self.chart.iter_mut()
+    }
+
+    pub fn table_all(&mut self) -> IterMut<'_, UserTableData> {
+        self.table.iter_mut()
+    }
+}

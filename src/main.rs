@@ -1,8 +1,8 @@
-mod tg_handler;
-mod ui_components;
+mod telegram;
+mod ui;
 mod utils;
 
-use crate::ui_components::MainWindow;
+use crate::ui::MainWindow;
 use dirs::data_local_dir;
 use eframe::{NativeOptions, egui};
 use egui::{ViewportBuilder, vec2};
