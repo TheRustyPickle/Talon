@@ -20,7 +20,8 @@ impl MainWindow {
                         format!("Successfully connected to: {}.", success.join(", "))
                     };
 
-                    if !failed.is_empty() {
+                    let any_failed = !failed.is_empty();
+                    if any_failed {
                         let _ = write!(status_text, " Failed connection to: {}", failed.join(", "));
                     }
 
@@ -29,7 +30,8 @@ impl MainWindow {
                     }
 
                     self.process_state =
-                        ProcessState::InitialClientConnectionSuccessful(status_text);
+                        ProcessState::InitialClientConnectionSuccessful(status_text, any_failed);
+
                     self.load_whitelisted_users();
                     self.load_blacklisted_users();
                 }
@@ -104,7 +106,9 @@ impl MainWindow {
 
                     let chart_user = to_chart_name(user_name, &full_name, user_id);
 
-                    if !blacklisted {
+                    if blacklisted {
+                        self.t_table().count_blacklisted_message(local_time_date);
+                    } else {
                         self.t_chart().add_user(chart_user.clone(), user_id);
                         self.t_table().count_user_message(
                             user_id,

@@ -6,6 +6,7 @@ use tokio::sync::Mutex;
 use crate::tg_handler::{NewProcess, ProcessStart, start_process};
 use crate::ui_components::MainWindow;
 use crate::ui_components::processor::ProcessState;
+use crate::ui_components::widgets::{Card, PrimaryButton};
 
 #[derive(Default)]
 pub struct SessionData {
@@ -73,158 +74,167 @@ impl SessionData {
 
 impl MainWindow {
     pub fn show_session_ui(&mut self, ui: &mut Ui) {
-        Grid::new("Session Grid")
-            .num_columns(2)
-            .spacing([5.0, 10.0])
-            .show(ui, |ui| {
-                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    ui.add(Label::new("Session Name:"));
-                });
+        // Once a code was sent or a password is required, the account details are locked in
+        let locked = self.session.tg_code_token.is_some() || self.session.password_mode;
 
-                let text_edit = TextEdit::singleline(&mut self.session.session_name)
-                    .hint_text("My TG Session Name");
-
-                if self.session.tg_code_token.is_some() || self.session.password_mode {
-                    ui.add_enabled(false, text_edit.min_size(ui.available_size()));
-                } else {
-                    let hover_text = if self.session.is_temporary {
-                        "A name for the temporary session"
-                    } else {
-                        "Save the session in a file with this name for later access"
-                    };
+        Card::new().title("ACCOUNT").show(ui, |ui| {
+            Grid::new("Session Grid")
+                .num_columns(2)
+                .spacing([8.0, 10.0])
+                .show(ui, |ui| {
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                        ui.add(Label::new("Session Name:"));
+                    });
+
+                    let text_edit = TextEdit::singleline(&mut self.session.session_name)
+                        .hint_text("My TG Session Name");
+
+                    if locked {
+                        ui.add_enabled(false, text_edit.min_size(ui.available_size()));
+                    } else {
+                        let hover_text = if self.session.is_temporary {
+                            "A name for the temporary session"
+                        } else {
+                            "Save the session in a file with this name for later access"
+                        };
                         ui.add_sized(ui.available_size(), text_edit)
                             .on_hover_text(hover_text);
+                    }
+
+                    ui.end_row();
+
+                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                        ui.add(Label::new("Phone Number:"));
                     });
-                }
 
-                ui.end_row();
-
-                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    ui.add(Label::new("Phone Number:"));
-                });
-                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     let text_edit = TextEdit::singleline(&mut self.session.phone_number)
                         .hint_text("International format: +1234567890");
-                    if self.session.password_mode || self.session.tg_code_token.is_some() {
+
+                    if locked {
                         ui.add_enabled(false, text_edit.min_size(ui.available_size()));
                     } else {
                         ui.add_sized(ui.available_size(), text_edit).on_hover_text(
                             "The phone number of your Telegram in international format",
                         );
                     }
-                });
 
-                ui.end_row();
+                    ui.end_row();
 
-                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    ui.add(Label::new("Login Code:"));
-                });
-                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    let button = Button::new("Send Code");
-                    if self.session.phone_number.is_empty()
-                        || self.session.password_mode
-                        || self.session.session_name.is_empty()
-                        || self.is_processing
-                    {
-                        ui.add_enabled(false, button);
-                    } else if ui
-                        .add(button)
-                        .on_hover_text("Send the code to login to the account")
-                        .clicked()
-                    {
-                        self.request_login_code(ui.ctx().clone());
-                    }
+                    ui.label("");
 
-                    let text_edit =
-                        TextEdit::singleline(&mut self.session.tg_code).hint_text("12345");
-                    if self.session.tg_code_token.is_some() {
-                        ui.add_sized(ui.available_size(), text_edit).on_hover_text(
-                            "The Telegram login code either sent to TG or to the phone number",
-                        );
+                    let checkbox = Checkbox::new(
+                        &mut self.session.is_temporary,
+                        "Do not create a session file",
+                    );
+
+                    if self.session.tg_code_token.is_some() || self.is_processing {
+                        ui.add_enabled(false, checkbox);
                     } else {
-                        ui.add_enabled(false, text_edit.min_size(ui.available_size()));
+                        ui.add(checkbox).on_hover_text(
+                            "Create a new temporary session?
+If yes, it will try to log out before the app is closed and no session file will be created",
+                        );
                     }
-                });
 
-                ui.end_row();
-
-                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    ui.add(Label::new("Login Password:"));
+                    ui.end_row();
                 });
-                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+        });
+
+        ui.add_space(8.0);
+
+        Card::new().title("VERIFICATION").show(ui, |ui| {
+            Grid::new("Verification Grid")
+                .num_columns(2)
+                .spacing([8.0, 10.0])
+                .show(ui, |ui| {
+                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                        ui.add(Label::new("Login Code:"));
+                    });
+
+                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                        let button = Button::new("Send Code");
+                        if self.session.phone_number.is_empty()
+                            || self.session.password_mode
+                            || self.session.session_name.is_empty()
+                            || self.is_processing
+                        {
+                            ui.add_enabled(false, button);
+                        } else if ui
+                            .add(button)
+                            .on_hover_text("Send the code to login to the account")
+                            .clicked()
+                        {
+                            self.request_login_code(ui.ctx().clone());
+                        }
+
+                        let text_edit =
+                            TextEdit::singleline(&mut self.session.tg_code).hint_text("12345");
+
+                        if self.session.tg_code_token.is_some() {
+                            ui.add_sized(ui.available_size(), text_edit).on_hover_text(
+                                "The Telegram login code either sent to TG or to the phone number",
+                            );
+                        } else {
+                            ui.add_enabled(false, text_edit.min_size(ui.available_size()));
+                        }
+                    });
+
+                    ui.end_row();
+
+                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                        ui.add(Label::new("Login Password:"));
+                    });
+
                     let text_edit = TextEdit::singleline(&mut self.session.tg_password)
                         .password(true)
-                        .hint_text("Your Telegram login password");
+                        .hint_text("Only needed if the account has two-step verification");
+
                     if self.session.password_mode {
                         ui.add_sized(ui.available_size(), text_edit)
                             .on_hover_text("Telegram login password");
                     } else {
                         ui.add_enabled(false, text_edit.min_size(ui.available_size()));
                     }
+
+                    ui.end_row();
                 });
+        });
 
-                ui.end_row();
+        ui.add_space(12.0);
 
-                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    ui.add(Label::new("Temporary:"));
-                });
-                ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
-                    if self.session.tg_code_token.is_some() || self.is_processing {
-                        ui.add_enabled(
-                            false,
-                            Checkbox::new(
-                                &mut self.session.is_temporary,
-                                "Do not create a session file",
-                            ),
-                        );
-                    } else {
-                        ui.checkbox(
-                            &mut self.session.is_temporary,
-                            "Do not create a session file",
-                        )
-                        .on_hover_text(
-                            "Create a new temporary session?
-If yes, it will try to log out before the app is closed and no session file will be created",
-                        );
-                    }
-                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        if ui
-                            .button("Reset Session")
-                            .on_hover_text("Reset and clear new session creation data")
-                            .clicked()
-                        {
-                            self.session.reset_data();
-                            self.incomplete_tg_client = None;
-                        }
-                    })
-                });
-            });
-
-        ui.add_space(40.0);
-
-        ui.vertical_centered(|ui| {
-            let button = Button::new("Create Session").min_size(vec2(100.0, 40.0));
-            if self.is_processing
-                || self.session.phone_number.is_empty()
-                || self.session.session_name.is_empty()
-                || self.session.tg_code.is_empty()
-                || (self.session.password_mode
-                    && (self.session.password_token.is_none()
-                        || self.session.tg_password.is_empty()))
-            {
-                ui.add_enabled(false, button);
-            } else if ui
-                .add(button)
-                .on_hover_text("Try to create a new session with the Telegram login info")
+        ui.horizontal(|ui| {
+            if ui
+                .add(Button::new("Reset").min_size(vec2(80.0, 40.0)))
+                .on_hover_text("Reset and clear new session creation data")
                 .clicked()
             {
-                if self.session.password_mode {
-                    self.sign_in_password();
-                } else {
-                    self.sign_in_code();
-                }
+                self.session.reset_data();
+                self.incomplete_tg_client = None;
             }
+
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                let button = PrimaryButton::new("Log In").size(vec2(ui.available_width(), 40.0));
+                if self.is_processing
+                    || self.session.phone_number.is_empty()
+                    || self.session.session_name.is_empty()
+                    || self.session.tg_code.is_empty()
+                    || (self.session.password_mode
+                        && (self.session.password_token.is_none()
+                            || self.session.tg_password.is_empty()))
+                {
+                    ui.add_enabled(false, button);
+                } else if ui
+                    .add(button)
+                    .on_hover_text("Try to log in with the Telegram login info")
+                    .clicked()
+                {
+                    if self.session.password_mode {
+                        self.sign_in_password();
+                    } else {
+                        self.sign_in_code();
+                    }
+                }
+            });
         });
     }
 

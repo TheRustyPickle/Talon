@@ -1,5 +1,7 @@
 use eframe::egui::scroll_area::DragScroll;
-use eframe::egui::{Align, Button, Grid, Label, Layout, Response, RichText, Sense, TextEdit, Ui};
+use eframe::egui::{
+    Align, Align2, Button, Color32, Label, Layout, Response, RichText, Sense, TextEdit, Ui, vec2,
+};
 use egui_extras::Column;
 use egui_selectable_table::{
     ColumnOperations, ColumnOrdering, SelectableRow, SelectableTable, SortOrder,
@@ -11,6 +13,7 @@ use std::collections::HashSet;
 use crate::tg_handler::ProcessStart;
 use crate::ui_components::MainWindow;
 use crate::ui_components::processor::{ColumnName, PackedBlacklistedUser, ProcessState};
+use crate::ui_components::widgets::{Card, PrimaryButton};
 use crate::utils::{get_blacklisted, save_blacklisted_users, separate_blacklist_by_seen};
 
 #[derive(Default)]
@@ -250,41 +253,46 @@ impl MainWindow {
             self.process_state = ProcessState::BlacklistedUserRemoved(total_to_remove);
         }
 
-        Grid::new("blacklist Grid")
-            .num_columns(2)
-            .spacing([5.0, 10.0])
-            .show(ui, |ui| {
-                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    ui.add(Label::new("Target Username:"));
-                });
+        Card::new().title("ADD TO BLACKLIST").show(ui, |ui| {
+            ui.horizontal(|ui| {
+                let button_size = vec2(80.0, 28.0);
+                let text_width = ui.available_width() - button_size.x - ui.spacing().item_spacing.x;
+
                 ui.add_sized(
-                    ui.available_size(),
+                    [text_width, button_size.y],
                     TextEdit::singleline(&mut self.blacklist.target_username)
+                        .align(Align2::LEFT_CENTER)
                         .hint_text("Telegram username: @username"),
                 )
                 .on_hover_text(
-                    "Don't have a username? 
+                    "Don't have a username?
 
-Use the Counter to count at least 1 message by that user
-then right click on User Table to blacklist",
+Use the Scan tab to count at least 1 message by that user
+then right click on the Users tab to blacklist",
                 );
+
+                let can_add = !self.is_processing && !self.blacklist.target_username.is_empty();
+                let add = ui
+                    .add_enabled(can_add, PrimaryButton::new("Add").size(button_size))
+                    .on_hover_text("Add the username to blacklist");
+
+                if add.clicked() {
+                    self.blacklist_new_user();
+                }
             });
-
-        ui.vertical_centered(|ui| {
-            ui.add_space(10.0);
-            let button = if self.is_processing || self.blacklist.target_username.is_empty() {
-                ui.add_enabled(false, Button::new("Add to blacklist"))
-            } else {
-                ui.button("Add to blacklist")
-            }
-            .on_hover_text("Add the username to blacklist");
-
-            if button.clicked() {
-                self.blacklist_new_user();
-            }
         });
 
-        ui.add_space(20.0);
+        ui.add_space(8.0);
+
+        let failed = self.blacklist.failed_blacklist_num();
+        let mut summary = format!("{} users", self.blacklist.row_len());
+
+        if failed > 0 {
+            summary.push_str(&format!(" ({failed} failed to load)"));
+        }
+
+        ui.label(RichText::new(summary).weak());
+        ui.add_space(4.0);
 
         ui.horizontal(|ui| {
             let text_box = TextEdit::singleline(&mut self.blacklist.search_query)
@@ -339,7 +347,9 @@ then right click on User Table to blacklist",
                 self.process_state = ProcessState::BlacklistedUserRemoved(total_to_remove);
             }
             if ui
-                .button("Delete All")
+                .add(Button::new(
+                    RichText::new("Delete All").color(Color32::from_rgb(220, 90, 90)),
+                ))
                 .on_hover_text("Delete all blacklisted users")
                 .clicked()
             {

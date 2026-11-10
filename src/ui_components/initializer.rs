@@ -1,8 +1,8 @@
 use eframe::egui::{Panel, Ui};
 use eframe::{App, CreationContext, Frame, egui};
 use egui::{
-    Align, Button, CentralPanel, Context, CornerRadius, FontData, FontDefinitions, FontFamily, Id,
-    Layout, Modal, ScrollArea, Spinner, ThemePreference, ViewportCommand, Visuals,
+    Align, Button, CentralPanel, Context, FontData, FontDefinitions, FontFamily, Id, Layout, Modal,
+    ProgressBar, ScrollArea, Spinner, ThemePreference, ViewportCommand, Visuals,
 };
 use egui_theme_lerp::ThemeAnimator;
 use log::info;
@@ -11,22 +11,26 @@ use std::slice::IterMut;
 use std::sync::atomic::AtomicBool;
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 use strum::IntoEnumIterator;
 use tokio::runtime::Runtime;
 
 use crate::tg_handler::{NewProcess, ProcessResult, ProcessStart, TGClient, start_process};
 use crate::ui_components::TGKeys;
 use crate::ui_components::processor::{
-    AppState, CounterCounts, ParsedChat, ProcessState, TabState, check_version, download_font,
+    AppState, CounterCounts, ParsedChat, ProcessState, Severity, TabState, check_version,
+    download_font,
 };
 use crate::ui_components::tab_ui::{
     BlacklistData, ChartsData, CounterData, SessionData, UserTableData, WhitelistData,
 };
-use crate::ui_components::widgets::AnimatedLabel;
+use crate::ui_components::widgets::{StatusLine, TabStyle, Tabs};
 use crate::utils::{
     find_session_files, get_api_keys, get_font_data, get_runtime, last_theme, save_theme,
     theme_hover_text,
 };
+
+const STATUS_FADE_SECONDS: f64 = 6.0;
 
 pub struct MainWindow {
     pub app_state: AppState,
@@ -44,6 +48,8 @@ pub struct MainWindow {
     pub tg_clients: BTreeMap<String, TGClient>,
     pub incomplete_tg_client: Option<TGClient>,
     existing_sessions_checked: bool,
+    status_text: String,
+    status_changed_at: f64,
     is_light_theme: bool,
     pub is_processing: bool,
     new_version_body: Arc<Mutex<Option<String>>>,
@@ -57,6 +63,30 @@ pub struct MainWindow {
 }
 
 impl MainWindow {
+    /// Success messages go back to idle after a few seconds. Warnings, errors and anything
+    /// that is still running stay until something else replaces them
+    fn fade_status(&mut self, ui: &Ui) {
+        let now = ui.input(|i| i.time);
+        let text = self.process_state.to_string();
+
+        if text != self.status_text {
+            self.status_text = text;
+            self.status_changed_at = now;
+        }
+
+        if self.is_processing || self.process_state.severity() != Severity::Success {
+            return;
+        }
+
+        let remaining = STATUS_FADE_SECONDS - (now - self.status_changed_at);
+
+        if remaining <= 0.0 {
+            self.process_state = ProcessState::Idle;
+        } else {
+            ui.request_repaint_after(Duration::from_secs_f64(remaining));
+        }
+    }
+
     pub fn new(cc: &CreationContext) -> Self {
         let last_theme_light = last_theme().unwrap_or_default();
         let mut animator = ThemeAnimator::new(Visuals::light(), Visuals::dark());
@@ -89,6 +119,8 @@ impl MainWindow {
             tg_clients: BTreeMap::new(),
             incomplete_tg_client: None,
             existing_sessions_checked: false,
+            status_text: String::new(),
+            status_changed_at: 0.0,
             is_light_theme: last_theme_light,
             is_processing: false,
             new_version_body: Arc::new(Mutex::new(None)),
@@ -175,48 +207,55 @@ impl App for MainWindow {
                                 save_theme(self.is_light_theme);
                             }
 
-                            let hover_position = ui.make_persistent_id("tab_hover");
-                            let selected_position = ui.make_persistent_id("tab_selected");
-
-                            for val in TabState::iter() {
-                                let selected = self.tab_state == val;
-                                let first_val = val == TabState::first_value();
-
-                                let resp = ui.add(AnimatedLabel::new(
-                                    selected,
-                                    val.to_string(),
-                                    selected_position,
-                                    hover_position,
-                                    70.0,
-                                    20.0,
-                                    Some(CornerRadius::ZERO),
-                                    (first_val, true),
-                                ));
-
-                                if resp.clicked() {
-                                    let window_size = val.window_size();
-                                    ui.send_viewport_cmd(ViewportCommand::InnerSize(window_size));
-                                    self.tab_state = val;
-                                }
+                            if let Some(tab) =
+                                Tabs::new("main_tabs", TabState::iter(), &self.tab_state)
+                                    .style(TabStyle::Pill)
+                                    .min_item_width(70.0)
+                                    .centered(true)
+                                    .show(ui)
+                            {
+                                ui.send_viewport_cmd(ViewportCommand::InnerSize(tab.window_size()));
+                                self.tab_state = tab;
                             }
                         });
+
                         ui.add_space(0.5);
                     });
+
                 Panel::bottom("bottom_panel")
                     .show_separator_line(true)
                     .show(ui, |ui| {
                         ui.add_space(4.0);
+                        self.fade_status(ui);
+
                         let status_text = self.process_state.to_string();
+                        let dot = self.process_state.severity().dot_color(ui.visuals());
+
+                        // The Scan tab already has its own progress bar
+                        let show_progress =
+                            self.counter.counting() && self.tab_state != TabState::Counter;
+                        let show_spinner = self.is_processing && !self.counter.counting();
+
                         ui.horizontal(|ui| {
-                            ui.label(status_text);
-                            if self.is_processing {
-                                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                            // Right side items are added first so the text takes what is left
+                            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                                if show_progress {
+                                    ui.add(
+                                        ProgressBar::new(self.counter.bar_percentage())
+                                            .desired_width(180.0)
+                                            .show_percentage()
+                                            .animate(true),
+                                    );
+                                } else if show_spinner {
                                     ui.add(Spinner::new());
-                                });
-                            }
+                                }
+
+                                ui.add(StatusLine::new(status_text, dot, ui.available_width()));
+                            });
                         });
                         ui.add_space(0.5);
                     });
+
                 CentralPanel::default().show(ui, |ui| {
                     match self.tab_state {
                         TabState::Counter => self.show_counter_ui(ui),
@@ -240,8 +279,11 @@ impl App for MainWindow {
                         let existing_sessions = find_session_files();
                         if !existing_sessions.is_empty() {
                             self.is_processing = true;
+                            self.process_state = ProcessState::ConnectingSessions;
+
                             let sender_clone = self.tg_sender.clone();
                             let ctx_clone = ui.ctx().clone();
+
                             self.runtime.spawn(async move {
                                 start_process(
                                     NewProcess::InitialSessionConnect(existing_sessions),
@@ -257,7 +299,6 @@ impl App for MainWindow {
                             check_version(version_body).await;
                         });
                     }
-
 
                     if self.new_version_body.lock().unwrap().is_some() {
                         let modal_text = self.new_version_body.lock().unwrap().clone().unwrap();
@@ -303,6 +344,7 @@ impl App for MainWindow {
                                 });
                             });
                         });
+
                         if modal.should_close() {
                             *self.new_version_body.lock().unwrap() = None;
                         }

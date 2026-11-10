@@ -1,5 +1,7 @@
 use chrono::{Datelike, Days, Duration, Months, NaiveDate, NaiveDateTime, Timelike, Weekday};
-use eframe::egui::{CentralPanel, ComboBox, Id, Key, Modal, Panel, ScrollArea, TextEdit, Ui};
+use eframe::egui::{
+    Align, ComboBox, Id, Key, Layout, Modal, RichText, ScrollArea, TextEdit, Ui, vec2,
+};
 use egui_extras::DatePickerButton;
 use egui_plot::{Bar, BarChart, HoverPosition, Legend, Plot};
 use nucleo_matcher::Matcher;
@@ -9,7 +11,7 @@ use strum::IntoEnumIterator;
 
 use crate::ui_components::MainWindow;
 use crate::ui_components::processor::{ChartTiming, ChartType, DateNavigator, NavigationType};
-use crate::ui_components::widgets::AnimatedLabel;
+use crate::ui_components::widgets::{Card, PrimaryButton, TabStyle, Tabs};
 use crate::utils::{time_to_string, weekday_num_to_string};
 
 #[derive(Default)]
@@ -246,72 +248,82 @@ impl ChartsData {
 
     fn show_modal_popup(&mut self, ui: &mut Ui) {
         let response = Modal::new(Id::unique("customize_view")).show(ui.ctx(), |ui| {
-            ui.set_width(400.0);
-            ui.set_height(350.0);
-            Panel::top("customize_top_view").show(ui, |ui| {
-                ui.vertical_centered(|ui| {
-                    ui.heading("Customize View");
-                });
+            ui.set_width(420.0);
+
+            ui.vertical_centered(|ui| {
+                ui.heading("Customize View");
+            });
+            ui.add_space(8.0);
+
+            let row_size = vec2(ui.available_width(), ui.spacing().interact_size.y);
+
+            ui.allocate_ui_with_layout(row_size, Layout::right_to_left(Align::Center), |ui| {
+                if ui.button("Clear").clicked() {
+                    self.use_filtered_users = false;
+                }
+
+                if ui.button("Search").clicked() {
+                    self.use_filtered_users = true;
+                    self.filtered_users.clear();
+
+                    let all_keys = self.available_users.keys().cloned().collect::<Vec<_>>();
+                    let pattern = Pattern::parse(
+                        &self.search_text,
+                        CaseMatching::Ignore,
+                        Normalization::Smart,
+                    );
+                    let matches = pattern.match_list(all_keys, &mut self.matcher);
+
+                    for (val, _) in matches {
+                        self.filtered_users.insert(val);
+                    }
+                }
+
+                ui.add_sized(
+                    [ui.available_width(), ui.spacing().interact_size.y],
+                    TextEdit::singleline(&mut self.search_text).hint_text("Search user"),
+                );
             });
 
-            Panel::bottom(Id::unique("customize_bottom_view")).show(ui, |ui| {
-                ui.add_space(5.0);
-                ui.vertical_centered_justified(|ui| {
-                    if ui.button("Confirm").clicked() {
-                        self.modal_open = false;
-                        self.search_text.clear();
-                    }
-                })
-            });
+            ui.add_space(8.0);
 
-            CentralPanel::default().show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    let text_edit =
-                        TextEdit::singleline(&mut self.search_text).hint_text("Search user");
-
-                    ui.add(text_edit);
-
-                    if ui.button("Search").clicked() {
-                        self.use_filtered_users = true;
-                        self.filtered_users.clear();
-
-                        let all_keys = self.available_users.keys().cloned().collect::<Vec<_>>();
-                        let pattern = Pattern::parse(
-                            &self.search_text,
-                            CaseMatching::Ignore,
-                            Normalization::Smart,
-                        );
-                        let matches = pattern.match_list(all_keys, &mut self.matcher);
-
-                        for (val, _) in matches {
-                            self.filtered_users.insert(val);
-                        }
-                    }
-
-                    if ui.button("Clear").clicked() {
-                        self.use_filtered_users = false;
-                    }
-                });
-
-                ScrollArea::vertical().show(ui, |ui| {
-                    if self.use_filtered_users {
-                        for val in &self.filtered_users {
-                            ui.horizontal(|ui| {
+            Card::new().show(ui, |ui| {
+                ScrollArea::vertical()
+                    .max_height(300.0)
+                    .auto_shrink([false, true])
+                    .show(ui, |ui| {
+                        if self.use_filtered_users {
+                            for val in &self.filtered_users {
                                 ui.checkbox(self.available_users.get_mut(val).unwrap(), val);
-                                ui.allocate_space(ui.available_size());
-                            });
-                        }
-                    } else {
-                        let all_keys = self.available_users.keys().cloned().collect::<Vec<_>>();
-                        for val in all_keys {
-                            ui.horizontal(|ui| {
+                            }
+                        } else {
+                            let all_keys = self.available_users.keys().cloned().collect::<Vec<_>>();
+                            for val in all_keys {
                                 ui.checkbox(self.available_users.get_mut(&val).unwrap(), val);
-                                ui.allocate_space(ui.available_size());
-                            });
+                            }
                         }
-                    }
-                });
+                    });
             });
+
+            let selected = self.available_users.values().filter(|v| **v).count();
+
+            ui.add_space(4.0);
+
+            ui.label(
+                RichText::new(format!(
+                    "{selected} of {} selected",
+                    self.available_users.len()
+                ))
+                .weak(),
+            );
+
+            ui.add_space(8.0);
+
+            let size = vec2(ui.available_width(), 36.0);
+            if ui.add(PrimaryButton::new("Confirm").size(size)).clicked() {
+                self.modal_open = false;
+                self.search_text.clear();
+            }
         });
 
         if response.should_close() {
@@ -390,65 +402,42 @@ impl MainWindow {
             && self.chart_i().chart_type != ChartType::ActiveUserWeekDay;
 
         ui.horizontal(|ui| {
-            ui.selectable_value(
-                &mut self.chart().chart_type,
-                ChartType::Message,
-                ChartType::Message.to_string(),
-            ).on_hover_text("Chart displaying the total count of messages in the selected time frame (e.g., hourly, daily, weekly).");
-            ui.separator();
-            ui.selectable_value(
-                &mut self.chart().chart_type,
-                ChartType::ActiveUser,
-                ChartType::ActiveUser.to_string(),
-            ).on_hover_text("Chart showing the total count of active users in the selected time frame (e.g., hourly, daily, weekly).");
-            ui.separator();
-            ui.selectable_value(
-                &mut self.chart().chart_type,
-                ChartType::MessageWeekDay,
-                ChartType::MessageWeekDay.to_string(),
-            ).on_hover_text("Chart showing the total count of messages each day of the week.");
-            ui.separator();
-            ui.selectable_value(
-                &mut self.chart().chart_type,
-                ChartType::ActiveUserWeekDay,
-                ChartType::ActiveUserWeekDay.to_string(),
-            ).on_hover_text("Chart displaying the total count of active users for each day of the week.");
-            ui.separator();
-            if ui.button("Customize View").clicked() {
-                self.chart().modal_open = true;
+            if let Some(chart_type) =
+                Tabs::new("chart_type", ChartType::iter(), &self.chart_i().chart_type)
+                    .style(TabStyle::Segmented)
+                    .min_item_width(90.0)
+                    .hover_text(|chart_type| chart_type.hover_text().to_string())
+                    .show(ui)
+            {
+                self.chart().chart_type = chart_type;
             }
-        });
-        if not_weekday_chart {
-            ui.separator();
-            ui.horizontal(|ui| {
-                ui.selectable_value(
-                    &mut self.chart().chart_timing,
-                    ChartTiming::Hourly,
-                    ChartTiming::Hourly.to_string(),
-                );
-                ui.separator();
-                ui.selectable_value(
-                    &mut self.chart().chart_timing,
-                    ChartTiming::Daily,
-                    ChartTiming::Daily.to_string(),
-                );
-                ui.separator();
-                ui.selectable_value(
-                    &mut self.chart().chart_timing,
-                    ChartTiming::Weekly,
-                    ChartTiming::Weekly.to_string(),
-                );
-                ui.separator();
-                ui.selectable_value(
-                    &mut self.chart().chart_timing,
-                    ChartTiming::Monthly,
-                    "Monthly",
-                );
+
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                if ui.button("Customize View").clicked() {
+                    self.chart().modal_open = true;
+                }
             });
-            ui.separator();
-        } else {
-            ui.separator();
+        });
+
+        if not_weekday_chart {
+            ui.add_space(4.0);
+            if let Some(timing) = Tabs::new(
+                "chart_timing",
+                ChartTiming::iter(),
+                &self.chart_i().chart_timing,
+            )
+            .style(TabStyle::Segmented)
+            .equal_width(true)
+            .min_item_width(70.0)
+            .hover_text(|timing| format!("Group the data by {}", timing.to_string().to_lowercase()))
+            .show(ui)
+            {
+                self.chart().chart_timing = timing;
+            }
         }
+
+        ui.add_space(4.0);
+        ui.separator();
 
         if self.chart().modal_open {
             self.chart().show_modal_popup(ui);
@@ -458,76 +447,65 @@ impl MainWindow {
         if not_weekday_chart {
             let date_enabled = !self.is_processing && !self.chart().available_users.is_empty();
 
-            ui.add_enabled_ui(date_enabled, |ui| {
-                ui.horizontal(|ui| {
-                    let chart = self.chart();
+            Card::new().show(ui, |ui| {
+                ui.add_enabled_ui(date_enabled, |ui| {
+                    ui.horizontal(|ui| {
+                        let chart = self.chart();
 
-                    ui.label("From:");
-                    ui.add(
-                        DatePickerButton::new(chart.date_nav.handler().from())
-                            .id_salt("1"),
-                    )
-                    .on_hover_text("Show data only after this date, including the date itself");
-                    ui.label("To:");
+                        ui.label("From:");
+                        ui.add(
+                            DatePickerButton::new(chart.date_nav.handler().from())
+                                .id_salt("1"),
+                        )
+                        .on_hover_text("Show data only after this date, including the date itself");
+                        ui.label("To:");
 
-                    ui.add(
-                        DatePickerButton::new(chart.date_nav.handler().to()).id_salt("2"),
-                    )
-                    .on_hover_text("Show data only before this date, incluyding the date itself");
+                        ui.add(
+                            DatePickerButton::new(chart.date_nav.handler().to()).id_salt("2"),
+                        )
+                        .on_hover_text("Show data only before this date, incluyding the date itself");
 
-                    let reset_button = ui.button("Reset Date Selection").on_hover_text("Reset selected date to the oldest and the newest date with at least 1 data point");
-                    if reset_button.clicked() {
-                        chart.date_nav.handler().reset_dates();
-                        chart.reset_saved_bars();
-                    }
+                        let reset_button = ui.button("Reset Date Selection").on_hover_text("Reset selected date to the oldest and the newest date with at least 1 data point");
+                        if reset_button.clicked() {
+                            chart.date_nav.handler().reset_dates();
+                            chart.reset_saved_bars();
+                        }
 
-                    ui.separator();
-
-                    let hover_position = ui.make_persistent_id("nav_hovered_2");
-                    let selected_position = ui.make_persistent_id("nav_selected_2");
-                    for nav in NavigationType::iter() {
-                        let selected = chart.date_nav.nav_type_i() == nav;
-                        let resp = ui.add(AnimatedLabel::new(
-                            selected,
-                            nav.to_string(),
-                            selected_position,
-                            hover_position,
-                            50.0,
-                            20.0,
-                            None,
-                            (false, false),
-                        ));
-
-                        if resp.clicked() {
+                        if let Some(nav) = Tabs::new("nav_type_2", NavigationType::iter(), &chart.date_nav.nav_type_i())
+                            .style(TabStyle::Segmented)
+                            .min_item_width(50.0)
+                            .equal_width(true)
+                            .show(ui)
+                        {
                             *chart.date_nav.nav_type() = nav;
                         }
-                    }
 
-                    ui.separator();
+                        let previous_hover = format!("Go back by 1 {} from the current date. Shortcut Key: CTRL + H", chart.date_nav.nav_name());
+                        let next_hover = format!("Go next by 1 {} from the current date. Shortcut Key: CTRL + L", chart.date_nav.nav_name());
 
-                    let previous_hover = format!("Go back by 1 {} from the current date. Shortcut Key: CTRL + H", chart.date_nav.nav_name());
-                    let next_hover = format!("Go next by 1 {} from the current date. Shortcut Key: CTRL + L", chart.date_nav.nav_name());
+                        if ui.button(format!("Previous {}", chart.date_nav.nav_name())).on_hover_text(previous_hover).clicked() {
+                            chart.date_nav.go_previous();
+                        }
 
-                    if ui.button(format!("Previous {}", chart.date_nav.nav_name())).on_hover_text(previous_hover).clicked() {
-                        chart.date_nav.go_previous();
-                    }
-
-                    if ui.button(format!("Next {}", chart.date_nav.nav_name())).on_hover_text(next_hover).clicked() {
-                        chart.date_nav.go_next();
-                    }
+                        if ui.button(format!("Next {}", chart.date_nav.nav_name())).on_hover_text(next_hover).clicked() {
+                            chart.date_nav.go_next();
+                        }
+                    });
                 });
             });
+
+            ui.add_space(4.0);
 
             // Monitor for H and L key presses
             if date_enabled {
                 let is_ctrl_pressed = ui.ctx().input(|i| i.modifiers.ctrl);
                 let key_h_pressed = ui.ctx().input(|i| i.key_pressed(Key::H));
+                let key_l_pressed = ui.ctx().input(|i| i.key_pressed(Key::L));
 
-                if key_h_pressed && is_ctrl_pressed {
-                    self.chart().date_nav.go_previous();
-                } else {
-                    let key_l_pressed = ui.ctx().input(|i| i.key_pressed(Key::L));
-                    if key_l_pressed && is_ctrl_pressed {
+                if is_ctrl_pressed {
+                    if key_h_pressed {
+                        self.chart().date_nav.go_previous();
+                    } else if key_l_pressed {
                         self.chart().date_nav.go_next();
                     }
                 }

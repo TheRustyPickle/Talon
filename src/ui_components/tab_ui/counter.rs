@@ -1,5 +1,6 @@
 use eframe::egui::{
-    Align, Button, ComboBox, Grid, Label, Layout, ProgressBar, TextEdit, Ui, ViewportCommand, vec2,
+    Align, Button, ComboBox, Grid, Label, Layout, ProgressBar, RichText, TextEdit, Ui,
+    ViewportCommand, vec2,
 };
 use log::info;
 use std::collections::HashMap;
@@ -8,6 +9,7 @@ use std::sync::atomic::Ordering;
 use crate::tg_handler::ProcessStart;
 use crate::ui_components::MainWindow;
 use crate::ui_components::processor::{CounterCounts, ParsedChat, ProcessState};
+use crate::ui_components::widgets::{Card, PrimaryButton, StatTile};
 use crate::utils::{chat_to_text, parse_chat_details};
 
 const LIMIT_SELECTION: [&str; 5] = ["30", "40", "50", "80", "100"];
@@ -158,6 +160,10 @@ impl CounterData {
         }
     }
 
+    pub fn bar_percentage(&self) -> f32 {
+        self.bar_percentage
+    }
+
     pub fn counting(&self) -> bool {
         self.counting
     }
@@ -203,88 +209,74 @@ impl CounterData {
 
 impl MainWindow {
     pub fn show_counter_ui(&mut self, ui: &mut Ui) {
-        Grid::new("Counter Grid")
-            .num_columns(2)
-            .spacing([5.0, 10.0])
-            .show(ui, |ui| self.show_grid_data(ui));
-
-        ui.add_space(10.0);
-        ui.label(self.counter.detected_chat.clone());
-        ui.add_space(5.0);
-        ui.horizontal(|ui| {
-            Grid::new("Main")
+        Card::new().title("SOURCE").show(ui, |ui| {
+            Grid::new("Counter Grid")
                 .num_columns(2)
-                .spacing([5.0, 10.0])
-                .show(ui, |ui| {
-                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        ui.label("Messages Checked:")
-                    });
-                    ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
-                        ui.label(format!("{}", self.count().total_message));
-                    });
-
-                    ui.end_row();
-
-                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        ui.label("Whitelisted Messages:")
-                    });
-                    ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
-                        ui.label(format!("{}", self.count().whitelisted_message));
-                    });
-
-                    ui.end_row();
-
-                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        ui.label("Users Found:")
-                    });
-                    ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
-                        ui.label(format!("{}", self.count().total_user));
-                    });
-
-                    ui.end_row();
-
-                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        ui.label("Whitelisted Users:")
-                    });
-                    ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
-                        ui.label(format!("{}", self.count().total_whitelisted()));
-                    });
-
-                    ui.end_row();
-
-                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        ui.label("Deleted Message:")
-                    });
-                    ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
-                        ui.label(format!("{}", self.count().deleted_message));
-                    });
-
-                    ui.end_row();
-                });
-            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                ui.add_space(80.0);
-
-                if self.is_processing && self.counter.counting() {
-                    let cancel_button = ui.add_sized([80.0, 40.0], Button::new("Cancel"));
-                    if cancel_button.clicked() {
-                        self.cancel_count();
-                    }
-                } else if self.is_processing {
-                    ui.add_enabled(false, Button::new("Start").min_size(vec2(80.0, 40.0)));
-                } else {
-                    let start_button = ui.add_sized([80.0, 40.0], Button::new("Start"));
-                    if start_button.clicked() {
-                        self.start_counting();
-                    }
-                }
-            });
+                .spacing([8.0, 10.0])
+                .show(ui, |ui| self.show_grid_data(ui));
         });
 
+        ui.add_space(6.0);
+        ui.label(RichText::new(self.counter.detected_chat.clone()).weak());
+        ui.add_space(8.0);
+
+        let stats = [
+            (
+                "Messages",
+                "Total messages checked",
+                self.count().total_message,
+            ),
+            (
+                "Whitelisted Msgs",
+                "Messages sent by whitelisted users",
+                self.count().whitelisted_message,
+            ),
+            ("Users", "Total users found", self.count().total_user),
+            (
+                "Whitelisted Users",
+                "Total whitelisted users found",
+                self.count().total_whitelisted() as i32,
+            ),
+            (
+                "Deleted Msgs",
+                "Deleted messages",
+                self.count().deleted_message,
+            ),
+        ];
+
+        let spacing = ui.spacing().item_spacing.x;
+        let tile_width =
+            (ui.available_width() - spacing * (stats.len() - 1) as f32) / stats.len() as f32;
+
+        ui.horizontal(|ui| {
+            for (label, hover, value) in stats {
+                ui.add(StatTile::new(label, value, tile_width))
+                    .on_hover_text(hover);
+            }
+        });
+
+        // Laid out from the bottom: progress bar last, the main button right above it
         ui.with_layout(Layout::bottom_up(Align::Min), |ui| {
             let progress_bar = ProgressBar::new(self.counter.bar_percentage)
                 .show_percentage()
                 .animate(self.counter.counting);
             ui.add(progress_bar);
+            ui.add_space(8.0);
+
+            let size = vec2(ui.available_width(), 38.0);
+
+            if self.is_processing && self.counter.counting() {
+                if ui
+                    .add(PrimaryButton::new("Cancel").size(size).danger(true))
+                    .clicked()
+                {
+                    self.cancel_count();
+                }
+            } else if self.is_processing {
+                ui.add_enabled(false, PrimaryButton::new("Start").size(size));
+            } else if ui.add(PrimaryButton::new("Start").size(size)).clicked() {
+                self.start_counting();
+            }
         });
 
         self.counter.detected_chat =
@@ -340,7 +332,7 @@ impl MainWindow {
             ui.checkbox(&mut self.counter.use_all_sessions, "Use all sessions")
                 .on_hover_text(
                     "Whether to use all the available sessions for counting
-            
+
 Automatically divides the tasks among sessions, dramatically increasing speed.
 
 How to get more sessions?
@@ -368,11 +360,13 @@ visible in the UI.
 Info: Each session can count about 3000 messages before flood wait is triggered.",
                 );
         });
+
         ui.end_row();
 
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
             ui.add(Label::new("Starting Point:"));
         });
+
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
             let clear_paste_button = if self.counter.start_from.is_empty() {
                 ui.add(Button::new("Paste"))
@@ -404,6 +398,7 @@ If message number is not specified, starts from the latest message.
 Starting message number will always be bigger than the ending message.
 To count all messages in a chat, paste the latest message link.",
                 );
+
             if clear_paste_button.clicked() {
                 if self.counter.start_from.is_empty() {
                     target_textbox.request_focus();
@@ -415,6 +410,7 @@ To count all messages in a chat, paste the latest message link.",
         });
 
         ui.end_row();
+
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
             ui.add(Label::new("Ending Point:"));
         });
@@ -450,6 +446,7 @@ If message number is not specified or is empty, counts all messages.
 Ending message number will always be smaller than the starting message.
 To count all messages in a chat, paste the very first message link or keep it empty.",
                 );
+
             if clear_paste_button.clicked() {
                 if self.counter.end_at.is_empty() {
                     target_textbox.request_focus();

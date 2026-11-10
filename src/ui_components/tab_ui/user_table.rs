@@ -18,7 +18,7 @@ use crate::ui_components::MainWindow;
 use crate::ui_components::processor::{
     ColumnName, DateNavigator, NavigationType, ProcessState, peer_details,
 };
-use crate::ui_components::widgets::{AnimatedLabel, RowLabel};
+use crate::ui_components::widgets::{Card, RowLabel, StatTile, TabStyle, Tabs};
 use crate::utils::{entry_insert_user, export_table_data, to_chart_name};
 
 #[derive(Default)]
@@ -280,6 +280,7 @@ pub struct UserTableData {
     /// Value: A hashmap of the founded User with their user id as the key
     /// Contains all data points and UI points are recreated from here
     user_data: HashMap<NaiveDate, HashMap<i64, UserRowData>>,
+    blacklisted_messages: HashMap<NaiveDate, u32>,
     table: SelectableTable<UserRowData, ColumnName, Config>,
     date_nav: DateNavigator,
     total_whitelisted_user: u32,
@@ -299,6 +300,7 @@ impl Default for UserTableData {
 
         Self {
             user_data: HashMap::new(),
+            blacklisted_messages: HashMap::new(),
             table,
             date_nav: DateNavigator::default(),
             total_whitelisted_message: 0,
@@ -461,10 +463,27 @@ impl UserTableData {
         self.create_rows();
     }
 
+    /// Keep track of a message that was ignored because the sender is blacklisted
+    pub fn count_blacklisted_message(&mut self, date: NaiveDate) {
+        *self.blacklisted_messages.entry(date).or_default() += 1;
+    }
+
+    /// Total ignored blacklisted messages within the selected date range
+    pub fn blacklisted_message_in_range(&self) -> u32 {
+        self.blacklisted_messages
+            .iter()
+            .filter(|(date, _)| self.date_nav.handler_i().within_range(**date))
+            .map(|(_, count)| count)
+            .sum()
+    }
+
     pub fn remove_blacklisted_rows(&mut self, user_id: &[i64]) {
-        for row_data in self.user_data.values_mut() {
+        for (date, row_data) in &mut self.user_data {
             for id in user_id {
-                row_data.remove(id);
+                // Messages that were already counted for this user now count as blacklisted
+                if let Some(row) = row_data.remove(id) {
+                    *self.blacklisted_messages.entry(*date).or_default() += row.total_message;
+                }
             }
         }
         self.create_rows();
@@ -505,110 +524,127 @@ impl MainWindow {
                 (names, total_val)
             }
         };
+
+        Card::new().show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.label("Chat:");
+                ComboBox::from_id_salt("Table Box").show_index(
+                    ui,
+                    &mut self.table_chat_index,
+                    len,
+                    |i| &values[i],
+                );
+
+                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                    let button = Button::new("Export to CSV");
+                    if ui
+                        .add_enabled(date_enabled, button)
+                        .on_hover_text("Export Table data in CSV format")
+                        .clicked()
+                    {
+                        let chat_name = self.counter.selected_chat_name(self.table_chat_index);
+                        self.table().export_data(&chat_name);
+                        self.process_state = ProcessState::DataExported(
+                            current_dir().unwrap().to_string_lossy().into(),
+                        );
+                    }
+                });
+            });
+        });
+        ui.add_space(6.0);
+
+        let stats = [
+            (
+                "Users",
+                "Total users in the selected date range",
+                self.table_i().get_total_user().to_string(),
+            ),
+            (
+                "Messages",
+                "Total messages in the selected date range",
+                self.table_i().total_message.to_string(),
+            ),
+            (
+                "Whitelisted Users",
+                "Whitelisted users in the selected date range",
+                self.table_i().total_whitelisted_user.to_string(),
+            ),
+            (
+                "Whitelisted Messages",
+                "Messages by whitelisted users in the selected date range",
+                self.table_i().total_whitelisted_message.to_string(),
+            ),
+            (
+                "Blacklisted Messages",
+                "Messages by blacklisted users in the selected date range. They are ignored and not included in the other numbers",
+                self.table_i().blacklisted_message_in_range().to_string(),
+            ),
+        ];
+
+        let spacing = ui.spacing().item_spacing.x;
+        let tile_width =
+            (ui.available_width() - spacing * (stats.len() - 1) as f32) / stats.len() as f32;
+
         ui.horizontal(|ui| {
-            ui.label("Selected chat:");
-            ComboBox::from_id_salt("Table Box").show_index(
-                ui,
-                &mut self.table_chat_index,
-                len,
-                |i| &values[i],
-            );
-            ui.separator();
-            let button = Button::new("Export Table Data");
-            if ui
-                .add_enabled(date_enabled, button)
-                .on_hover_text("Export Table data in CSV format")
-                .clicked()
-            {
-                let chat_name = self.counter.selected_chat_name(self.table_chat_index);
-                self.table().export_data(&chat_name);
-                self.process_state =
-                    ProcessState::DataExported(current_dir().unwrap().to_string_lossy().into());
+            for (label, hover, value) in stats {
+                ui.add(StatTile::new(label, value, tile_width).height(46.0))
+                    .on_hover_text(hover);
             }
         });
-        ui.separator();
 
-        ui.horizontal(|ui| {
-            ui.label(format!("Total User: {}", self.table_i().get_total_user()));
-            ui.separator();
-            ui.label(format!("Total Message: {}", self.table_i().total_message));
-            ui.separator();
-            ui.label(format!(
-                "Whitelisted User: {}",
-                self.table_i().total_whitelisted_user
-            ));
-            ui.separator();
-            ui.label(format!(
-                "Whitelisted Message: {}",
-                self.table_i().total_whitelisted_message
-            ));
-        });
-        ui.separator();
+        ui.add_space(6.0);
 
         // Date section remains disabled while data processing is ongoing or the table is empty
-        ui.add_enabled_ui(date_enabled, |ui| {
-            ui.horizontal(|ui| {
-                let table = self.table();
+        Card::new().show(ui, |ui| {
+            ui.add_enabled_ui(date_enabled, |ui| {
+                ui.horizontal(|ui| {
+                    let table = self.table();
 
-                ui.label("From:");
-                ui.add(
-                    DatePickerButton::new(table.date_nav.handler().from()).id_salt("1"),
-                )
-                .on_hover_text("Show data only after this date, including the date itself");
+                    ui.label("From:");
+                    ui.add(
+                        DatePickerButton::new(table.date_nav.handler().from()).id_salt("1"),
+                    )
+                    .on_hover_text("Show data only after this date, including the date itself");
 
-                ui.label("To:");
-                ui.add(DatePickerButton::new(table.date_nav.handler().to()).id_salt("2"))
-                    .on_hover_text("Show data only before this date, including the date itself");
+                    ui.label("To:");
+                    ui.add(DatePickerButton::new(table.date_nav.handler().to()).id_salt("2"))
+                        .on_hover_text("Show data only before this date, including the date itself");
 
-                let reset_button = ui.button("Reset Date Selection").on_hover_text("Reset selected date to the oldest and the newest date with at least 1 data point");
-                if reset_button.clicked() {
-                    table.date_nav.handler().reset_dates();
-                    table.create_rows();
-                }
+                    let reset_button = ui.button("Reset Date Selection").on_hover_text("Reset selected date to the oldest and the newest date with at least 1 data point");
+                    if reset_button.clicked() {
+                        table.date_nav.handler().reset_dates();
+                        table.create_rows();
+                    }
 
-                ui.separator();
-
-                let hover_position = ui.make_persistent_id("nav_hovered_1");
-                let selected_position = ui.make_persistent_id("nav_selected_1");
-                for nav in NavigationType::iter() {
-                    let selected = table.date_nav.nav_type_i() == nav;
-                    let resp = ui.add(AnimatedLabel::new(
-                        selected,
-                        nav.to_string(),
-                        selected_position,
-                        hover_position,
-                        50.0,
-                        20.0,
-                        None,
-                        (false, false),
-                    ));
-
-
-                    if resp.clicked() {
+                    if let Some(nav) = Tabs::new("nav_type_1", NavigationType::iter(), &table.date_nav.nav_type_i())
+                        .style(TabStyle::Segmented)
+                        .min_item_width(50.0)
+                        .equal_width(true)
+                        .show(ui)
+                    {
                         *table.date_nav.nav_type() = nav;
                     }
-                }
 
-                ui.separator();
+                    let previous_hover = format!("Go back by 1 {} from the current date. Shortcut key: CTRL + H", table.date_nav.nav_name());
+                    let next_hover = format!("Go next by 1 {} from the current date. Shortcut key: CTRL + L", table.date_nav.nav_name());
 
-                let previous_hover = format!("Go back by 1 {} from the current date. Shortcut key: CTRL + H", table.date_nav.nav_name());
-                let next_hover = format!("Go next by 1 {} from the current date. Shortcut key: CTRL + L", table.date_nav.nav_name());
+                    if ui.button(format!("Previous {}", table.date_nav.nav_name())).on_hover_text(previous_hover).clicked() {
+                        table.date_nav.go_previous();
+                    }
 
-                if ui.button(format!("Previous {}", table.date_nav.nav_name())).on_hover_text(previous_hover).clicked() {
-                    table.date_nav.go_previous();
-                }
-
-                if ui.button(format!("Next {}", table.date_nav.nav_name())).on_hover_text(next_hover).clicked() {
-                    table.date_nav.go_next();
-                }
+                    if ui.button(format!("Next {}", table.date_nav.nav_name())).on_hover_text(next_hover).clicked() {
+                        table.date_nav.go_next();
+                    }
+                });
             });
         });
 
-        ui.separator();
+        ui.add_space(6.0);
 
         ui.add_enabled_ui(date_enabled, |ui| {
             ui.horizontal(|ui| {
                 let text_box = TextEdit::singleline(&mut self.table().search_query)
+                    .desired_width(320.0)
                     .hint_text("Search by name, username or user ID");
                 ui.add(text_box);
 
@@ -631,6 +667,7 @@ impl MainWindow {
                             .search_and_show(&column_list, &search_query, None, None);
                     }
                 }
+
                 if ui
                     .button("Clear")
                     .on_hover_text("Clear search result")
@@ -642,18 +679,18 @@ impl MainWindow {
             });
         });
 
-        ui.separator();
+        ui.add_space(6.0);
 
         // Monitor for H and L key presses
         if date_enabled {
             let is_ctrl_pressed = ui.ctx().input(|i| i.modifiers.ctrl);
             let key_h_pressed = ui.ctx().input(|i| i.key_pressed(Key::H));
+            let key_l_pressed = ui.ctx().input(|i| i.key_pressed(Key::L));
 
-            if key_h_pressed && is_ctrl_pressed {
-                self.table().date_nav.go_previous();
-            } else {
-                let key_l_pressed = ui.ctx().input(|i| i.key_pressed(Key::L));
-                if key_l_pressed && is_ctrl_pressed {
+            if is_ctrl_pressed {
+                if key_h_pressed {
+                    self.table().date_nav.go_previous();
+                } else if key_l_pressed {
                     self.table().date_nav.go_next();
                 }
             }
