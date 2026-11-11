@@ -62,8 +62,7 @@ impl Widget for RowLabel {
                 FADE_TIME,
             );
 
-            // Cover the spacing between cells so adjacent cells join up
-            let band = rect.expand2(ui.spacing().item_spacing / 2.0);
+            let band = rect;
             let radius = CornerRadius::same(4);
             let hover_fill = visuals.widgets.hovered.weak_bg_fill;
 
