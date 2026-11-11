@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex};
 use std::thread::{self, sleep};
 use std::time::{Duration, Instant};
 
-use crate::telegram::{ProcessError, ProcessResult, TGClient};
+use crate::telegram::{ProcessError, ScanEvent, TGClient, verify_sessions};
 
 pub struct TGCountData {
     name: String,
@@ -82,15 +82,7 @@ impl TGClient {
             return Ok(());
         }
 
-        let tg_chat = self.check_username(&start_chat).await;
-
-        let tg_chat = match tg_chat {
-            Ok(chat) => chat,
-            Err(e) => {
-                self.send(e);
-                return Ok(());
-            }
-        };
+        let tg_chat = self.check_username(&start_chat).await?;
 
         info!(
             "{} exists. Starting iterating messages",
@@ -105,8 +97,7 @@ impl TGClient {
         let last_sent = Arc::new(Mutex::new(Some(Instant::now())));
 
         let last_sent_clone = last_sent.clone();
-        let sender = self.sender();
-        let context = self.context();
+        let sink = self.sink().clone();
 
         // Every 500 ms, check when the last communication was made with the GUI.
         // If over 500, let the GUI side know that a flood wait was triggered
@@ -119,8 +110,7 @@ impl TGClient {
                 if let Some(last_sent) = *last_sent {
                     let time_passed = last_sent.elapsed().as_millis();
                     if time_passed > 500 && time_passed < 1050 {
-                        sender.send(ProcessResult::FloodWait).unwrap();
-                        context.request_repaint();
+                        sink.event(ScanEvent::FloodWait);
                     }
 
                     // stop this thread if no activity for over 60 seconds
@@ -188,7 +178,7 @@ impl TGClient {
                     multi_session,
                 );
 
-                self.send(ProcessResult::CountingMessage(Box::new(count_data)));
+                self.send(ScanEvent::Message(Box::new(count_data)));
                 last_number = message_num;
             }
 
@@ -208,7 +198,11 @@ impl TGClient {
         let mut last_sent_lock = last_sent.lock().unwrap();
         *last_sent_lock = None;
 
-        self.send(ProcessResult::CountingEnd((end_at, last_number)));
+        self.send(ScanEvent::Finished {
+            end_at,
+            last_number,
+        });
+
         Ok(())
     }
 
@@ -217,20 +211,13 @@ impl TGClient {
         start_chat: String,
         start_point: Option<i32>,
         end_point: Option<i32>,
+        sessions: Vec<String>,
     ) -> Result<(), ProcessError> {
         if !self.check_authorization().await? {
             return Ok(());
         }
 
-        let tg_chat = self.check_username(&start_chat).await;
-
-        let tg_chat = match tg_chat {
-            Ok(chat) => chat,
-            Err(e) => {
-                self.send(e);
-                return Ok(());
-            }
-        };
+        let tg_chat = self.check_username(&start_chat).await?;
 
         let end_point = end_point.unwrap_or(1);
 
@@ -260,11 +247,37 @@ impl TGClient {
             }
         };
 
-        self.send(ProcessResult::ChatExists(
-            start_chat,
-            start_point,
-            end_point,
-        ));
+        self.send(ScanEvent::ChatChecked {
+            chat: start_chat,
+            start: start_point,
+            end: end_point,
+            sessions,
+        });
+
         Ok(())
     }
+}
+
+/// Checks that every session is still logged in before work is shared between them, then
+/// checks the chat with the preferred session, or the first working one if that was dropped
+pub async fn check_scan_sessions(
+    clients: Vec<TGClient>,
+    preferred: String,
+    chat: String,
+    start: Option<i32>,
+    end: Option<i32>,
+) -> Result<(), ProcessError> {
+    let usable = verify_sessions(clients).await;
+
+    let Some(checker) = usable
+        .iter()
+        .find(|client| client.name() == preferred)
+        .or(usable.first())
+        .cloned()
+    else {
+        return Err(ProcessError::NoUsableSession);
+    };
+
+    let names = usable.iter().map(TGClient::name).collect();
+    checker.check_chat_status(chat, start, end, names).await
 }

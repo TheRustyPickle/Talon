@@ -10,10 +10,10 @@ use grammers_session::types::PeerRef;
 use log::{error, info};
 use std::collections::HashSet;
 
-use crate::telegram::ProcessStart;
+use crate::telegram::Command;
 use crate::ui::MainWindow;
 use crate::ui::state::{ColumnName, PackedWhitelistedUser, ProcessState};
-use crate::ui::widgets::{Card, PrimaryButton};
+use crate::ui::widgets::{Card, PrimaryButton, RowLabel};
 use crate::utils::{get_whitelisted, save_whitelisted_users, separate_whitelist_by_seen};
 
 #[derive(Default)]
@@ -32,7 +32,7 @@ impl ColumnOperations<WhiteListRowData, ColumnName, Config> for ColumnName {
     }
     fn create_header(
         &self,
-        ui: &mut eframe::egui::Ui,
+        ui: &mut Ui,
         _sort_order: Option<SortOrder>,
         _table: &mut SelectableTable<WhiteListRowData, ColumnName, Config>,
     ) -> Option<Response> {
@@ -53,6 +53,7 @@ impl ColumnOperations<WhiteListRowData, ColumnName, Config> for ColumnName {
 
         Some(response)
     }
+
     fn create_table_row(
         &self,
         ui: &mut Ui,
@@ -62,6 +63,7 @@ impl ColumnOperations<WhiteListRowData, ColumnName, Config> for ColumnName {
     ) -> Response {
         let row_data = &row.row_data;
         let mut show_tooltip = false;
+
         let row_text = match self {
             ColumnName::Name => {
                 show_tooltip = true;
@@ -74,24 +76,27 @@ impl ColumnOperations<WhiteListRowData, ColumnName, Config> for ColumnName {
             ColumnName::UserID => row_data.id.to_string(),
             _ => unreachable!(),
         };
+
         let is_selected = column_selected;
 
         let mut label = ui
             .add_sized(
                 ui.available_size(),
-                Button::selectable(is_selected, &row_text),
+                RowLabel::new(is_selected, false, &row_text),
             )
             .interact(Sense::drag());
 
         if show_tooltip {
             label = label.on_hover_text(row_text);
         }
+
         label.context_menu(|ui| {
             if ui.button("Deleted Selected").clicked() {
                 table.config.deleted_selected = true;
                 ui.close();
             }
         });
+
         label
     }
 }
@@ -143,6 +148,7 @@ impl Default for WhitelistData {
         .serial_column()
         .no_ctrl_a_capture()
         .auto_reload(1);
+
         Self {
             table,
             target_username: String::new(),
@@ -383,7 +389,7 @@ then right click on the Users tab to whitelist",
 
     pub fn load_whitelisted_users(&mut self) {
         // This function will never be called if there are no sessions detected.
-        // Unnecessary to handle in case `self.tg_clients` is empty
+        // Unnecessary to handle in case is empty
 
         let all_whitelisted_users = get_whitelisted();
 
@@ -408,9 +414,7 @@ then right click on the Users tab to whitelist",
         // Open a thread for each unique session found in the whitelist json and pass the relevant peer refs to that thread
         // `peer_refs` cannot be empty as the key will only exist if there is at least one peer ref found
         for (seen_by, peer_refs) in separated_data {
-            let client = self.tg_clients.get(&seen_by);
-
-            let Some(tg_client) = client.cloned() else {
+            if !self.backend.has_session(&seen_by) {
                 let total_whitelist = peer_refs.len();
                 error!(
                     "{seen_by} client does not exist! Ignoring {total_whitelist} whitelisted users"
@@ -422,11 +426,11 @@ then right click on the Users tab to whitelist",
                 self.process_state =
                     ProcessState::LoadedWhitelistedUsers(success_whitelist, failed_whitelist);
                 continue;
-            };
-            self.runtime.spawn(async move {
-                tg_client
-                    .start_process(ProcessStart::LoadWhitelistedUsers(peer_refs))
-                    .await;
+            }
+
+            self.backend.send(Command::LoadWhitelist {
+                session: seen_by,
+                peers: peer_refs,
             });
         }
     }
@@ -439,14 +443,12 @@ then right click on the Users tab to whitelist",
             return;
         }
 
-        let client = self.tg_clients.get(&selected_session).unwrap().clone();
         let target_username = self.whitelist.target_username.clone().replace('@', "");
         self.is_processing = true;
 
-        self.runtime.spawn(async move {
-            client
-                .start_process(ProcessStart::NewWhitelistUser(target_username))
-                .await;
+        self.backend.send(Command::AddWhitelistUser {
+            session: selected_session,
+            username: target_username,
         });
     }
 }

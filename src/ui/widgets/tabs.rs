@@ -19,9 +19,6 @@ pub enum TabStyle {
 }
 
 /// Animated row of mutually exclusive tabs.
-///
-/// Draws the whole strip as a single widget so the selection indicator can slide
-/// between items. Use [`Tabs::show`] which returns the clicked item, if any.
 pub struct Tabs<T> {
     id_salt: &'static str,
     items: Vec<T>,

@@ -1,7 +1,7 @@
 use grammers_session::types::PeerRef;
 use log::{error, info};
 
-use crate::telegram::{ProcessError, ProcessResult, TGClient};
+use crate::telegram::{ProcessError, TGClient, UsersEvent};
 use crate::ui::state::UnpackedBlacklistedUser;
 
 impl TGClient {
@@ -26,7 +26,11 @@ impl TGClient {
             }
         }
 
-        self.send(ProcessResult::UnpackedBlacklist(peer_list, failed_peer_num));
+        self.send(UsersEvent::BlacklistLoaded {
+            users: peer_list,
+            failed: failed_peer_num,
+        });
+
         Ok(())
     }
 
@@ -36,26 +40,17 @@ impl TGClient {
             return Ok(());
         }
 
-        let tg_chat = self.check_username(&chat_name).await;
-
-        let tg_chat = match tg_chat {
-            Ok(chat) => chat,
-            Err(e) => {
-                self.send(e);
-                return Ok(());
-            }
-        };
+        let tg_chat = self.check_username(&chat_name).await?;
 
         let peer_ref = match tg_chat.to_ref().await {
             Ok(Some(peer_ref)) => peer_ref,
             _ => {
                 error!("Failed to get a reference of the peer");
-                self.send(ProcessResult::InvalidChat(chat_name));
-                return Ok(());
+                return Err(ProcessError::InvalidChat(chat_name));
             }
         };
 
-        self.send(ProcessResult::BlackListUser(Box::new(
+        self.send(UsersEvent::BlacklistAdded(Box::new(
             UnpackedBlacklistedUser::new(&tg_chat, peer_ref, self.name()),
         )));
 

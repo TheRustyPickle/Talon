@@ -1,5 +1,4 @@
 mod counter_counts;
-mod events;
 mod parsed_chat;
 mod states;
 

@@ -59,6 +59,11 @@ pub enum ProcessState {
     UnknownError,
     LoggedIn(String),
     EmptySelectedSession,
+    /// Names of the sessions that were logged out and removed
+    SessionsDropped(String),
+    NoUsableSession,
+    /// Sessions that are logged in after a refresh
+    SessionsRefreshed(usize),
     InvalidPhoneOrAPI,
     InvalidAPIKeys,
     PasswordRequired,
@@ -122,6 +127,7 @@ impl ProcessState {
             | ProcessState::AddedToWhitelist
             | ProcessState::AddedToBlacklist
             | ProcessState::DataExported(_) => Severity::Success,
+            ProcessState::SessionsRefreshed(_) => Severity::Success,
             ProcessState::InitialClientConnectionSuccessful(_, failed) => {
                 if *failed {
                     Severity::Warning
@@ -139,10 +145,12 @@ impl ProcessState {
             }
             ProcessState::FloodWait
             | ProcessState::PasswordRequired
-            | ProcessState::EmptySelectedSession => Severity::Warning,
+            | ProcessState::EmptySelectedSession
+            | ProcessState::SessionsDropped(_) => Severity::Warning,
             ProcessState::InvalidStartChat
             | ProcessState::FileCreationFailed
             | ProcessState::UnauthorizedClient(_)
+            | ProcessState::NoUsableSession
             | ProcessState::NonExistingChat(_)
             | ProcessState::InvalidTGCode
             | ProcessState::InvalidPassword
@@ -216,6 +224,17 @@ impl fDisplay for ProcessState {
             ProcessState::EmptySelectedSession => write!(
                 f,
                 "No session is selected. Log in to an account from the Accounts tab"
+            ),
+            ProcessState::SessionsDropped(names) => write!(
+                f,
+                "Skipped logged out sessions: {names}. Log in again from the Accounts tab"
+            ),
+            ProcessState::SessionsRefreshed(total) => {
+                write!(f, "Sessions refreshed. {total} working")
+            }
+            ProcessState::NoUsableSession => write!(
+                f,
+                "No working session is available. Log in again from the Accounts tab"
             ),
             ProcessState::InvalidPhoneOrAPI => write!(
                 f,

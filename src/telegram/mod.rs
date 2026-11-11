@@ -1,10 +1,14 @@
+mod backend;
 mod client;
-mod counter;
-mod messages;
+mod commands;
+mod events;
+mod scan;
 mod sessions;
 mod users;
 
+pub use backend::*;
 pub use client::*;
-pub use counter::*;
-pub use messages::*;
+pub use commands::*;
+pub use events::*;
+pub use scan::*;
 pub use sessions::*;

@@ -1,19 +1,14 @@
-use eframe::egui::Context;
 use grammers_client::{Client, SenderPool};
 use grammers_session::storages::SqliteSession;
 use log::{error, info};
 use std::sync::Arc;
-use std::sync::mpsc::Sender;
 
-use crate::telegram::{ProcessError, ProcessResult, TGClient};
+use crate::telegram::events::StateUpdate;
+use crate::telegram::{AccountEvent, EventSink, ProcessError, TGClient};
 use crate::utils::get_api_keys;
 
 /// Tries to establish a connection to the local Telegram sqlite files
-pub async fn connect_to_session(
-    sender: Sender<ProcessResult>,
-    names: Vec<String>,
-    context: &Context,
-) -> Result<(), ProcessError> {
+pub async fn connect_to_session(sink: EventSink, names: Vec<String>) -> Result<(), ProcessError> {
     let Some(api_data) = get_api_keys() else {
         error!("No API keys found");
         return Err(ProcessError::InvalidAPIKeys);
@@ -64,26 +59,16 @@ pub async fn connect_to_session(
             continue;
         }
 
-        let new_client = TGClient::new(
-            client,
-            name_without_sqlite.clone(),
-            sender.clone(),
-            context.clone(),
-            false,
-        );
+        let new_client = TGClient::new(client, name_without_sqlite.clone(), sink.clone(), false);
         all_clients.push(new_client);
         successful_session.push(name_without_sqlite);
     }
 
-    sender
-        .send(ProcessResult::InitialSessionSuccess((
-            all_clients,
-            successful_session,
-            failed_session,
-        )))
-        .unwrap();
-
-    context.request_repaint();
+    sink.state(StateUpdate::ClientsRestored(all_clients));
+    sink.event(AccountEvent::SessionsRestored {
+        connected: successful_session,
+        failed: failed_session,
+    });
 
     Ok(())
 }

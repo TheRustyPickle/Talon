@@ -4,19 +4,18 @@ use eframe::egui::{
 };
 use log::info;
 use std::collections::HashMap;
-use std::sync::atomic::Ordering;
 
-use crate::telegram::ProcessStart;
+use crate::telegram::Command;
 use crate::ui::MainWindow;
 use crate::ui::state::{CounterCounts, ParsedChat, ProcessState};
 use crate::ui::widgets::{Card, PrimaryButton, StatTile};
-use crate::utils::{chat_to_text, parse_chat_details};
+use crate::utils::{chat_to_text, find_session_files, parse_chat_details};
 
 const LIMIT_SELECTION: [&str; 5] = ["30", "40", "50", "80", "100"];
 
 #[derive(Clone)]
 pub struct CounterData {
-    session_index: usize,
+    pub session_index: usize,
     start_from: String,
     end_at: String,
     pub counts: Vec<CounterCounts>,
@@ -62,6 +61,7 @@ impl CounterData {
         self.ongoing_chat = 0;
         self.session_percentage = HashMap::new();
     }
+
     pub fn ongoing_chat(&self) -> usize {
         self.ongoing_chat
     }
@@ -209,7 +209,7 @@ impl CounterData {
 
 impl MainWindow {
     pub fn show_counter_ui(&mut self, ui: &mut Ui) {
-        Card::new().title("SOURCE").show(ui, |ui| {
+        Card::new().show(ui, |ui| {
             Grid::new("Counter Grid")
                 .num_columns(2)
                 .spacing([8.0, 10.0])
@@ -326,9 +326,18 @@ impl MainWindow {
             ComboBox::from_id_salt("Session Box").show_index(
                 ui,
                 &mut self.counter.session_index,
-                self.tg_clients.len(),
+                self.backend.session_count(),
                 |i| &values[i],
             );
+            if ui
+                .add_enabled(!self.is_processing, Button::new("Reload"))
+                .on_hover_text(
+                    "Remove sessions that got logged out and connect saved sessions that are not connected yet",
+                )
+                .clicked()
+            {
+                self.reload_sessions();
+            }
             ui.checkbox(&mut self.counter.use_all_sessions, "Use all sessions")
                 .on_hover_text(
                     "Whether to use all the available sessions for counting
@@ -490,6 +499,7 @@ To count all messages in a chat, paste the very first message link or keep it em
             self.reset_table();
             self.reset_chart();
         }
+
         self.initial_chart_reset();
         self.append_structs(total_parsed, self.counter.total_chats());
         self.process_next_count();
@@ -522,32 +532,44 @@ To count all messages in a chat, paste the very first message link or keep it em
         let start_num = chat.start_point();
         let end_num = chat.end_point();
 
-        let client = self.tg_clients.get(&selected_client).unwrap().clone();
+        self.backend.reset_cancel();
 
-        if self.counter.use_all_sessions && self.tg_clients.len() > 1 {
-            self.runtime.spawn(async move {
-                client
-                    .start_process(ProcessStart::CheckChatExistence(
-                        chat_name, start_num, end_num,
-                    ))
-                    .await;
+        if self.counter.use_all_sessions && self.backend.session_count() > 1 {
+            self.backend.send(Command::CheckChat {
+                session: selected_client,
+                chat: chat_name,
+                start: start_num,
+                end: end_num,
             });
         } else {
-            let cancel = self.cancel_count.clone();
-            self.runtime.spawn(async move {
-                client
-                    .start_process(ProcessStart::StartCount(
-                        chat_name, start_num, end_num, false, cancel,
-                    ))
-                    .await;
+            self.backend.send(Command::StartCount {
+                session: selected_client,
+                chat: chat_name,
+                start: start_num,
+                end: end_num,
+                multi_session: false,
             });
         }
+    }
+
+    /// Checks the connected sessions and connects saved ones that are missing
+    fn reload_sessions(&mut self) {
+        let connected = self.get_session_names();
+        let new_files: Vec<String> = find_session_files()
+            .into_iter()
+            .filter(|file| !connected.contains(&file.replace(".sqlite", "")))
+            .collect();
+
+        self.is_processing = true;
+        self.process_state = ProcessState::ConnectingSessions;
+        self.backend.send(Command::RefreshSessions { new_files });
     }
 
     /// Returns the session name that is selected on the combo box
     pub fn get_selected_session(&self) -> String {
         let all_sessions = self.get_session_names();
         let selected_index = self.counter.session_index;
+
         if let Some(session) = all_sessions.get(selected_index) {
             session.to_owned()
         } else {
@@ -556,6 +578,6 @@ To count all messages in a chat, paste the very first message link or keep it em
     }
 
     fn cancel_count(&mut self) {
-        self.cancel_count.store(true, Ordering::Release);
+        self.backend.cancel_scan();
     }
 }

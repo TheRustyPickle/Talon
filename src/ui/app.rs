@@ -6,16 +6,13 @@ use egui::{
 };
 use egui_theme_lerp::ThemeAnimator;
 use log::info;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 use std::slice::IterMut;
-use std::sync::atomic::AtomicBool;
-use std::sync::mpsc::{Receiver, Sender, channel};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use strum::IntoEnumIterator;
-use tokio::runtime::Runtime;
 
-use crate::telegram::{NewProcess, ProcessResult, ProcessStart, TGClient, start_process};
+use crate::telegram::{Backend, Command};
 use crate::ui::TGKeys;
 use crate::ui::services::{check_version, download_font};
 use crate::ui::state::{AppState, CounterCounts, ParsedChat, ProcessState, Severity, TabState};
@@ -24,8 +21,7 @@ use crate::ui::tabs::{
 };
 use crate::ui::widgets::{StatusLine, TabStyle, Tabs};
 use crate::utils::{
-    find_session_files, get_api_keys, get_font_data, get_runtime, last_theme, save_theme,
-    theme_hover_text,
+    find_session_files, get_api_keys, get_font_data, last_theme, save_theme, theme_hover_text,
 };
 
 const STATUS_FADE_SECONDS: f64 = 6.0;
@@ -41,11 +37,9 @@ pub struct MainWindow {
     pub blacklist: BlacklistData,
     tab_state: TabState,
     pub process_state: ProcessState,
-    pub tg_sender: Sender<ProcessResult>,
-    pub tg_receiver: Receiver<ProcessResult>,
-    pub tg_clients: BTreeMap<String, TGClient>,
-    pub incomplete_tg_client: Option<TGClient>,
     existing_sessions_checked: bool,
+    /// Saved whitelist and blacklist are only loaded once, after the first connection
+    pub saved_lists_loaded: bool,
     status_text: String,
     status_changed_at: f64,
     is_light_theme: bool,
@@ -55,9 +49,8 @@ pub struct MainWindow {
     pub table_chat_index: usize,
     pub chart_chat_index: usize,
     pub initial_chart_reset: bool,
-    pub cancel_count: Arc<AtomicBool>,
     pub theme_animator: ThemeAnimator,
-    pub runtime: Runtime,
+    pub backend: Backend,
 }
 
 impl MainWindow {
@@ -98,7 +91,6 @@ impl MainWindow {
                 .options_mut(|a| a.theme_preference = ThemePreference::Dark);
             animator.theme_1_to_2 = false;
         }
-        let (sender, receiver) = channel();
 
         Self {
             app_state: AppState::default(),
@@ -112,11 +104,8 @@ impl MainWindow {
             session: SessionData::default(),
             tab_state: TabState::Counter,
             process_state: ProcessState::Idle,
-            tg_sender: sender,
-            tg_receiver: receiver,
-            tg_clients: BTreeMap::new(),
-            incomplete_tg_client: None,
             existing_sessions_checked: false,
+            saved_lists_loaded: false,
             status_text: String::new(),
             status_changed_at: 0.0,
             is_light_theme: last_theme_light,
@@ -126,9 +115,8 @@ impl MainWindow {
             table_chat_index: 0,
             chart_chat_index: 0,
             initial_chart_reset: false,
-            cancel_count: Arc::new(AtomicBool::new(false)),
             theme_animator: animator,
-            runtime: get_runtime(),
+            backend: Backend::new(cc.egui_ctx.clone()),
         }
     }
 }
@@ -137,24 +125,7 @@ impl App for MainWindow {
     fn ui(&mut self, ui: &mut Ui, _: &mut Frame) {
         // If asked to close the app, search for any temporary client and if any, logout then close the window
         if ui.ctx().input(|i| i.viewport().close_requested()) {
-            let mut joins = Vec::new();
-            for (_, client) in self.tg_clients.clone() {
-                if client.is_temporary() {
-                    let joiner = self.runtime.spawn(async move {
-                        client.start_process(ProcessStart::SessionLogout).await;
-                    });
-                    joins.push(joiner);
-                }
-            }
-
-            while !joins.is_empty() {
-                for (index, join) in joins.iter().enumerate() {
-                    if join.is_finished() {
-                        joins.remove(index);
-                        break;
-                    }
-                }
-            }
+            self.backend.logout_temporary_sessions();
         }
 
         match self.app_state {
@@ -279,23 +250,12 @@ impl App for MainWindow {
                             self.is_processing = true;
                             self.process_state = ProcessState::ConnectingSessions;
 
-                            let sender_clone = self.tg_sender.clone();
-                            let ctx_clone = ui.ctx().clone();
-
-                            self.runtime.spawn(async move {
-                                start_process(
-                                    NewProcess::InitialSessionConnect(existing_sessions),
-                                    sender_clone,
-                                    ctx_clone,
-                                )
-                                .await;
-                            });
+                            self.backend
+                                .send(Command::ConnectSavedSessions(existing_sessions));
                         }
 
                         let version_body = self.new_version_body.clone();
-                        self.runtime.spawn(async move {
-                            check_version(version_body).await;
-                        });
+                        self.backend.spawn(check_version(version_body));
                     }
 
                     if self.new_version_body.lock().unwrap().is_some() {
@@ -410,7 +370,7 @@ impl MainWindow {
 
     /// Get all the added session names
     pub fn get_session_names(&self) -> Vec<String> {
-        self.tg_clients.keys().map(ToString::to_string).collect()
+        self.backend.session_names()
     }
 
     /// Set the fonts for egui to use or download them if does not exist
@@ -441,9 +401,7 @@ impl MainWindow {
             info!("Could not find font data. Starting download");
             let ctx_clone = ctx.clone();
 
-            self.runtime.spawn(async move {
-                download_font(ctx_clone).await;
-            });
+            self.backend.spawn(download_font(ctx_clone));
         }
     }
 

@@ -1,9 +1,6 @@
-use eframe::egui::{Align, Button, Checkbox, Context, Grid, Label, Layout, TextEdit, Ui, vec2};
-use grammers_client::client::{LoginToken, PasswordToken};
-use std::sync::Arc;
-use tokio::sync::Mutex;
+use eframe::egui::{Align, Button, Checkbox, Grid, Label, Layout, TextEdit, Ui, vec2};
 
-use crate::telegram::{NewProcess, ProcessStart, start_process};
+use crate::telegram::Command;
 use crate::ui::MainWindow;
 use crate::ui::state::ProcessState;
 use crate::ui::widgets::{Card, PrimaryButton};
@@ -15,11 +12,10 @@ pub struct SessionData {
     tg_code: String,
     tg_password: String,
     is_temporary: bool,
-    /// Taken while a sign in attempt is running and handed back on a wrong password
-    password_token: Option<PasswordToken>,
-    /// Whether the account asked for a password, regardless of the token being in flight
-    password_mode: bool,
-    tg_code_token: Option<Arc<Mutex<LoginToken>>>,
+    /// A login code was sent and is waiting to be entered
+    pub code_sent: bool,
+    /// Whether the account asked for a password
+    pub password_mode: bool,
 }
 
 impl SessionData {
@@ -39,43 +35,19 @@ impl SessionData {
         self.is_temporary
     }
 
-    pub fn set_login_token(&mut self, token: LoginToken) {
-        self.tg_code_token = Some(Arc::new(Mutex::new(token)));
-    }
-
-    pub fn set_password_token(&mut self, token: PasswordToken) {
-        self.password_token = Some(token);
-        self.password_mode = true;
-    }
-
     fn get_tg_code(&self) -> String {
         self.tg_code.clone()
     }
 
-    fn get_tg_code_token(&self) -> Arc<Mutex<LoginToken>> {
-        self.tg_code_token.clone().unwrap()
-    }
-
-    fn take_password_token(&mut self) -> Option<PasswordToken> {
-        self.password_token.take()
-    }
-
     pub fn reset_data(&mut self) {
-        self.session_name = String::new();
-        self.phone_number = String::new();
-        self.tg_code = String::new();
-        self.tg_password = String::new();
-        self.is_temporary = false;
-        self.password_token = None;
-        self.password_mode = false;
-        self.tg_code_token = None;
+        *self = Self::default();
     }
 }
 
 impl MainWindow {
     pub fn show_session_ui(&mut self, ui: &mut Ui) {
         // Once a code was sent or a password is required, the account details are locked in
-        let locked = self.session.tg_code_token.is_some() || self.session.password_mode;
+        let locked = self.session.code_sent || self.session.password_mode;
 
         Card::new().title("ACCOUNT").show(ui, |ui| {
             Grid::new("Session Grid")
@@ -127,7 +99,7 @@ impl MainWindow {
                         "Do not create a session file",
                     );
 
-                    if self.session.tg_code_token.is_some() || self.is_processing {
+                    if self.session.code_sent || self.is_processing {
                         ui.add_enabled(false, checkbox);
                     } else {
                         ui.add(checkbox).on_hover_text(
@@ -164,13 +136,13 @@ If yes, it will try to log out before the app is closed and no session file will
                             .on_hover_text("Send the code to login to the account")
                             .clicked()
                         {
-                            self.request_login_code(ui.ctx().clone());
+                            self.request_login_code();
                         }
 
                         let text_edit =
                             TextEdit::singleline(&mut self.session.tg_code).hint_text("12345");
 
-                        if self.session.tg_code_token.is_some() {
+                        if self.session.code_sent {
                             ui.add_sized(ui.available_size(), text_edit).on_hover_text(
                                 "The Telegram login code either sent to TG or to the phone number",
                             );
@@ -209,7 +181,7 @@ If yes, it will try to log out before the app is closed and no session file will
                 .clicked()
             {
                 self.session.reset_data();
-                self.incomplete_tg_client = None;
+                self.backend.cancel_login();
             }
 
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
@@ -218,9 +190,7 @@ If yes, it will try to log out before the app is closed and no session file will
                     || self.session.phone_number.is_empty()
                     || self.session.session_name.is_empty()
                     || self.session.tg_code.is_empty()
-                    || (self.session.password_mode
-                        && (self.session.password_token.is_none()
-                            || self.session.tg_password.is_empty()))
+                    || (self.session.password_mode && self.session.tg_password.is_empty())
                 {
                     ui.add_enabled(false, button);
                 } else if ui
@@ -238,58 +208,35 @@ If yes, it will try to log out before the app is closed and no session file will
         });
     }
 
-    /// Starts a thread to send a Telegram login code to the phone number
-    fn request_login_code(&mut self, context: Context) {
-        let phone_num = self.session.get_phone_number();
-        let session_name = self.session.get_session_name();
-        let is_temporary = self.session.get_is_temporary();
-
-        let sender_clone = self.tg_sender.clone();
-
+    /// Asks Telegram to send a login code to the phone number
+    fn request_login_code(&mut self) {
         self.is_processing = true;
         self.process_state = ProcessState::SendingTGCode;
 
-        self.runtime.spawn(async move {
-            start_process(
-                NewProcess::SendLoginCode(session_name, phone_num, is_temporary),
-                sender_clone,
-                context,
-            )
-            .await;
+        self.backend.send(Command::RequestLoginCode {
+            session: self.session.get_session_name(),
+            phone: self.session.get_phone_number(),
+            temporary: self.session.get_is_temporary(),
         });
     }
 
-    /// Starts a thread to try to log in with the given login code
+    /// Tries to log in with the given login code
     fn sign_in_code(&mut self) {
         self.is_processing = true;
         self.process_state = ProcessState::LogInWithCode;
 
-        let code = self.session.get_tg_code();
-        let token = self.session.get_tg_code_token();
-
-        let client = self.incomplete_tg_client.clone().unwrap();
-        self.runtime.spawn(async move {
-            client
-                .start_process(ProcessStart::SignInCode(token, code))
-                .await;
+        self.backend.send(Command::SubmitLoginCode {
+            code: self.session.get_tg_code(),
         });
     }
 
-    /// Starts a thread to try to log in with the given login password
+    /// Tries to log in with the given login password
     fn sign_in_password(&mut self) {
         self.is_processing = true;
         self.process_state = ProcessState::LogInWithPassword;
 
-        let password = self.session.get_password();
-        let Some(token) = self.session.take_password_token() else {
-            return;
-        };
-
-        let client = self.incomplete_tg_client.clone().unwrap();
-        self.runtime.spawn(async move {
-            client
-                .start_process(ProcessStart::SignInPasswords(Box::new(token), password))
-                .await;
+        self.backend.send(Command::SubmitPassword {
+            password: self.session.get_password(),
         });
     }
 }

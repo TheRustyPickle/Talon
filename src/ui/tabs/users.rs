@@ -158,6 +158,7 @@ impl ColumnOperations<UserRowData, ColumnName, Config> for ColumnName {
                 text.to_string()
             }
         };
+
         let is_selected = column_selected;
         let is_whitelisted = row_data.whitelisted;
 
@@ -171,6 +172,7 @@ impl ColumnOperations<UserRowData, ColumnName, Config> for ColumnName {
         if show_tooltip {
             label = label.on_hover_text(row_text);
         }
+
         label.context_menu(|ui| {
             if ui.button("Copy selected rows").clicked() {
                 table.config.copy_selected = true;
@@ -190,6 +192,7 @@ impl ColumnOperations<UserRowData, ColumnName, Config> for ColumnName {
                 ui.close();
             }
         });
+
         label
     }
 }

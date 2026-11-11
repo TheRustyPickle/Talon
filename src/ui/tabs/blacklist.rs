@@ -10,10 +10,10 @@ use grammers_session::types::PeerRef;
 use log::{error, info};
 use std::collections::HashSet;
 
-use crate::telegram::ProcessStart;
+use crate::telegram::Command;
 use crate::ui::MainWindow;
 use crate::ui::state::{ColumnName, PackedBlacklistedUser, ProcessState};
-use crate::ui::widgets::{Card, PrimaryButton};
+use crate::ui::widgets::{Card, PrimaryButton, RowLabel};
 use crate::utils::{get_blacklisted, save_blacklisted_users, separate_blacklist_by_seen};
 
 #[derive(Default)]
@@ -32,7 +32,7 @@ impl ColumnOperations<BlackListRowData, ColumnName, Config> for ColumnName {
     }
     fn create_header(
         &self,
-        ui: &mut eframe::egui::Ui,
+        ui: &mut Ui,
         _sort_order: Option<SortOrder>,
         _table: &mut SelectableTable<BlackListRowData, ColumnName, Config>,
     ) -> Option<Response> {
@@ -53,6 +53,7 @@ impl ColumnOperations<BlackListRowData, ColumnName, Config> for ColumnName {
 
         Some(response)
     }
+
     fn create_table_row(
         &self,
         ui: &mut Ui,
@@ -62,6 +63,7 @@ impl ColumnOperations<BlackListRowData, ColumnName, Config> for ColumnName {
     ) -> Response {
         let row_data = &row.row_data;
         let mut show_tooltip = false;
+
         let row_text = match self {
             ColumnName::Name => {
                 show_tooltip = true;
@@ -74,24 +76,27 @@ impl ColumnOperations<BlackListRowData, ColumnName, Config> for ColumnName {
             ColumnName::UserID => row_data.id.to_string(),
             _ => unreachable!(),
         };
+
         let is_selected = column_selected;
 
         let mut label = ui
             .add_sized(
                 ui.available_size(),
-                Button::selectable(is_selected, &row_text),
+                RowLabel::new(is_selected, false, &row_text),
             )
             .interact(Sense::drag());
 
         if show_tooltip {
             label = label.on_hover_text(row_text);
         }
+
         label.context_menu(|ui| {
             if ui.button("Deleted Selected").clicked() {
                 table.config.deleted_selected = true;
                 ui.close();
             }
         });
+
         label
     }
 }
@@ -129,6 +134,7 @@ pub struct BlacklistData {
     all_ids: HashSet<i64>,
     search_query: String,
 }
+
 impl Default for BlacklistData {
     fn default() -> Self {
         let table = SelectableTable::new(vec![
@@ -376,7 +382,7 @@ then right click on the Users tab to blacklist",
 
     pub fn load_blacklisted_users(&mut self) {
         // This function will never be called if there are no sessions detected.
-        // Unnecessary to handle in case `self.tg_clients` is empty
+        // Unnecessary to handle in case is empty
 
         let all_blacklisted_users = get_blacklisted();
 
@@ -401,9 +407,7 @@ then right click on the Users tab to blacklist",
         // Open a thread for each unique session found in the blacklist json and pass the relevant peer refs to that thread
         // `peer_refs` cannot be empty as the key will only exist if there is at least one peer ref found
         for (seen_by, peer_refs) in separated_data {
-            let client = self.tg_clients.get(&seen_by);
-
-            let Some(tg_client) = client.cloned() else {
+            if !self.backend.has_session(&seen_by) {
                 let total_blacklist = peer_refs.len();
                 error!(
                     "{seen_by} client does not exist! Ignoring {total_blacklist} blacklisted users"
@@ -415,11 +419,11 @@ then right click on the Users tab to blacklist",
                 self.process_state =
                     ProcessState::LoadedBlacklistedUsers(success_blacklist, failed_blacklist);
                 continue;
-            };
-            self.runtime.spawn(async {
-                tg_client
-                    .start_process(ProcessStart::LoadBlacklistedUsers(peer_refs))
-                    .await;
+            }
+
+            self.backend.send(Command::LoadBlacklist {
+                session: seen_by,
+                peers: peer_refs,
             });
         }
     }
@@ -432,14 +436,12 @@ then right click on the Users tab to blacklist",
             return;
         }
 
-        let client = self.tg_clients.get(&selected_session).unwrap().clone();
         let target_username = self.blacklist.target_username.clone().replace('@', "");
         self.is_processing = true;
 
-        self.runtime.spawn(async {
-            client
-                .start_process(ProcessStart::NewBlacklistUser(target_username))
-                .await;
+        self.backend.send(Command::AddBlacklistUser {
+            session: selected_session,
+            username: target_username,
         });
     }
 }
