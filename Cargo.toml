@@ -7,7 +7,7 @@ readme = "README.md"
 homepage = "https://github.com/TheRustyPickle/Talon"
 repository = "https://github.com/TheRustyPickle/Talon"
 license = "MIT"
-keywords = ["telegram", "analytics", "statistics", "egui", "grammers"]
+keywords = ["analytics", "egui", "grammers", "statistics", "telegram"]
 categories = ["gui", "visualization"]
 exclude = ["/fonts"]
 
@@ -18,7 +18,6 @@ path = "src/main.rs"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-chrono = { version = "0.4.45", features = ["serde"] }
 csv = "1.4.0"
 dirs = "7.0.0"
 eframe = "0.37.0"
@@ -35,7 +34,7 @@ grammers-mtsender = "=0.12.0"
 grammers-session = "=0.12.0"
 grammers-tl-gen = "=0.12.0"
 grammers-tl-types = "=0.12.0"
-jiff = "0.2.41"
+jiff = { version = "0.2.43", features = ["serde"] }
 log = "0.4.35"
 nucleo-matcher = "0.3.1"
 open = "5.4.5"

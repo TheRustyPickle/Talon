@@ -1,9 +1,10 @@
-use chrono::{Datelike, Days, Duration, Months, NaiveDate, NaiveDateTime, Timelike, Weekday};
 use eframe::egui::{
     Align, ComboBox, Id, Key, Layout, Modal, RichText, ScrollArea, TextEdit, Ui, vec2,
 };
 use egui_extras::DatePickerButton;
 use egui_plot::{Bar, BarChart, HoverPosition, Legend, Plot};
+use jiff::civil::{Date, DateTime, DateTimeDifference};
+use jiff::{ToSpan, Unit};
 use nucleo_matcher::Matcher;
 use nucleo_matcher::pattern::{CaseMatching, Normalization, Pattern};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
@@ -13,7 +14,7 @@ use crate::ui::MainWindow;
 use crate::ui::dates::DateNavigator;
 use crate::ui::state::{ChartTiming, ChartType, NavigationType};
 use crate::ui::widgets::{Card, PrimaryButton, TabStyle, Tabs};
-use crate::utils::{time_to_string, weekday_num_to_string};
+use crate::utils::{format_datetime, time_to_string, weekday_num_to_string};
 
 #[derive(Default)]
 pub struct ChartsData {
@@ -27,15 +28,15 @@ pub struct ChartsData {
     last_chart_type: ChartType,
     chart_timing: ChartTiming,
     added_to_chart: BTreeSet<String>,
-    hourly_message: BTreeMap<NaiveDateTime, HashMap<String, u64>>,
-    daily_message: BTreeMap<NaiveDateTime, HashMap<String, u64>>,
-    weekly_message: BTreeMap<NaiveDateTime, HashMap<String, u64>>,
-    monthly_message: BTreeMap<NaiveDateTime, HashMap<String, u64>>,
+    hourly_message: BTreeMap<DateTime, HashMap<String, u64>>,
+    daily_message: BTreeMap<DateTime, HashMap<String, u64>>,
+    weekly_message: BTreeMap<DateTime, HashMap<String, u64>>,
+    monthly_message: BTreeMap<DateTime, HashMap<String, u64>>,
     weekday_message: BTreeMap<u8, HashMap<String, u64>>,
-    last_hour: HashMap<String, Option<NaiveDateTime>>,
-    last_day: HashMap<String, Option<NaiveDateTime>>,
-    last_week: HashMap<String, Option<NaiveDateTime>>,
-    last_month: HashMap<String, Option<NaiveDateTime>>,
+    last_hour: HashMap<String, Option<DateTime>>,
+    last_day: HashMap<String, Option<DateTime>>,
+    last_week: HashMap<String, Option<DateTime>>,
+    last_month: HashMap<String, Option<DateTime>>,
     user_ids: HashMap<String, i64>,
     /// Pre-saved Bars to for the hourly chart, used for both Message and User
     hourly_bars: Option<BTreeMap<String, Vec<Bar>>>,
@@ -43,11 +44,11 @@ pub struct ChartsData {
     daily_bars: Option<BTreeMap<String, Vec<Bar>>>,
     date_nav: DateNavigator,
     /// Hover labels, key = x value in chart. Values = (date, total message, whitelist message)
-    labels: HashMap<i64, (NaiveDateTime, u64, u64)>,
+    labels: HashMap<i64, (DateTime, u64, u64)>,
     /// Hover labels for the hourly chart, key = x value in chart. Values = (date, total message, whitelist message)
-    hourly_labels: HashMap<i64, (NaiveDateTime, u64, u64)>,
+    hourly_labels: HashMap<i64, (DateTime, u64, u64)>,
     /// Hover labels for the daily chart, key = x value in chart. Values = (date, total message, whitelist message)
-    daily_labels: HashMap<i64, (NaiveDateTime, u64, u64)>,
+    daily_labels: HashMap<i64, (DateTime, u64, u64)>,
 }
 
 impl ChartsData {
@@ -67,17 +68,9 @@ impl ChartsData {
         self.weekday_message.clear();
         self.reset_saved_bars();
 
-        let mut ongoing_value = Some(Weekday::Mon);
-
-        while let Some(value) = ongoing_value {
-            self.weekday_message.insert(value as u8, HashMap::new());
-            let next_day = value.succ();
-
-            if next_day == Weekday::Mon {
-                ongoing_value = None;
-            } else {
-                ongoing_value = Some(next_day);
-            }
+        // 0 is Monday and 6 is Sunday
+        for weekday in 0..7u8 {
+            self.weekday_message.insert(weekday, HashMap::new());
         }
 
         // These two are added to the chart by default
@@ -110,53 +103,42 @@ impl ChartsData {
     }
 
     /// Takes a message creation time and the unique user to create necessary data to form a chart
-    pub fn add_message(
-        &mut self,
-        time: NaiveDateTime,
-        date: NaiveDate,
-        add_to: String,
-        client_name: &str,
-    ) {
+    pub fn add_message(&mut self, time: DateTime, date: Date, add_to: String, client_name: &str) {
         // Keep a common value among messages for example messages sent within the same hour,
         // reset the second and minute value to 0 so these messages can be grouped
-        let hourly_time = time.with_second(0).unwrap().with_minute(0).unwrap();
-        let daily_time = time
-            .with_second(0)
-            .unwrap()
-            .with_minute(0)
-            .unwrap()
-            .with_hour(0)
+        let hourly_time = time
+            .with()
+            .minute(0)
+            .second(0)
+            .subsec_nanosecond(0)
+            .build()
             .unwrap();
-        let monthly_time = time
-            .with_second(0)
-            .unwrap()
-            .with_minute(0)
-            .unwrap()
-            .with_hour(0)
-            .unwrap()
-            .with_day(1)
-            .unwrap();
+        let daily_time = time.date().at(0, 0, 0, 0);
+        let monthly_time = time.date().first_of_month().at(0, 0, 0, 0);
 
-        let sent_on = time.weekday();
+        // 0 is Monday and 6 is Sunday
+        let days_since_monday = time.date().weekday().to_monday_zero_offset();
+        let sent_on = days_since_monday as u8;
 
-        // We only care about the week number for this. Set it as Monday to keep a common ground
-        let week_day_name = Weekday::Mon;
-        let week_num = time.iso_week().week();
-        let time_year = time.iso_week().year();
-
-        let weekly_time = NaiveDate::from_isoywd_opt(time_year, week_num, week_day_name)
+        // We only care about the week number for this. Use the Monday of the week
+        // to keep a common ground
+        let weekly_time = time
+            .date()
+            .checked_sub(i64::from(days_since_monday).days())
             .unwrap()
-            .and_hms_opt(0, 0, 0)
-            .unwrap();
+            .at(0, 0, 0, 0);
 
         // If last day is January 10, current day is January 5, add January 6 to 9 with 0 value
         // Apply the same for all of them
         if let Some(Some(last_hour)) = self.last_hour.get_mut(client_name) {
-            let missing_hour = (*last_hour - hourly_time).num_hours();
+            let missing_hour = last_hour
+                .since(DateTimeDifference::new(hourly_time).largest(Unit::Hour))
+                .unwrap()
+                .get_hours();
 
             let mut ongoing_hour = *last_hour;
             for _ in 0..missing_hour {
-                let to_add = ongoing_hour.checked_sub_signed(Duration::hours(1)).unwrap();
+                let to_add = ongoing_hour.checked_sub(1.hour()).unwrap();
                 self.hourly_message.entry(to_add).or_default();
                 ongoing_hour = to_add;
             }
@@ -167,11 +149,14 @@ impl ChartsData {
         }
 
         if let Some(Some(last_day)) = self.last_day.get_mut(client_name) {
-            let missing_day = (*last_day - daily_time).num_days();
+            let missing_day = last_day
+                .since(DateTimeDifference::new(daily_time).largest(Unit::Day))
+                .unwrap()
+                .get_days();
 
             let mut ongoing_day = *last_day;
             for _ in 0..missing_day {
-                let to_add = ongoing_day.checked_sub_signed(Duration::days(1)).unwrap();
+                let to_add = ongoing_day.checked_sub(1.day()).unwrap();
                 self.daily_message.entry(to_add).or_default();
                 ongoing_day = to_add;
             }
@@ -182,11 +167,14 @@ impl ChartsData {
         }
 
         if let Some(Some(last_week)) = self.last_week.get_mut(client_name) {
-            let missing_week = (*last_week - weekly_time).num_weeks();
+            let missing_week = last_week
+                .since(DateTimeDifference::new(weekly_time).largest(Unit::Week))
+                .unwrap()
+                .get_weeks();
 
             let mut ongoing_week = *last_week;
             for _ in 0..missing_week {
-                let to_add = ongoing_week.checked_sub_signed(Duration::weeks(1)).unwrap();
+                let to_add = ongoing_week.checked_sub(1.week()).unwrap();
                 self.weekly_message.entry(to_add).or_default();
                 ongoing_week = to_add;
             }
@@ -202,10 +190,11 @@ impl ChartsData {
             // All monthly date has the day set as 1. Reducing 2 days would take us to the previous month
             while ongoing_month > monthly_time {
                 let to_add = ongoing_month
-                    .checked_sub_signed(Duration::days(2))
+                    .checked_sub(2.days())
                     .unwrap()
-                    .with_day(1)
-                    .unwrap();
+                    .date()
+                    .first_of_month()
+                    .at(0, 0, 0, 0);
                 self.monthly_message.entry(to_add).or_default();
                 ongoing_month = to_add;
             }
@@ -231,7 +220,7 @@ impl ChartsData {
         let target_user = counter.entry(add_to.clone()).or_insert(0);
         *target_user += 1;
 
-        let counter = self.weekday_message.get_mut(&(sent_on as u8)).unwrap();
+        let counter = self.weekday_message.get_mut(&sent_on).unwrap();
         let target_user = counter.entry(add_to).or_insert(0);
         *target_user += 1;
 
@@ -672,6 +661,7 @@ impl MainWindow {
                     .or_insert(Vec::new());
                 bar_value.push(bar);
             }
+
             point_dates.insert(index as i64, (*key, total_message, whitelisted_message));
         }
 
@@ -862,7 +852,7 @@ impl MainWindow {
             }
             point_dates.insert(
                 index as i64,
-                (NaiveDateTime::default(), total_message, whitelisted_message),
+                (DateTime::default(), total_message, whitelisted_message),
             );
         }
 
@@ -922,7 +912,7 @@ impl MainWindow {
             point_dates.insert(
                 index as i64,
                 (
-                    NaiveDateTime::default(),
+                    DateTime::default(),
                     total_user as u64,
                     whitelisted_user as u64,
                 ),
@@ -971,6 +961,7 @@ impl MainWindow {
                     whitelist_chart = whitelist_chart.stack_on(&[&total_message_chart]);
                     all_charts.push(total_message_chart);
                 }
+
                 all_charts.push(whitelist_chart);
             }
         } else if show_total_message
@@ -979,6 +970,7 @@ impl MainWindow {
             let total_message_chart = BarChart::new("Total message", total_message_bars)
                 .width(1.0)
                 .name(total_data_name);
+
             all_charts.push(total_message_chart);
         }
 
@@ -1041,15 +1033,23 @@ impl MainWindow {
                 match chart_type {
                     ChartType::Message | ChartType::ActiveUser => match timing {
                         ChartTiming::Hourly | ChartTiming::Daily => {
-                            date_label = date.to_string();
+                            date_label = format_datetime(date);
                         }
                         ChartTiming::Weekly => {
-                            let other_date = date.checked_add_days(Days::new(7)).unwrap();
-                            date_label = format!("{date} - {other_date}");
+                            let other_date = date.checked_add(7.days()).unwrap();
+                            date_label = format!(
+                                "{} - {}",
+                                format_datetime(date),
+                                format_datetime(&other_date)
+                            );
                         }
                         ChartTiming::Monthly => {
-                            let other_date = date.checked_add_months(Months::new(1)).unwrap();
-                            date_label = format!("{date} - {other_date}");
+                            let other_date = date.checked_add(1.month()).unwrap();
+                            date_label = format!(
+                                "{} - {}",
+                                format_datetime(date),
+                                format_datetime(&other_date)
+                            );
                         }
                     },
                     ChartType::MessageWeekDay | ChartType::ActiveUserWeekDay => {

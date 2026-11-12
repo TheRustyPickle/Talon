@@ -1,4 +1,3 @@
-use chrono::{Datelike, NaiveDate};
 use jiff::civil::Date;
 
 /// Handler for the `DatePicker` in the UI for data changes
@@ -18,23 +17,15 @@ pub struct DatePickerHandler {
     end: Option<Date>,
 }
 
-pub trait NaiveToJiff {
-    fn to_jiff(&self) -> Date;
-}
-
-impl NaiveToJiff for NaiveDate {
-    fn to_jiff(&self) -> Date {
-        Date::new(self.year() as i16, self.month() as i8, self.day() as i8).unwrap()
-    }
-}
-
 impl DatePickerHandler {
     pub fn from(&mut self) -> &mut Date {
         &mut self.from
     }
+
     pub fn to(&mut self) -> &mut Date {
         &mut self.to
     }
+
     /// Verify whether the current From and To dates have changed
     pub fn check_date_change(&mut self) -> bool {
         if let Some(d) = self.last_from
@@ -70,8 +61,7 @@ impl DatePickerHandler {
 
     /// Compare the given date with the current Start and End date
     /// to find the oldest and the newest date
-    pub fn update_dates(&mut self, date: NaiveDate) {
-        let date = date.to_jiff();
+    pub fn update_dates(&mut self, date: Date) {
         if self.start.is_none_or(|current| current > date) {
             self.from = date;
             self.start = Some(date);
@@ -86,15 +76,12 @@ impl DatePickerHandler {
     }
 
     /// Whether the given date is whtin the current From and To range
-    pub fn within_range(&self, date: NaiveDate) -> bool {
-        let date = date.to_jiff();
-
+    pub fn within_range(&self, date: Date) -> bool {
         date >= self.from && date <= self.to
     }
 
     /// Whether the given date is before the current To range
-    pub fn before_to_range(&self, date: NaiveDate) -> bool {
-        let date = date.to_jiff();
+    pub fn before_to_range(&self, date: Date) -> bool {
         date < self.to
     }
 }

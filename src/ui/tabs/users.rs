@@ -1,4 +1,3 @@
-use chrono::{NaiveDate, NaiveDateTime};
 use eframe::egui::scroll_area::DragScroll;
 use eframe::egui::{Align, Button, ComboBox, Key, Layout, Response, RichText, Sense, TextEdit, Ui};
 use egui_extras::{Column, DatePickerButton};
@@ -8,6 +7,7 @@ use egui_selectable_table::{
 use grammers_client::message::Message;
 use grammers_client::peer::Peer;
 use grammers_session::types::PeerRef;
+use jiff::civil::{Date, DateTime};
 use log::info;
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
@@ -18,7 +18,7 @@ use crate::ui::MainWindow;
 use crate::ui::dates::DateNavigator;
 use crate::ui::state::{ColumnName, NavigationType, ProcessState, peer_details};
 use crate::ui::widgets::{Card, RowLabel, StatTile, TabStyle, Tabs};
-use crate::utils::{entry_insert_user, export_table_data, to_chart_name};
+use crate::utils::{entry_insert_user, export_table_data, format_datetime, to_chart_name};
 
 #[derive(Default)]
 pub struct Config {
@@ -38,8 +38,8 @@ pub struct UserRowData {
     total_char: u32,
     average_word: u32,
     average_char: u32,
-    first_seen: NaiveDateTime,
-    last_seen: NaiveDateTime,
+    first_seen: DateTime,
+    last_seen: DateTime,
     whitelisted: bool,
     #[serde(skip_serializing)]
     belongs_to: Option<PeerRef>,
@@ -58,8 +58,8 @@ impl ColumnOperations<UserRowData, ColumnName, Config> for ColumnName {
             ColumnName::TotalChar => row.total_char.to_string(),
             ColumnName::AverageWord => row.average_word.to_string(),
             ColumnName::AverageChar => row.average_char.to_string(),
-            ColumnName::FirstMessageSeen => row.first_seen.to_string(),
-            ColumnName::LastMessageSeen => row.last_seen.to_string(),
+            ColumnName::FirstMessageSeen => format_datetime(&row.first_seen),
+            ColumnName::LastMessageSeen => format_datetime(&row.last_seen),
             ColumnName::Whitelisted => row.whitelisted.to_string(),
         }
     }
@@ -151,8 +151,8 @@ impl ColumnOperations<UserRowData, ColumnName, Config> for ColumnName {
             ColumnName::TotalChar => row_data.total_char.to_string(),
             ColumnName::AverageWord => row_data.average_word.to_string(),
             ColumnName::AverageChar => row_data.average_char.to_string(),
-            ColumnName::FirstMessageSeen => row_data.first_seen.to_string(),
-            ColumnName::LastMessageSeen => row_data.last_seen.to_string(),
+            ColumnName::FirstMessageSeen => format_datetime(&row_data.first_seen),
+            ColumnName::LastMessageSeen => format_datetime(&row_data.last_seen),
             ColumnName::Whitelisted => {
                 let text = if row_data.whitelisted { "Yes" } else { "No" };
                 text.to_string()
@@ -222,7 +222,7 @@ impl UserRowData {
         id: i64,
         whitelisted: bool,
         belongs_to: Option<PeerRef>,
-        date: NaiveDateTime,
+        date: DateTime,
         seen_by: String,
     ) -> Self {
         let username = username.to_string();
@@ -267,12 +267,12 @@ impl UserRowData {
     }
 
     /// Update the date this user was first seen in the chat
-    fn set_first_seen(&mut self, date: NaiveDateTime) {
+    fn set_first_seen(&mut self, date: DateTime) {
         self.first_seen = date;
     }
 
     /// Update the date this user was last seen in the chat
-    fn set_last_seen(&mut self, date: NaiveDateTime) {
+    fn set_last_seen(&mut self, date: DateTime) {
         self.last_seen = date;
     }
 }
@@ -281,8 +281,8 @@ pub struct UserTableData {
     /// Key: The Date where at least one message/User was found
     /// Value: A hashmap of the founded User with their user id as the key
     /// Contains all data points and UI points are recreated from here
-    user_data: HashMap<NaiveDate, HashMap<i64, UserRowData>>,
-    blacklisted_messages: HashMap<NaiveDate, u32>,
+    user_data: HashMap<Date, HashMap<i64, UserRowData>>,
+    blacklisted_messages: HashMap<Date, u32>,
     table: SelectableTable<UserRowData, ColumnName, Config>,
     date_nav: DateNavigator,
     total_whitelisted_user: u32,
@@ -326,8 +326,8 @@ impl UserTableData {
         &mut self,
         sender: Option<&Peer>,
         sender_ref: Option<PeerRef>,
-        date: NaiveDate,
-        datetime: NaiveDateTime,
+        date: Date,
+        datetime: DateTime,
         seen_by: String,
         blacklisted: bool,
     ) -> (i64, String, String) {
@@ -360,8 +360,8 @@ impl UserTableData {
         &mut self,
         user_id: i64,
         message: &Message,
-        date: NaiveDate,
-        datetime: NaiveDateTime,
+        date: Date,
+        datetime: DateTime,
     ) {
         self.reload_count += 1;
         // If a user sends multiple messages in a day, that specific day data needs to be updated
@@ -466,7 +466,7 @@ impl UserTableData {
     }
 
     /// Keep track of a message that was ignored because the sender is blacklisted
-    pub fn count_blacklisted_message(&mut self, date: NaiveDate) {
+    pub fn count_blacklisted_message(&mut self, date: Date) {
         *self.blacklisted_messages.entry(date).or_default() += 1;
     }
 

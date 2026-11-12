@@ -1,4 +1,4 @@
-use chrono::{DateTime, Local, TimeZone};
+use jiff::tz::TimeZone;
 use log::info;
 
 use crate::telegram::{Command, ScanEvent, TGCountData};
@@ -45,6 +45,7 @@ impl MainWindow {
 
         let mut negative_added = false;
         self.backend.reset_cancel();
+
         for (index, session) in sessions.into_iter().enumerate() {
             self.counter.add_session(session.clone());
 
@@ -92,14 +93,10 @@ impl MainWindow {
         let last_number = count_data.last_number();
         let multi_session = count_data.multi_session();
 
-        let sent_at = message.date();
-        let message_sent_at =
-            DateTime::from_timestamp(sent_at.as_second(), sent_at.subsec_nanosecond() as u32)
-                .unwrap_or_default()
-                .naive_utc();
-
-        let local_time_date = Local.from_utc_datetime(&message_sent_at).date_naive();
-        let local_time_datetime = Local.from_utc_datetime(&message_sent_at).naive_local();
+        // Group messages by the day and hour they were sent in the local time zone
+        let sent_at = message.date().to_zoned(TimeZone::system());
+        let local_time_date = sent_at.date();
+        let local_time_datetime = sent_at.datetime();
 
         let sender = message.sender();
 
@@ -186,6 +183,7 @@ impl MainWindow {
                 &count_data.name(),
             );
         }
+
         if self.t_table().reload_count() > 100 {
             self.t_table().create_rows();
             self.t_table().reset_reload_count();
