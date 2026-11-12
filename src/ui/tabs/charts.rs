@@ -16,6 +16,13 @@ use crate::ui::state::{ChartTiming, ChartType, NavigationType};
 use crate::ui::widgets::{Card, PrimaryButton, TabStyle, Tabs};
 use crate::utils::{format_datetime, time_to_string, weekday_num_to_string};
 
+const TOTAL_DATA: &str = "Show total data";
+const WHITELISTED_DATA: &str = "Show whitelisted data";
+
+fn is_summary_series(name: &str) -> bool {
+    name == TOTAL_DATA || name == WHITELISTED_DATA
+}
+
 #[derive(Default)]
 pub struct ChartsData {
     matcher: Matcher,
@@ -74,13 +81,11 @@ impl ChartsData {
         }
 
         // These two are added to the chart by default
-        self.added_to_chart.insert("Show total data".to_string());
-        self.added_to_chart
-            .insert("Show whitelisted data".to_string());
+        self.added_to_chart.insert(TOTAL_DATA.to_string());
+        self.added_to_chart.insert(WHITELISTED_DATA.to_string());
+        self.available_users.insert(TOTAL_DATA.to_string(), true);
         self.available_users
-            .insert("Show total data".to_string(), true);
-        self.available_users
-            .insert("Show whitelisted data".to_string(), true);
+            .insert(WHITELISTED_DATA.to_string(), true);
 
         self.date_nav = DateNavigator::default();
     }
@@ -236,6 +241,25 @@ impl ChartsData {
         self.daily_labels.clear();
     }
 
+    /// Users that can be picked in the customize view, without the total and whitelisted series
+    fn user_names(&self) -> Vec<String> {
+        self.available_users
+            .keys()
+            .filter(|name| !is_summary_series(name))
+            .cloned()
+            .collect()
+    }
+
+    /// Switch the total or whitelisted series on or off right away
+    fn set_summary_series(&mut self, name: &str, shown: bool) {
+        self.available_users.insert(name.to_string(), shown);
+        if shown {
+            self.add_to_chart(name.to_string());
+        } else {
+            self.remove_from_chart(name);
+        }
+    }
+
     fn show_modal_popup(&mut self, ui: &mut Ui) {
         let response = Modal::new(Id::unique("customize_view")).show(ui.ctx(), |ui| {
             ui.set_width(420.0);
@@ -256,7 +280,7 @@ impl ChartsData {
                     self.use_filtered_users = true;
                     self.filtered_users.clear();
 
-                    let all_keys = self.available_users.keys().cloned().collect::<Vec<_>>();
+                    let all_keys = self.user_names();
                     let pattern = Pattern::parse(
                         &self.search_text,
                         CaseMatching::Ignore,
@@ -287,22 +311,25 @@ impl ChartsData {
                                 ui.checkbox(self.available_users.get_mut(val).unwrap(), val);
                             }
                         } else {
-                            let all_keys = self.available_users.keys().cloned().collect::<Vec<_>>();
-                            for val in all_keys {
+                            for val in self.user_names() {
                                 ui.checkbox(self.available_users.get_mut(&val).unwrap(), val);
                             }
                         }
                     });
             });
 
-            let selected = self.available_users.values().filter(|v| **v).count();
+            let selected = self
+                .available_users
+                .iter()
+                .filter(|(name, on)| **on && !is_summary_series(name))
+                .count();
 
             ui.add_space(4.0);
 
             ui.label(
                 RichText::new(format!(
                     "{selected} of {} selected",
-                    self.available_users.len()
+                    self.user_names().len()
                 ))
                 .weak(),
             );
@@ -336,9 +363,9 @@ impl ChartsData {
     fn message_whitelist_added(&self, row_len: usize) -> (bool, bool) {
         // If there are no whitelisted users, this will be considered as not-shown. Adds extra bars
         // to the ui => consume more power.
-        let whitelist = self.added_to_chart.contains("Show whitelisted data") && row_len > 0;
+        let whitelist = self.added_to_chart.contains(WHITELISTED_DATA) && row_len > 0;
 
-        (self.added_to_chart.contains("Show total data"), whitelist)
+        (self.added_to_chart.contains(TOTAL_DATA), whitelist)
     }
 
     pub fn clear_blacklisted(&mut self, names: &[String]) {
@@ -409,22 +436,47 @@ impl MainWindow {
             });
         });
 
-        if not_weekday_chart {
-            ui.add_space(4.0);
-            if let Some(timing) = Tabs::new(
-                "chart_timing",
-                ChartTiming::iter(),
-                &self.chart_i().chart_timing,
-            )
-            .style(TabStyle::Segmented)
-            .equal_width(true)
-            .min_item_width(70.0)
-            .hover_text(|timing| format!("Group the data by {}", timing.to_string().to_lowercase()))
-            .show(ui)
+        ui.add_space(4.0);
+        ui.horizontal(|ui| {
+            if not_weekday_chart
+                && let Some(timing) = Tabs::new(
+                    "chart_timing",
+                    ChartTiming::iter(),
+                    &self.chart_i().chart_timing,
+                )
+                .style(TabStyle::Segmented)
+                .equal_width(true)
+                .min_item_width(70.0)
+                .hover_text(|timing| {
+                    format!("Group the data by {}", timing.to_string().to_lowercase())
+                })
+                .show(ui)
             {
                 self.chart().chart_timing = timing;
             }
-        }
+
+            // Quick switches for the two summary series, no need to dig through the user list
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                let mut whitelisted = self.chart_i().added_to_chart.contains(WHITELISTED_DATA);
+                if ui
+                    .checkbox(&mut whitelisted, "Whitelisted")
+                    .on_hover_text("Show the combined data of all whitelisted users")
+                    .changed()
+                {
+                    self.chart()
+                        .set_summary_series(WHITELISTED_DATA, whitelisted);
+                }
+
+                let mut total = self.chart_i().added_to_chart.contains(TOTAL_DATA);
+                if ui
+                    .checkbox(&mut total, "Total")
+                    .on_hover_text("Show the combined data of every user")
+                    .changed()
+                {
+                    self.chart().set_summary_series(TOTAL_DATA, total);
+                }
+            });
+        });
 
         ui.add_space(4.0);
         ui.separator();
@@ -601,7 +653,7 @@ impl MainWindow {
             // In case a common time does not include a user that is added in the chart
             // add a 0 value bar
             for i in &self.chart_i().added_to_chart {
-                if !user.contains_key(i) && i != "Show total data" && i != "Show whitelisted data" {
+                if !user.contains_key(i) && i != TOTAL_DATA && i != WHITELISTED_DATA {
                     let bar = Bar::new(arg, 0.0).name(format!(
                         "{} {i}",
                         time_to_string(key, self.chart_i().chart_timing)
@@ -645,9 +697,7 @@ impl MainWindow {
                     "{} Total message",
                     time_to_string(key, self.chart_i().chart_timing)
                 ));
-                let bar_value = bar_list
-                    .entry("Show total data".to_owned())
-                    .or_insert(Vec::new());
+                let bar_value = bar_list.entry(TOTAL_DATA.to_owned()).or_insert(Vec::new());
                 bar_value.push(bar);
             }
 
@@ -657,7 +707,7 @@ impl MainWindow {
                     time_to_string(key, self.chart_i().chart_timing)
                 ));
                 let bar_value = bar_list
-                    .entry("Show whitelisted data".to_owned())
+                    .entry(WHITELISTED_DATA.to_owned())
                     .or_insert(Vec::new());
                 bar_value.push(bar);
             }
@@ -761,9 +811,7 @@ impl MainWindow {
                     "{} Total user",
                     time_to_string(key, self.chart_i().chart_timing)
                 ));
-                let bar_value = bar_list
-                    .entry("Show total data".to_owned())
-                    .or_insert(Vec::new());
+                let bar_value = bar_list.entry(TOTAL_DATA.to_owned()).or_insert(Vec::new());
                 bar_value.push(bar);
             }
 
@@ -773,7 +821,7 @@ impl MainWindow {
                     time_to_string(key, self.chart_i().chart_timing)
                 ));
                 let bar_value = bar_list
-                    .entry("Show whitelisted data".to_owned())
+                    .entry(WHITELISTED_DATA.to_owned())
                     .or_insert(Vec::new());
                 bar_value.push(bar);
             }
@@ -834,9 +882,7 @@ impl MainWindow {
             if show_total_message {
                 let bar = Bar::new(arg, total_message as f64)
                     .name(format!("{} Total message", weekday_num_to_string(*key)));
-                let bar_value = bar_list
-                    .entry("Show total data".to_owned())
-                    .or_insert(Vec::new());
+                let bar_value = bar_list.entry(TOTAL_DATA.to_owned()).or_insert(Vec::new());
                 bar_value.push(bar);
             }
 
@@ -846,7 +892,7 @@ impl MainWindow {
                     weekday_num_to_string(*key)
                 ));
                 let bar_value = bar_list
-                    .entry("Show whitelisted data".to_owned())
+                    .entry(WHITELISTED_DATA.to_owned())
                     .or_insert(Vec::new());
                 bar_value.push(bar);
             }
@@ -895,9 +941,7 @@ impl MainWindow {
             if show_total_message {
                 let bar = Bar::new(arg, total_user as f64)
                     .name(format!("{} Total user", weekday_num_to_string(*key)));
-                let bar_value = bar_list
-                    .entry("Show total data".to_owned())
-                    .or_insert(Vec::new());
+                let bar_value = bar_list.entry(TOTAL_DATA.to_owned()).or_insert(Vec::new());
                 bar_value.push(bar);
             }
 
@@ -905,7 +949,7 @@ impl MainWindow {
                 let bar = Bar::new(arg, f64::from(whitelisted_user))
                     .name(format!("{} Whitelisted user", weekday_num_to_string(*key)));
                 let bar_value = bar_list
-                    .entry("Show whitelisted data".to_owned())
+                    .entry(WHITELISTED_DATA.to_owned())
                     .or_insert(Vec::new());
                 bar_value.push(bar);
             }
@@ -946,13 +990,12 @@ impl MainWindow {
         // In case the date picker is used the bar list may not contain the following bar names
         // even if they are already in the list
         if show_whitelisted_message {
-            if let Some(whitelist_bar) = bar_list.remove("Show whitelisted data") {
+            if let Some(whitelist_bar) = bar_list.remove(WHITELISTED_DATA) {
                 let mut whitelist_chart = BarChart::new("Whitelist", whitelist_bar)
                     .width(1.0)
                     .name(whitelist_data_name);
 
-                if show_total_message
-                    && let Some(total_message_bars) = bar_list.remove("Show total data")
+                if show_total_message && let Some(total_message_bars) = bar_list.remove(TOTAL_DATA)
                 {
                     let total_message_chart = BarChart::new("Total message", total_message_bars)
                         .width(1.0)
@@ -964,9 +1007,7 @@ impl MainWindow {
 
                 all_charts.push(whitelist_chart);
             }
-        } else if show_total_message
-            && let Some(total_message_bars) = bar_list.remove("Show total data")
-        {
+        } else if show_total_message && let Some(total_message_bars) = bar_list.remove(TOTAL_DATA) {
             let total_message_chart = BarChart::new("Total message", total_message_bars)
                 .width(1.0)
                 .name(total_data_name);
