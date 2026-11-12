@@ -49,7 +49,7 @@ impl MainWindow {
         // Once a code was sent or a password is required, the account details are locked in
         let locked = self.session.code_sent || self.session.password_mode;
 
-        Card::new().title("ACCOUNT").show(ui, |ui| {
+        Card::new().show(ui, |ui| {
             Grid::new("Session Grid")
                 .num_columns(2)
                 .spacing([8.0, 10.0])
@@ -114,7 +114,7 @@ If yes, it will try to log out before the app is closed and no session file will
 
         ui.add_space(8.0);
 
-        Card::new().title("VERIFICATION").show(ui, |ui| {
+        Card::new().show(ui, |ui| {
             Grid::new("Verification Grid")
                 .num_columns(2)
                 .spacing([8.0, 10.0])
