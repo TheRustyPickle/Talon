@@ -8,7 +8,26 @@
 
 Talon is a tool to generate on-demand data insights from public Telegram chats. Powered by Rust, grammers, and egui, it offers a straightforward interface that leverages the Telegram account API.
 
-![screenshot](https://github.com/user-attachments/assets/6f8cad44-6de3-4f5b-a947-768eca531d74)
+<p align="center">
+  <img src="screenshots/users.png" alt="Users table with per-user stats" width="830">
+</p>
+
+<details>
+<summary>More screenshots</summary>
+
+**Scan**
+
+<img src="screenshots/scan.png" alt="Scan tab" width="830">
+
+**Charts**
+
+<img src="screenshots/charts.png" alt="Charts tab" width="830">
+
+**Accounts**
+
+<img src="screenshots/accounts.png" alt="Accounts tab" width="830">
+
+</details>
 
 ## Features
 
@@ -22,10 +41,14 @@ Talon is a tool to generate on-demand data insights from public Telegram chats. 
 - **Blacklisting:** Exclude specific users from data analysis to prevent their data from appearing in the results.
 - **Multi-Session Capability:** Utilize multiple sessions to dramatically increase checking speed, tested with up to 12 sessions and 300k messages.
 - **Multi-Chat Capability:** Analyze multiple chats simultaneously and view data from each chat separately.
+- **Scan Range:** Paste a message link to start from, and optionally one to end at, to count only a specific part of a chat.
+- **Search:** Filter the users table and the whitelist/blacklist by name, username or user ID.
+- **Customizable Charts:** Pick which users appear on a chart and toggle the total and whitelisted series with a click.
+- **CSV Export:** Export the users table to a CSV file.
 
 ## Important Note
 
-Talon uses the [grammers library](https://github.com/lonami/grammers) for Telegram operations. Please be aware that grammers is currently under development and may not be stable or audited for security.
+Talon uses the [grammers library](https://codeberg.org/Lonami/grammers) for Telegram operations. Please be aware that grammers is currently under development and may not be stable or audited for security.
 
 ## Installation
 
