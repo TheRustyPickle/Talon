@@ -1,11 +1,10 @@
 use eframe::egui::{Panel, Ui};
 use eframe::{App, CreationContext, Frame, egui};
 use egui::{
-    Align, Button, CentralPanel, Context, FontData, FontDefinitions, FontFamily, Id, Layout, Modal,
-    ProgressBar, ScrollArea, Spinner, ThemePreference, ViewportCommand, Visuals,
+    Align, Button, CentralPanel, Id, Layout, Modal, ProgressBar, ScrollArea, Spinner,
+    ThemePreference, ViewportCommand, Visuals,
 };
 use egui_theme_lerp::ThemeAnimator;
-use log::info;
 use std::collections::HashMap;
 use std::slice::IterMut;
 use std::sync::{Arc, Mutex};
@@ -14,15 +13,13 @@ use strum::IntoEnumIterator;
 
 use crate::telegram::{Backend, Command};
 use crate::ui::TGKeys;
-use crate::ui::services::{check_version, download_font};
+use crate::ui::services::check_version;
 use crate::ui::state::{AppState, CounterCounts, ParsedChat, ProcessState, Severity, TabState};
 use crate::ui::tabs::{
     BlacklistData, ChartsData, CounterData, SessionData, UserTableData, WhitelistData,
 };
 use crate::ui::widgets::{StatusLine, TabStyle, Tabs};
-use crate::utils::{
-    find_session_files, get_api_keys, get_font_data, last_theme, save_theme, theme_hover_text,
-};
+use crate::utils::{find_session_files, get_api_keys, last_theme, save_theme, theme_hover_text};
 
 const STATUS_FADE_SECONDS: f64 = 6.0;
 
@@ -129,10 +126,7 @@ impl App for MainWindow {
         }
 
         match self.app_state {
-            AppState::LoadingFontsAPI => {
-                ui.set_pixels_per_point(1.1);
-                self.set_fonts(ui);
-
+            AppState::LoadingAPI => {
                 // If API keys are found, start the main UI otherwise show the UI to input the API keys
                 if get_api_keys().is_some() {
                     self.app_state = AppState::InitializedUI;
@@ -371,38 +365,6 @@ impl MainWindow {
     /// Get all the added session names
     pub fn get_session_names(&self) -> Vec<String> {
         self.backend.session_names()
-    }
-
-    /// Set the fonts for egui to use or download them if does not exist
-    pub fn set_fonts(&self, ctx: &Context) {
-        let font_data = get_font_data();
-
-        if let Some((cjk, gentium)) = font_data {
-            // Add the fonts on top of the default ones
-            let font_cjk = Arc::new(FontData::from_owned(cjk));
-            let font_gentium = Arc::new(FontData::from_owned(gentium));
-            let mut font_definitions = FontDefinitions::default();
-
-            font_definitions
-                .font_data
-                .insert("NotoSansCJK".to_owned(), font_cjk);
-            font_definitions
-                .font_data
-                .insert("GentiumBookPlus".to_owned(), font_gentium);
-
-            font_definitions
-                .families
-                .get_mut(&FontFamily::Proportional)
-                .unwrap()
-                .extend(["NotoSansCJK".to_owned(), "GentiumBookPlus".to_owned()]);
-
-            ctx.set_fonts(font_definitions);
-        } else {
-            info!("Could not find font data. Starting download");
-            let ctx_clone = ctx.clone();
-
-            self.backend.spawn(download_font(ctx_clone));
-        }
     }
 
     /// Return the currently selected table data as mutable

@@ -8,7 +8,7 @@ use strum_macros::{Display, EnumIter};
 #[derive(Default)]
 pub enum AppState {
     #[default]
-    LoadingFontsAPI,
+    LoadingAPI,
     InputAPIKeys,
     InitializedUI,
 }
