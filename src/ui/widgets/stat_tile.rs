@@ -49,13 +49,14 @@ impl Widget for StatTile {
                 StrokeKind::Inside,
             );
 
-            let caption = TextStyle::Small.resolve(ui.style());
+            let mut caption = TextStyle::Body.resolve(ui.style());
+            caption.size = 13.0;
             let number = TextStyle::Heading.resolve(ui.style());
-            let weak = visuals.weak_text_color();
+            let weak = visuals.text_color();
             let strong = visuals.strong_text_color();
 
             ui.painter().text(
-                rect.center_top() + vec2(0.0, 8.0),
+                rect.center_top() + vec2(0.0, 7.0),
                 Align2::CENTER_TOP,
                 label,
                 caption,

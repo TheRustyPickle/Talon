@@ -35,8 +35,8 @@ impl Card {
             ui.visuals_mut().widgets.inactive.bg_stroke = Stroke::new(1.0, outline);
 
             if let Some(title) = self.title {
-                ui.label(RichText::new(title).small().strong().weak());
-                ui.add_space(4.0);
+                ui.label(RichText::new(title).size(13.0).strong());
+                ui.add_space(6.0);
             }
             add_contents(ui)
         })
