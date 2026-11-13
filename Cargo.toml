@@ -2,16 +2,13 @@
 name = "talon-gui"
 version = "2.0.0"
 edition = "2024"
-description = """
-On-demand Telegram chat analytic generator
-"""
+description = "On-demand Telegram chat analytic generator"
 readme = "README.md"
 homepage = "https://github.com/TheRustyPickle/Talon"
 repository = "https://github.com/TheRustyPickle/Talon"
 license = "MIT"
-keywords = ["analytics", "data", "egui", "gui", "telegram"]
-categories = ["gui"]
-exclude = ["/fonts"]
+keywords = ["analytics", "egui", "grammers", "statistics", "telegram"]
+categories = ["gui", "visualization"]
 
 [[bin]]
 name = "talon"
@@ -20,7 +17,6 @@ path = "src/main.rs"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-chrono = { version = "0.4.45", features = ["serde"] }
 csv = "1.4.0"
 dirs = "7.0.0"
 eframe = "0.37.0"
@@ -30,17 +26,17 @@ egui_extras = { version = "0.37.0", default-features = false, features = [
 egui_plot = "0.38.0"
 egui-selectable-table = { version = "0.9.0", features = ["fuzzy-matching", "rayon"] }
 egui-theme-lerp = "0.8.0"
-grammers-client = "=0.7.0"
-grammers-crypto = "=0.7.0"
-grammers-mtproto = "=0.7.0"
-grammers-mtsender = "=0.7.0"
-grammers-session = "=0.7.0"
-grammers-tl-gen = "=0.7.0"
-grammers-tl-types = "=0.7.0"
-jiff = "0.2.38"
-log = "0.4.34"
+grammers-client = "=0.12.0"
+grammers-crypto = "=0.12.0"
+grammers-mtproto = "=0.12.0"
+grammers-mtsender = "=0.12.0"
+grammers-session = "=0.12.0"
+grammers-tl-gen = "=0.12.0"
+grammers-tl-types = "=0.12.0"
+jiff = { version = "0.2.43", features = ["serde"] }
+log = "0.4.35"
 nucleo-matcher = "0.3.1"
-open = "5.4.4"
+open = "5.4.5"
 pretty_env_logger = "0.5.0"
 reqwest = { version = "0.13.5", features = ["json"] }
 semver = "1.0.28"
@@ -48,7 +44,7 @@ serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
 strum = "0.28.0"
 strum_macros = "0.28.0"
-tokio = { version = "1.53.3", features = ["rt-multi-thread"] }
+tokio = { version = "1.54.1", features = ["rt-multi-thread"] }
 
 # The profile that 'cargo dist' will build with
 [profile.dist]

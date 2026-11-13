@@ -1,8 +1,8 @@
-mod tg_handler;
-mod ui_components;
+mod telegram;
+mod ui;
 mod utils;
 
-use crate::ui_components::MainWindow;
+use crate::ui::MainWindow;
 use dirs::data_local_dir;
 use eframe::{NativeOptions, egui};
 use egui::{ViewportBuilder, vec2};
@@ -38,15 +38,18 @@ fn main() {
         set_current_dir(target_location).unwrap();
 
         info!("Starting app");
+
         let viewport = ViewportBuilder::default()
             .with_title("Talon")
             .with_inner_size(vec2(600.0, 450.0))
             .with_resizable(true)
             .with_maximize_button(false);
+
         let native_options = NativeOptions {
             viewport,
             ..Default::default()
         };
+
         eframe::run_native(
             "Talon",
             native_options,
@@ -54,7 +57,7 @@ fn main() {
         )
         .unwrap();
     } else {
-        println!("Failed to get local data directory. Exiting");
+        info!("Failed to get local data directory. Exiting");
         std::process::exit(1);
     }
 }
