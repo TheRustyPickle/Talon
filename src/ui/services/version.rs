@@ -2,10 +2,8 @@ use log::{error, info};
 use reqwest::Error;
 use semver::Version;
 use serde::Deserialize;
-use std::{
-    sync::{Arc, Mutex},
-    time::Duration,
-};
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 #[derive(Deserialize)]
 struct GithubRelease {
