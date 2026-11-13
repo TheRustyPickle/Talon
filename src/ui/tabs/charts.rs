@@ -669,7 +669,7 @@ impl MainWindow {
                 if show_whitelisted_message {
                     let is_whitelisted = self
                         .whitelist
-                        .is_user_whitelisted(*self.chart_i().user_ids.get(user_name).unwrap());
+                        .contains(*self.chart_i().user_ids.get(user_name).unwrap());
 
                     if is_whitelisted {
                         whitelisted_message += num;
@@ -795,7 +795,7 @@ impl MainWindow {
                 for user_name in user.keys() {
                     let is_whitelisted = self
                         .whitelist
-                        .is_user_whitelisted(*self.chart_i().user_ids.get(user_name).unwrap());
+                        .contains(*self.chart_i().user_ids.get(user_name).unwrap());
 
                     if is_whitelisted {
                         whitelisted_user += 1;
@@ -867,7 +867,7 @@ impl MainWindow {
                 if show_whitelisted_message {
                     let is_whitelisted = self
                         .whitelist
-                        .is_user_whitelisted(*self.chart_i().user_ids.get(user_name).unwrap());
+                        .contains(*self.chart_i().user_ids.get(user_name).unwrap());
 
                     if is_whitelisted {
                         whitelisted_message += num;
@@ -927,7 +927,7 @@ impl MainWindow {
                 for user_name in user.keys() {
                     let is_whitelisted = self
                         .whitelist
-                        .is_user_whitelisted(*self.chart_i().user_ids.get(user_name).unwrap());
+                        .contains(*self.chart_i().user_ids.get(user_name).unwrap());
 
                     if is_whitelisted {
                         whitelisted_user += 1;

@@ -4,7 +4,7 @@ use grammers_client::client::{LoginToken, PasswordToken};
 use std::sync::mpsc::Sender;
 
 use crate::telegram::{TGClient, TGCountData};
-use crate::ui::state::{UnpackedBlacklistedUser, UnpackedWhitelistedUser};
+use crate::ui::state::{ListKind, UnpackedUser};
 
 /// Everything the Telegram side can tell the GUI, grouped by topic
 pub enum Event {
@@ -49,16 +49,15 @@ pub enum ScanEvent {
 }
 
 pub enum UsersEvent {
-    WhitelistLoaded {
-        users: Vec<UnpackedWhitelistedUser>,
+    ListLoaded {
+        kind: ListKind,
+        users: Vec<UnpackedUser>,
         failed: i32,
     },
-    BlacklistLoaded {
-        users: Vec<UnpackedBlacklistedUser>,
-        failed: i32,
+    ListAdded {
+        kind: ListKind,
+        user: Box<UnpackedUser>,
     },
-    WhitelistAdded(Box<UnpackedWhitelistedUser>),
-    BlacklistAdded(Box<UnpackedBlacklistedUser>),
 }
 
 #[derive(Debug)]

@@ -12,17 +12,17 @@ use std::collections::HashSet;
 
 use crate::telegram::Command;
 use crate::ui::MainWindow;
-use crate::ui::state::{ColumnName, PackedBlacklistedUser, ProcessState};
+use crate::ui::state::{ColumnName, ListKind, PackedUser, ProcessState};
 use crate::ui::widgets::{Card, PrimaryButton, RowLabel};
-use crate::utils::{get_blacklisted, save_blacklisted_users, separate_blacklist_by_seen};
+use crate::utils::{get_saved_users, save_users, separate_by_seen};
 
 #[derive(Default)]
 struct Config {
     deleted_selected: bool,
 }
 
-impl ColumnOperations<BlackListRowData, ColumnName, Config> for ColumnName {
-    fn column_text(&self, row: &BlackListRowData) -> String {
+impl ColumnOperations<ListRowData, ColumnName, Config> for ColumnName {
+    fn column_text(&self, row: &ListRowData) -> String {
         match self {
             ColumnName::Name => row.name.clone(),
             ColumnName::Username => row.username.clone(),
@@ -30,11 +30,12 @@ impl ColumnOperations<BlackListRowData, ColumnName, Config> for ColumnName {
             _ => unreachable!(),
         }
     }
+
     fn create_header(
         &self,
         ui: &mut Ui,
         _sort_order: Option<SortOrder>,
-        _table: &mut SelectableTable<BlackListRowData, ColumnName, Config>,
+        _table: &mut SelectableTable<ListRowData, ColumnName, Config>,
     ) -> Option<Response> {
         let label_text = self.to_string();
         let hover_text = match self {
@@ -57,9 +58,9 @@ impl ColumnOperations<BlackListRowData, ColumnName, Config> for ColumnName {
     fn create_table_row(
         &self,
         ui: &mut Ui,
-        row: &SelectableRow<BlackListRowData, ColumnName>,
+        row: &SelectableRow<ListRowData, ColumnName>,
         column_selected: bool,
-        table: &mut SelectableTable<BlackListRowData, ColumnName, Config>,
+        table: &mut SelectableTable<ListRowData, ColumnName, Config>,
     ) -> Response {
         let row_data = &row.row_data;
         let mut show_tooltip = false;
@@ -101,13 +102,14 @@ impl ColumnOperations<BlackListRowData, ColumnName, Config> for ColumnName {
     }
 }
 
-impl ColumnOrdering<BlackListRowData> for ColumnName {
-    fn order_by(&self, row_1: &BlackListRowData, row_2: &BlackListRowData) -> std::cmp::Ordering {
+impl ColumnOrdering<ListRowData> for ColumnName {
+    fn order_by(&self, row_1: &ListRowData, row_2: &ListRowData) -> std::cmp::Ordering {
         row_1.name.cmp(&row_2.name)
     }
 }
+
 #[derive(Clone)]
-struct BlackListRowData {
+struct ListRowData {
     name: String,
     username: String,
     id: i64,
@@ -115,9 +117,9 @@ struct BlackListRowData {
     seen_by: String,
 }
 
-impl BlackListRowData {
+impl ListRowData {
     fn new(name: String, username: String, id: i64, belongs_to: PeerRef, seen_by: String) -> Self {
-        BlackListRowData {
+        ListRowData {
             name,
             username,
             id,
@@ -127,16 +129,17 @@ impl BlackListRowData {
     }
 }
 
-pub struct BlacklistData {
-    table: SelectableTable<BlackListRowData, ColumnName, Config>,
+pub struct UserListData {
+    kind: ListKind,
+    table: SelectableTable<ListRowData, ColumnName, Config>,
     target_username: String,
-    failed_blacklist: i32,
+    failed: i32,
     all_ids: HashSet<i64>,
     search_query: String,
 }
 
-impl Default for BlacklistData {
-    fn default() -> Self {
+impl UserListData {
+    pub fn new(kind: ListKind) -> Self {
         let table = SelectableTable::new(vec![
             ColumnName::Name,
             ColumnName::Username,
@@ -149,18 +152,19 @@ impl Default for BlacklistData {
         .auto_reload(1);
 
         Self {
+            kind,
             table,
             target_username: String::new(),
-            failed_blacklist: 0,
+            failed: 0,
             all_ids: HashSet::new(),
             search_query: String::new(),
         }
     }
 }
 
-impl BlacklistData {
+impl UserListData {
     /// Add a new row to the UI
-    pub fn add_to_blacklist(
+    pub fn add_user(
         &mut self,
         name: String,
         username: String,
@@ -174,42 +178,44 @@ impl BlacklistData {
             name
         };
 
-        info!("Adding {name} to blacklist, seen by {seen_by}");
+        info!("Adding {name} to {}, seen by {seen_by}", self.kind.name());
         self.all_ids.insert(id);
         self.table.add_modify_row(|_rows| {
-            let to_add = BlackListRowData::new(name, username, id, belongs_to, seen_by);
+            let to_add = ListRowData::new(name, username, id, belongs_to, seen_by);
             Some(to_add)
         });
     }
 
-    /// Check if user is blacklisted/in the blacklist UI
-    pub fn is_user_blacklisted(&self, id: i64) -> bool {
+    /// Check if the user is in the list
+    pub fn contains(&self, id: i64) -> bool {
         self.all_ids.contains(&id)
     }
 
-    /// Save the current row data in the blacklist json
-    pub fn save_blacklisted_users(&self, overwrite: bool) {
+    /// Save the current row data in the list json
+    pub fn save(&self, overwrite: bool) {
         let packed_chats = self
             .table
             .get_all_rows()
             .values()
             .filter_map(|row| {
-                PackedBlacklistedUser::new(row.row_data.belongs_to, row.row_data.seen_by.clone())
+                PackedUser::new(row.row_data.belongs_to, row.row_data.seen_by.clone())
             })
             .collect();
 
-        save_blacklisted_users(packed_chats, overwrite);
+        save_users(self.kind, packed_chats, overwrite);
     }
 
-    /// Removes selected row from blacklist and saves the result
+    /// Removes selected rows from the list and saves the result
     fn remove_selected(&mut self) -> Vec<i64> {
         let active_rows = self.table.get_selected_rows();
 
         let mut row_ids = Vec::new();
         for i in &active_rows {
             info!(
-                "Removing user {} | {} from blacklist",
-                i.row_data.username, i.row_data.id
+                "Removing user {} | {} from {}",
+                i.row_data.username,
+                i.row_data.id,
+                self.kind.name()
             );
             self.all_ids.remove(&i.row_data.id);
             self.table.add_modify_row(|rows| {
@@ -218,16 +224,16 @@ impl BlacklistData {
                 None
             });
         }
-        self.save_blacklisted_users(true);
+        self.save(true);
         row_ids
     }
 
-    /// Removes all row from blacklist and saves the result
+    /// Removes all rows from the list and saves the result
     fn remove_all(&mut self) -> Vec<i64> {
-        info!("Removing all users from blacklist");
+        info!("Removing all users from {}", self.kind.name());
         let row_keys = self.all_ids.iter().copied().collect();
         self.table.clear_all_rows();
-        self.save_blacklisted_users(true);
+        self.save(true);
         self.all_ids.clear();
 
         row_keys
@@ -238,70 +244,94 @@ impl BlacklistData {
     }
 
     pub fn increase_failed_by(&mut self, count: i32) {
-        self.failed_blacklist += count;
+        self.failed += count;
     }
 
     pub fn row_len(&self) -> usize {
         self.table.total_rows()
     }
 
-    pub fn failed_blacklist_num(&self) -> i32 {
-        self.failed_blacklist
+    pub fn failed_num(&self) -> i32 {
+        self.failed
     }
 }
 
 impl MainWindow {
-    pub fn show_blacklist_ui(&mut self, ui: &mut Ui) {
-        if self.blacklist.table.config.deleted_selected {
-            self.blacklist.table.config.deleted_selected = false;
-            let deleted = self.blacklist.remove_selected();
-            let total_to_remove = deleted.len();
-            self.process_state = ProcessState::BlacklistedUserRemoved(total_to_remove);
+    pub fn list_data(&mut self, kind: ListKind) -> &mut UserListData {
+        match kind {
+            ListKind::Whitelist => &mut self.whitelist,
+            ListKind::Blacklist => &mut self.blacklist,
+        }
+    }
+
+    /// Updates everything that depends on the list after users were removed from it
+    fn on_list_users_removed(&mut self, kind: ListKind, ids: &[i64]) {
+        // Blacklisted users never had their data hidden, nothing to restore
+        if kind == ListKind::Whitelist {
+            self.table().remove_whitelist(ids);
+            self.chart().reset_saved_bars();
+        }
+    }
+
+    pub fn show_list_ui(&mut self, ui: &mut Ui, kind: ListKind) {
+        let name = kind.name();
+        let adjective = kind.adjective();
+
+        if self.list_data(kind).table.config.deleted_selected {
+            self.list_data(kind).table.config.deleted_selected = false;
+            let deleted = self.list_data(kind).remove_selected();
+
+            self.on_list_users_removed(kind, &deleted);
+            self.process_state = ProcessState::ListUsersRemoved(kind, deleted.len());
         }
 
-        Card::new().title("ADD TO BLACKLIST").show(ui, |ui| {
-            ui.horizontal(|ui| {
-                let button_size = vec2(80.0, 28.0);
-                let text_width = ui.available_width() - button_size.x - ui.spacing().item_spacing.x;
+        Card::new()
+            .title(format!("ADD TO {}", name.to_uppercase()))
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    let button_size = vec2(80.0, 28.0);
+                    let text_width =
+                        ui.available_width() - button_size.x - ui.spacing().item_spacing.x;
+                    let is_processing = self.is_processing;
+                    let list = self.list_data(kind);
 
-                ui.add_sized(
-                    [text_width, button_size.y],
-                    TextEdit::singleline(&mut self.blacklist.target_username)
-                        .align(Align2::LEFT_CENTER)
-                        .hint_text("Telegram username: @username"),
-                )
-                .on_hover_text(
-                    "Don't have a username?
+                    ui.add_sized(
+                        [text_width, button_size.y],
+                        TextEdit::singleline(&mut list.target_username)
+                            .align(Align2::LEFT_CENTER)
+                            .hint_text("Telegram username: @username"),
+                    )
+                    .on_hover_text(format!(
+                        "Don't have a username?\n\nUse the Scan tab to count at least 1 message by that user\nthen right click on the Users tab to {name}"
+                    ));
 
-Use the Scan tab to count at least 1 message by that user
-then right click on the Users tab to blacklist",
-                );
+                    let can_add = !is_processing && !list.target_username.is_empty();
+                    let add = ui
+                        .add_enabled(can_add, PrimaryButton::new("Add").size(button_size))
+                        .on_hover_text(format!("Add the username to {name}"));
 
-                let can_add = !self.is_processing && !self.blacklist.target_username.is_empty();
-                let add = ui
-                    .add_enabled(can_add, PrimaryButton::new("Add").size(button_size))
-                    .on_hover_text("Add the username to blacklist");
-
-                if add.clicked() {
-                    self.blacklist_new_user();
-                }
+                    if add.clicked() {
+                        self.add_list_user(kind);
+                    }
+                });
             });
-        });
 
         ui.add_space(8.0);
 
-        let failed = self.blacklist.failed_blacklist_num();
-        let mut summary = format!("{} users", self.blacklist.row_len());
-
+        let list = self.list_data(kind);
+        let failed = list.failed_num();
+        let mut summary = format!("{} users", list.row_len());
         if failed > 0 {
             summary.push_str(&format!(" ({failed} failed to load)"));
         }
-
         ui.label(RichText::new(summary).weak());
         ui.add_space(4.0);
 
+        let column_size = (ui.available_width() - 20.0) / 3.0;
+
         ui.horizontal(|ui| {
-            let text_box = TextEdit::singleline(&mut self.blacklist.search_query)
+            let list = self.list_data(kind);
+            let text_box = TextEdit::singleline(&mut list.search_query)
                 .hint_text("Search by name, username or user ID");
             ui.add(text_box);
 
@@ -310,64 +340,62 @@ then right click on the Users tab to blacklist",
                 .on_hover_text("Filter rows that match the search query")
                 .clicked()
             {
-                let search_query = self.blacklist.search_query.clone();
+                let search_query = list.search_query.clone();
 
                 if search_query.is_empty() {
-                    self.blacklist.table.recreate_rows();
-                    self.blacklist.search_query.clear();
+                    list.table.recreate_rows();
                 } else {
                     let column_list = vec![ColumnName::Name, ColumnName::Username, ColumnName::UserID];
 
-                    self.blacklist
-                        .table
+                    list.table
                         .search_and_show(&column_list, &search_query, None, None);
                 }
-
             }
             if ui
                 .button("Clear")
                 .on_hover_text("Clear search result")
                 .clicked()
             {
-                self.blacklist.table.recreate_rows();
-                self.blacklist.search_query.clear();
+                list.table.recreate_rows();
+                list.search_query.clear();
             }
 
             ui.separator();
-
 
             if ui
                 .button("Select All")
                 .on_hover_text("Select all users. Also usable with CTRL + A. Use CTRL + mouse click for manual selection")
                 .clicked()
             {
-                self.blacklist.table.select_all();
+                list.table.select_all();
             }
             if ui
                 .button("Delete Selected")
-                .on_hover_text("Delete selected users from blacklist")
+                .on_hover_text(format!("Delete selected users from {name}"))
                 .clicked()
             {
-                let deleted = self.blacklist.remove_selected();
-                let total_to_remove = deleted.len();
-                self.process_state = ProcessState::BlacklistedUserRemoved(total_to_remove);
+                let deleted = list.remove_selected();
+
+                self.on_list_users_removed(kind, &deleted);
+                self.process_state = ProcessState::ListUsersRemoved(kind, deleted.len());
             }
             if ui
                 .add(Button::new(
                     RichText::new("Delete All").color(Color32::from_rgb(220, 90, 90)),
                 ))
-                .on_hover_text("Delete all blacklisted users")
+                .on_hover_text(format!("Delete all {adjective} users"))
                 .clicked()
             {
-                let _ = self.blacklist.remove_all();
-                self.process_state = ProcessState::AllBlacklistRemoved;
+                let deleted = self.list_data(kind).remove_all();
+
+                self.on_list_users_removed(kind, &deleted);
+                self.process_state = ProcessState::ListCleared(kind);
             }
         });
 
         ui.separator();
 
-        let column_size = (ui.available_width() - 20.0) / 3.0;
-        self.blacklist.table.show_ui(ui, |table| {
+        self.list_data(kind).table.show_ui(ui, |table| {
             table
                 .striped(true)
                 .cell_layout(Layout::left_to_right(Align::Center))
@@ -380,55 +408,61 @@ then right click on the Users tab to blacklist",
         });
     }
 
-    pub fn load_blacklisted_users(&mut self) {
+    /// Loads the saved users of a list and asks the sessions that saw them to resolve them
+    pub fn load_saved_list(&mut self, kind: ListKind) {
         // This function will never be called if there are no sessions detected.
         // Unnecessary to handle in case is empty
 
-        let all_blacklisted_users = get_blacklisted();
+        let saved_users = match get_saved_users(kind) {
+            Ok(users) => users,
+            Err(_) => {
+                // This case means it failed to deserialize the json or is using the old json format
+                // All previous data will be removed
+                error!(
+                    "Failed to deserialize the {} json file. Deleting saved json data",
+                    kind.name()
+                );
+                self.list_data(kind).save(true);
+                self.process_state = ProcessState::ListLoadFailed(kind);
+                self.is_processing = false;
+                return;
+            }
+        };
 
-        if all_blacklisted_users.is_err() {
-            // This case means it failed to deserialize the json or is using the old blacklist json format
-            // All previous data will be removed
-            error!("Failed to deserialize the blacklist users json file. Deleting saved json data");
-            save_blacklisted_users(Vec::new(), true);
-            self.process_state = ProcessState::FailedLoadBlacklistedUsers;
-            self.is_processing = false;
-            return;
-        }
-
-        // separate blacklist data by seen_by as the key and the peer refs as the value
-        let separated_data = separate_blacklist_by_seen(all_blacklisted_users.unwrap());
+        // separate the saved data by seen_by as the key and the peer refs as the value
+        let separated_data = separate_by_seen(kind, saved_users);
 
         if separated_data.is_empty() {
             self.is_processing = false;
             return;
         }
 
-        // Open a thread for each unique session found in the blacklist json and pass the relevant peer refs to that thread
+        // Ask each unique session found in the json to resolve its own peer refs
         // `peer_refs` cannot be empty as the key will only exist if there is at least one peer ref found
         for (seen_by, peer_refs) in separated_data {
             if !self.backend.has_session(&seen_by) {
-                let total_blacklist = peer_refs.len();
+                let total = peer_refs.len();
                 error!(
-                    "{seen_by} client does not exist! Ignoring {total_blacklist} blacklisted users"
+                    "{seen_by} client does not exist! Ignoring {total} {} users",
+                    kind.adjective()
                 );
-                self.blacklist.increase_failed_by(total_blacklist as i32);
+                let list = self.list_data(kind);
+                list.increase_failed_by(total as i32);
 
-                let success_blacklist = self.blacklist.row_len();
-                let failed_blacklist = self.blacklist.failed_blacklist_num();
-                self.process_state =
-                    ProcessState::LoadedBlacklistedUsers(success_blacklist, failed_blacklist);
+                let (loaded, failed) = (list.row_len(), list.failed_num());
+                self.process_state = ProcessState::ListLoaded(kind, loaded, failed);
                 continue;
             }
 
-            self.backend.send(Command::LoadBlacklist {
+            self.backend.send(Command::LoadList {
+                kind,
                 session: seen_by,
                 peers: peer_refs,
             });
         }
     }
 
-    pub fn blacklist_new_user(&mut self) {
+    pub fn add_list_user(&mut self, kind: ListKind) {
         let selected_session = self.get_selected_session();
 
         if selected_session.is_empty() {
@@ -436,12 +470,17 @@ then right click on the Users tab to blacklist",
             return;
         }
 
-        let target_username = self.blacklist.target_username.clone().replace('@', "");
+        let username = self
+            .list_data(kind)
+            .target_username
+            .clone()
+            .replace('@', "");
         self.is_processing = true;
 
-        self.backend.send(Command::AddBlacklistUser {
+        self.backend.send(Command::AddListUser {
+            kind,
             session: selected_session,
-            username: target_username,
+            username,
         });
     }
 }

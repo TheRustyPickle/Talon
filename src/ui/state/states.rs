@@ -68,18 +68,14 @@ pub enum ProcessState {
     InvalidAPIKeys,
     PasswordRequired,
     FloodWait,
-    UsersWhitelisted(usize),
-    UsersBlacklisted(usize),
-    LoadedWhitelistedUsers(usize, i32),
-    LoadedBlacklistedUsers(usize, i32),
-    FailedLoadWhitelistedUsers,
-    FailedLoadBlacklistedUsers,
-    WhitelistedUserRemoved(usize),
-    BlacklistedUserRemoved(usize),
-    AllWhitelistRemoved,
-    AllBlacklistRemoved,
-    AddedToWhitelist,
-    AddedToBlacklist,
+    /// Users from the users table were added to a list
+    UsersListed(ListKind, usize),
+    /// Saved users were loaded: (list, loaded, failed)
+    ListLoaded(ListKind, usize, i32),
+    ListLoadFailed(ListKind),
+    ListUsersRemoved(ListKind, usize),
+    ListCleared(ListKind),
+    ListUserAdded(ListKind),
     LatestMessageLoadingFailed,
     DataExported(String),
 }
@@ -118,14 +114,10 @@ impl ProcessState {
             ProcessState::DataCopied
             | ProcessState::TGCodeSent
             | ProcessState::LoggedIn(_)
-            | ProcessState::UsersWhitelisted(_)
-            | ProcessState::UsersBlacklisted(_)
-            | ProcessState::WhitelistedUserRemoved(_)
-            | ProcessState::BlacklistedUserRemoved(_)
-            | ProcessState::AllWhitelistRemoved
-            | ProcessState::AllBlacklistRemoved
-            | ProcessState::AddedToWhitelist
-            | ProcessState::AddedToBlacklist
+            | ProcessState::UsersListed(..)
+            | ProcessState::ListUsersRemoved(..)
+            | ProcessState::ListCleared(_)
+            | ProcessState::ListUserAdded(_)
             | ProcessState::DataExported(_) => Severity::Success,
             ProcessState::SessionsRefreshed(_) => Severity::Success,
             ProcessState::InitialClientConnectionSuccessful(_, failed) => {
@@ -135,8 +127,7 @@ impl ProcessState {
                     Severity::Success
                 }
             }
-            ProcessState::LoadedWhitelistedUsers(_, failed)
-            | ProcessState::LoadedBlacklistedUsers(_, failed) => {
+            ProcessState::ListLoaded(_, _, failed) => {
                 if *failed > 0 {
                     Severity::Warning
                 } else {
@@ -158,8 +149,7 @@ impl ProcessState {
             | ProcessState::UnknownError
             | ProcessState::InvalidPhoneOrAPI
             | ProcessState::InvalidAPIKeys
-            | ProcessState::FailedLoadWhitelistedUsers
-            | ProcessState::FailedLoadBlacklistedUsers
+            | ProcessState::ListLoadFailed(_)
             | ProcessState::LatestMessageLoadingFailed => Severity::Error,
         }
     }
@@ -249,34 +239,26 @@ impl fDisplay for ProcessState {
             ProcessState::FloodWait => {
                 write!(f, "Flood wait triggered. Will resume again soon")
             }
-            ProcessState::UsersWhitelisted(num) => write!(f, "Whitelisted {num} users"),
-            ProcessState::UsersBlacklisted(num) => write!(f, "Blacklisted {num} users"),
-            ProcessState::LoadedWhitelistedUsers(success, failed) => write!(
-                f,
-                "Loaded {success} whitelisted users. Failed to load {failed} users"
-            ),
-            ProcessState::LoadedBlacklistedUsers(success, failed) => write!(
-                f,
-                "Loaded {success} blacklisted users. Failed to load {failed} users"
-            ),
-            ProcessState::FailedLoadWhitelistedUsers => write!(
-                f,
-                "Failed to load whitelisted users due to invalid saved data. Old data has been removed"
-            ),
-            ProcessState::FailedLoadBlacklistedUsers => write!(
-                f,
-                "Failed to load blacklisted users due to invalid saved data. Old data has been removed"
-            ),
-            ProcessState::WhitelistedUserRemoved(num) => {
-                write!(f, "{num} whitelisted users removed")
+            ProcessState::UsersListed(kind, num) => {
+                write!(f, "{} {num} users", kind.past_tense())
             }
-            ProcessState::BlacklistedUserRemoved(num) => {
-                write!(f, "{num} blacklisted users removed")
+            ProcessState::ListLoaded(kind, success, failed) => write!(
+                f,
+                "Loaded {success} {} users. Failed to load {failed} users",
+                kind.adjective()
+            ),
+            ProcessState::ListLoadFailed(kind) => write!(
+                f,
+                "Failed to load {} users due to invalid saved data. Old data has been removed",
+                kind.adjective()
+            ),
+            ProcessState::ListUsersRemoved(kind, num) => {
+                write!(f, "{num} {} users removed", kind.adjective())
             }
-            ProcessState::AllWhitelistRemoved => write!(f, "All whitelisted users removed"),
-            ProcessState::AllBlacklistRemoved => write!(f, "All blacklisted users removed"),
-            ProcessState::AddedToWhitelist => write!(f, "User added to whitelist"),
-            ProcessState::AddedToBlacklist => write!(f, "User added to blacklist"),
+            ProcessState::ListCleared(kind) => {
+                write!(f, "All {} users removed", kind.adjective())
+            }
+            ProcessState::ListUserAdded(kind) => write!(f, "User added to {}", kind.name()),
             ProcessState::LatestMessageLoadingFailed => {
                 write!(f, "Failed to get the latest message")
             }
@@ -348,58 +330,52 @@ pub enum ChartTiming {
     Monthly,
 }
 
-/// Saved form of a `PeerRef`.
-#[derive(Deserialize, Serialize, PartialEq, Eq, Hash)]
-pub struct PackedWhitelistedUser {
-    pub peer_id: i64,
-    pub access_hash: i64,
-    pub seen_by: String,
+/// The two user lists that share the same behavior
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum ListKind {
+    Whitelist,
+    Blacklist,
 }
 
-impl PackedWhitelistedUser {
-    /// Returns `None` if the peer has no id that can be saved
-    pub fn new(peer: PeerRef, seen_by: String) -> Option<Self> {
-        Some(Self {
-            peer_id: peer.id.bot_api_dialog_id()?,
-            access_hash: peer.auth.hash(),
-            seen_by,
-        })
+impl ListKind {
+    pub fn name(self) -> &'static str {
+        match self {
+            ListKind::Whitelist => "whitelist",
+            ListKind::Blacklist => "blacklist",
+        }
     }
 
-    pub fn peer_ref(&self) -> Option<PeerRef> {
-        unpack_peer_ref(self.peer_id, self.access_hash)
+    pub fn adjective(self) -> &'static str {
+        match self {
+            ListKind::Whitelist => "whitelisted",
+            ListKind::Blacklist => "blacklisted",
+        }
     }
-}
 
-pub struct UnpackedWhitelistedUser {
-    pub name: String,
-    pub username: String,
-    pub id: i64,
-    pub peer_ref: PeerRef,
-    pub seen_by: String,
-}
+    pub fn past_tense(self) -> &'static str {
+        match self {
+            ListKind::Whitelist => "Whitelisted",
+            ListKind::Blacklist => "Blacklisted",
+        }
+    }
 
-impl UnpackedWhitelistedUser {
-    pub fn new(peer: &Peer, peer_ref: PeerRef, seen_by: String) -> Self {
-        let (name, username, id) = peer_details(peer);
-        Self {
-            name,
-            username,
-            id,
-            peer_ref,
-            seen_by,
+    pub fn file_name(self) -> &'static str {
+        match self {
+            ListKind::Whitelist => "whitelist_v2.json",
+            ListKind::Blacklist => "blacklist_v2.json",
         }
     }
 }
 
+/// Saved form of a `PeerRef`.
 #[derive(Deserialize, Serialize, PartialEq, Eq, Hash)]
-pub struct PackedBlacklistedUser {
+pub struct PackedUser {
     pub peer_id: i64,
     pub access_hash: i64,
     pub seen_by: String,
 }
 
-impl PackedBlacklistedUser {
+impl PackedUser {
     /// Returns `None` if the peer has no id that can be saved
     pub fn new(peer: PeerRef, seen_by: String) -> Option<Self> {
         Some(Self {
@@ -414,7 +390,7 @@ impl PackedBlacklistedUser {
     }
 }
 
-pub struct UnpackedBlacklistedUser {
+pub struct UnpackedUser {
     pub name: String,
     pub username: String,
     pub id: i64,
@@ -422,7 +398,7 @@ pub struct UnpackedBlacklistedUser {
     pub seen_by: String,
 }
 
-impl UnpackedBlacklistedUser {
+impl UnpackedUser {
     pub fn new(peer: &Peer, peer_ref: PeerRef, seen_by: String) -> Self {
         let (name, username, id) = peer_details(peer);
         Self {

@@ -1,2 +1,1 @@
-mod blacklist;
-mod whitelist;
+mod list;

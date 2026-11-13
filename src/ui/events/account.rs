@@ -3,7 +3,7 @@ use std::fmt::Write as _;
 
 use crate::telegram::AccountEvent;
 use crate::ui::MainWindow;
-use crate::ui::state::ProcessState;
+use crate::ui::state::{ListKind, ProcessState};
 
 impl MainWindow {
     pub(super) fn on_account_event(&mut self, event: AccountEvent) {
@@ -40,8 +40,8 @@ impl MainWindow {
             self.stop_process();
         } else {
             self.saved_lists_loaded = true;
-            self.load_whitelisted_users();
-            self.load_blacklisted_users();
+            self.load_saved_list(ListKind::Whitelist);
+            self.load_saved_list(ListKind::Blacklist);
         }
     }
 

@@ -212,24 +212,22 @@ impl Backend {
                         .await
                 });
             }
-            Command::LoadWhitelist { session, peers } => {
+            Command::LoadList {
+                kind,
+                session,
+                peers,
+            } => {
                 self.with_client(&session, |client| async move {
-                    client.load_whitelisted_users(peers).await
+                    client.load_list_users(kind, peers).await
                 });
             }
-            Command::AddWhitelistUser { session, username } => {
+            Command::AddListUser {
+                kind,
+                session,
+                username,
+            } => {
                 self.with_client(&session, |client| async move {
-                    client.new_whitelist(username).await
-                });
-            }
-            Command::LoadBlacklist { session, peers } => {
-                self.with_client(&session, |client| async move {
-                    client.load_blacklisted_users(peers).await
-                });
-            }
-            Command::AddBlacklistUser { session, username } => {
-                self.with_client(&session, |client| async move {
-                    client.new_blacklist(username).await
+                    client.add_list_user(kind, username).await
                 });
             }
         }

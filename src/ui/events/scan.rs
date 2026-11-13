@@ -102,7 +102,7 @@ impl MainWindow {
 
         let user_id = sender.map_or(0, |peer| peer_details(peer).2);
 
-        let blacklisted = self.blacklist.is_user_blacklisted(user_id);
+        let blacklisted = self.blacklist.contains(user_id);
 
         let (user_id, full_name, user_name) = self.t_table().add_user(
             sender,
@@ -127,7 +127,7 @@ impl MainWindow {
             );
         }
 
-        let whitelisted = self.whitelist.is_user_whitelisted(user_id);
+        let whitelisted = self.whitelist.contains(user_id);
 
         if user_id != 0 && whitelisted && !blacklisted {
             self.t_table().set_as_whitelisted(&[user_id]);

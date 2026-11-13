@@ -8,11 +8,7 @@ use std::io::{Read, Write};
 use std::path::PathBuf;
 
 use crate::ui::TGKeys;
-use crate::ui::state::{PackedBlacklistedUser, PackedWhitelistedUser};
-
-const WHITELIST_FILE: &str = "whitelist_v2.json";
-
-const BLACKLIST_FILE: &str = "blacklist_v2.json";
+use crate::ui::state::{ListKind, PackedUser};
 
 #[derive(Serialize, Deserialize)]
 pub struct IsLightTheme {
@@ -72,14 +68,11 @@ pub fn save_api_keys(api_keys: &TGKeys) {
     }
 }
 
-/// Reads the whitelisted user `PeerRef` values and returns them
-pub fn get_whitelisted() -> Result<Vec<PackedWhitelistedUser>, Box<dyn Error>> {
-    let mut whitelist_path = PathBuf::from(".");
-    whitelist_path.push(WHITELIST_FILE);
+/// Reads the saved user `PeerRef` values of a list and returns them
+pub fn get_saved_users(kind: ListKind) -> Result<Vec<PackedUser>, Box<dyn Error>> {
+    let path = PathBuf::from(".").join(kind.file_name());
 
-    let file = File::open(whitelist_path);
-
-    if let Ok(mut file) = file {
+    if let Ok(mut file) = File::open(path) {
         let mut contents = String::new();
         file.read_to_string(&mut contents)?;
         let users = serde_json::from_str(&contents)?;
@@ -89,34 +82,14 @@ pub fn get_whitelisted() -> Result<Vec<PackedWhitelistedUser>, Box<dyn Error>> {
     }
 }
 
-/// Reads the blacklisted user `PeerRef` values and returns them
-pub fn get_blacklisted() -> Result<Vec<PackedBlacklistedUser>, Box<dyn Error>> {
-    let mut blacklist_path = PathBuf::from(".");
-    blacklist_path.push(BLACKLIST_FILE);
-
-    let file = File::open(blacklist_path);
-
-    if let Ok(mut file) = file {
-        let mut contents = String::new();
-        file.read_to_string(&mut contents)?;
-        let users = serde_json::from_str(&contents)?;
-        Ok(users)
-    } else {
-        Ok(Vec::new())
-    }
-}
-
-/// Saves `PeerRef` values to a json file
-pub fn save_whitelisted_users(packed_chats: Vec<PackedWhitelistedUser>, overwrite: bool) {
-    // HashSet to avoid duplicate whitelisted users
+/// Saves `PeerRef` values of a list to its json file
+pub fn save_users(kind: ListKind, packed_chats: Vec<PackedUser>, overwrite: bool) {
+    // HashSet to avoid duplicate users
     let mut existing_data = HashSet::new();
 
-    let mut whitelist_path = PathBuf::from(".");
-    whitelist_path.push(WHITELIST_FILE);
+    let path = PathBuf::from(".").join(kind.file_name());
 
-    let file = File::open(&whitelist_path);
-
-    if !overwrite && let Ok(mut file) = file {
+    if !overwrite && let Ok(mut file) = File::open(&path) {
         let mut contents = String::new();
         file.read_to_string(&mut contents)
             .expect("Failed to read file");
@@ -128,66 +101,20 @@ pub fn save_whitelisted_users(packed_chats: Vec<PackedWhitelistedUser>, overwrit
 
     let data = serde_json::to_string(&existing_data).unwrap();
 
-    let mut file = File::create(whitelist_path).unwrap();
+    let mut file = File::create(path).unwrap();
     file.write_all(data.as_bytes()).unwrap();
 }
 
-/// Saves `PeerRef` values to a json file
-pub fn save_blacklisted_users(packed_chats: Vec<PackedBlacklistedUser>, overwrite: bool) {
-    // HashSet to avoid duplicate whitelisted users
-    let mut existing_data = HashSet::new();
-
-    let mut whitelist_path = PathBuf::from(".");
-    whitelist_path.push(BLACKLIST_FILE);
-
-    let file = File::open(&whitelist_path);
-
-    if !overwrite && let Ok(mut file) = file {
-        let mut contents = String::new();
-        file.read_to_string(&mut contents)
-            .expect("Failed to read file");
-
-        existing_data = serde_json::from_str(&contents).unwrap();
-    }
-
-    existing_data.extend(packed_chats);
-
-    let data = serde_json::to_string(&existing_data).unwrap();
-
-    let mut file = File::create(whitelist_path).unwrap();
-    file.write_all(data.as_bytes()).unwrap();
-}
-
-pub fn separate_whitelist_by_seen(
-    whitelist_data: Vec<PackedWhitelistedUser>,
-) -> HashMap<String, Vec<PeerRef>> {
+/// Groups the saved users by the session that saw them
+pub fn separate_by_seen(kind: ListKind, saved: Vec<PackedUser>) -> HashMap<String, Vec<PeerRef>> {
     let mut separated_data = HashMap::new();
 
-    for data in whitelist_data {
+    for data in saved {
         let Some(peer_ref) = data.peer_ref() else {
             error!(
-                "Invalid peer id {} found in whitelist, skipping",
-                data.peer_id
-            );
-            continue;
-        };
-        let entry = separated_data.entry(data.seen_by).or_insert(Vec::new());
-        entry.push(peer_ref);
-    }
-
-    separated_data
-}
-
-pub fn separate_blacklist_by_seen(
-    blacklist_data: Vec<PackedBlacklistedUser>,
-) -> HashMap<String, Vec<PeerRef>> {
-    let mut separated_data = HashMap::new();
-
-    for data in blacklist_data {
-        let Some(peer_ref) = data.peer_ref() else {
-            error!(
-                "Invalid peer id {} found in blacklist, skipping",
-                data.peer_id
+                "Invalid peer id {} found in {}, skipping",
+                data.peer_id,
+                kind.name()
             );
             continue;
         };

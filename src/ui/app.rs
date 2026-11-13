@@ -14,10 +14,10 @@ use strum::IntoEnumIterator;
 use crate::telegram::{Backend, Command};
 use crate::ui::TGKeys;
 use crate::ui::services::check_version;
-use crate::ui::state::{AppState, CounterCounts, ParsedChat, ProcessState, Severity, TabState};
-use crate::ui::tabs::{
-    BlacklistData, ChartsData, CounterData, SessionData, UserTableData, WhitelistData,
+use crate::ui::state::{
+    AppState, CounterCounts, ListKind, ParsedChat, ProcessState, Severity, TabState,
 };
+use crate::ui::tabs::{ChartsData, CounterData, SessionData, UserListData, UserTableData};
 use crate::ui::widgets::{StatusLine, TabStyle, Tabs};
 use crate::utils::{find_session_files, get_api_keys, last_theme, save_theme, theme_hover_text};
 
@@ -30,8 +30,8 @@ pub struct MainWindow {
     table: Vec<UserTableData>,
     chart: Vec<ChartsData>,
     pub session: SessionData,
-    pub whitelist: WhitelistData,
-    pub blacklist: BlacklistData,
+    pub whitelist: UserListData,
+    pub blacklist: UserListData,
     tab_state: TabState,
     pub process_state: ProcessState,
     existing_sessions_checked: bool,
@@ -96,8 +96,8 @@ impl MainWindow {
             // Default value with an existing one with default
             table: vec![UserTableData::default()],
             chart: vec![ChartsData::default()],
-            whitelist: WhitelistData::default(),
-            blacklist: BlacklistData::default(),
+            whitelist: UserListData::new(ListKind::Whitelist),
+            blacklist: UserListData::new(ListKind::Blacklist),
             session: SessionData::default(),
             tab_state: TabState::Counter,
             process_state: ProcessState::Idle,
@@ -224,8 +224,8 @@ impl App for MainWindow {
                         TabState::Counter => self.show_counter_ui(ui),
                         TabState::UserTable => self.show_user_table_ui(ui),
                         TabState::Charts => self.show_charts_ui(ui),
-                        TabState::Whitelist => self.show_whitelist_ui(ui),
-                        TabState::Blacklist => self.show_blacklist_ui(ui),
+                        TabState::Whitelist => self.show_list_ui(ui, ListKind::Whitelist),
+                        TabState::Blacklist => self.show_list_ui(ui, ListKind::Blacklist),
                         TabState::Session => self.show_session_ui(ui),
                     }
 

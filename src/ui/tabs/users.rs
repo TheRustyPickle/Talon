@@ -16,7 +16,7 @@ use strum::IntoEnumIterator;
 
 use crate::ui::MainWindow;
 use crate::ui::dates::DateNavigator;
-use crate::ui::state::{ColumnName, NavigationType, ProcessState, peer_details};
+use crate::ui::state::{ColumnName, ListKind, NavigationType, ProcessState, peer_details};
 use crate::ui::widgets::{Card, RowLabel, StatTile, TabStyle, Tabs};
 use crate::utils::{entry_insert_user, export_table_data, format_datetime, to_chart_name};
 
@@ -775,7 +775,7 @@ impl MainWindow {
 
         for row in selected_rows {
             all_ids.push(row.id);
-            self.whitelist.add_to_whitelist(
+            self.whitelist.add_user(
                 row.name.clone(),
                 row.username.clone(),
                 row.id,
@@ -787,8 +787,8 @@ impl MainWindow {
         self.table().set_as_whitelisted(&all_ids);
         self.chart().reset_saved_bars();
 
-        self.whitelist.save_whitelisted_users(false);
-        self.process_state = ProcessState::UsersWhitelisted(total_to_whitelist);
+        self.whitelist.save(false);
+        self.process_state = ProcessState::UsersListed(ListKind::Whitelist, total_to_whitelist);
     }
 
     /// Marks all the rows with at least 1 column selected as blacklisted
@@ -812,7 +812,7 @@ impl MainWindow {
 
             all_ids.push(row.id);
 
-            self.blacklist.add_to_blacklist(
+            self.blacklist.add_user(
                 row.name.clone(),
                 row.username.clone(),
                 row.id,
@@ -829,7 +829,7 @@ impl MainWindow {
             table.remove_blacklisted_rows(&all_ids);
         }
 
-        self.blacklist.save_blacklisted_users(false);
-        self.process_state = ProcessState::UsersBlacklisted(total_to_blacklist);
+        self.blacklist.save(false);
+        self.process_state = ProcessState::UsersListed(ListKind::Blacklist, total_to_blacklist);
     }
 }
